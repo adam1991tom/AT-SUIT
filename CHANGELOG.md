@@ -4,6 +4,10 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.4.1
+
+- **Tech laptops: name, room, main or backup.** No more username and password on AT-SUIT Node: the tech types their name, picks the room and says whether this is the **Main PC** (no pop-ups or notifications at all) or the **Backup PC** (silent pop-ups on top of everything). Chat and help calls carry their name. It resets each morning or on Sign out; Nodes in the console shows who is on each laptop and which it is.
+
 ## 0.4.0
 
 - **The venue's Ontime views run as they are**: HCC and both BDNG views were tested against AT-SUIT. Views now live at `/room/<room>/external/<view>/`, so a view's own `?room=` setting (BDNG uses it for the room name) is left alone. Ontime's `/data/settings` is answered too.

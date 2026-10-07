@@ -234,6 +234,39 @@ def test_tech_laptop_picks_room_each_day(admin, monkeypatch):
     assert admin.get("/api/nodes/me", headers=h).json()["room"]["id"] == rid
 
 
+def test_tech_starts_with_name_room_and_main_or_backup(admin, client):
+    """No password on a tech laptop: the tech types their name, picks the
+    room and says whether it's the main or backup PC. The laptop's own
+    enrolment signs them in, and chat comes from their name."""
+    code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
+    tok = admin.post("/api/nodes/enrol", json={"code": code, "name": "hd-main", "kind": "tech"}).json()["token"]
+    h = {"Authorization": f"Node {tok}"}
+    rid = admin.get("/api/nodes/me", headers=h).json()["rooms"][1]["id"]
+    client.cookies.clear()
+    assert client.post("/api/nodes/me/start", json={"operator": "Amy", "room_id": rid, "mode": "main"}).status_code == 401
+    assert client.post("/api/nodes/me/start", headers=h, json={"operator": "Amy", "room_id": rid, "mode": "loud"}).status_code == 422
+    assert client.post("/api/nodes/me/start", headers=h, json={"operator": "  ", "room_id": rid, "mode": "main"}).status_code == 422
+    r = client.post("/api/nodes/me/start", headers=h, json={"operator": "  Amy  Smith ", "room_id": rid, "mode": "main"})
+    assert r.status_code == 200 and "atsuit_node" in r.cookies
+    # From now on the cookie is enough, as for a signed-in person.
+    me = client.get("/api/bootstrap").json()["me"]
+    assert me["kind"] == "node" and me["name"] == "Amy Smith" and me["role"] == "tech"
+    ch = next(c for c in client.get("/api/comms/channels").json() if c["kind"] == "room" and c["room_id"] == rid)
+    assert client.post(f"/api/comms/channels/{ch['id']}/messages", json={"body": "Mic 2 flat"}).json()["sender_name"] == "Amy Smith"
+    n = next(n for n in admin.get("/api/fleet/nodes").json() if n["name"] == "HD-MAIN")
+    assert (n["operator"], n["mode"], n["room_id"]) == ("Amy Smith", "main", rid)
+    assert client.put("/api/nodes/me/mode", json={"mode": "backup"}).status_code == 200
+    assert client.get("/api/nodes/me").json()["node"]["mode"] == "backup"
+    # End of the day: the name and room go, the next tech starts again.
+    client.post("/api/nodes/me/finish")
+    assert client.get("/api/bootstrap").status_code == 401
+    me = admin.get("/api/nodes/me", headers=h).json()
+    assert me["room"] is None and me["node"]["operator"] == "" and me["node"]["mode"] == "backup"
+    # A kiosk can't start a day.
+    k = admin.post("/api/nodes/enrol", json={"code": code, "name": "foyer", "kind": "kiosk"}).json()["token"]
+    assert client.post("/api/nodes/me/start", headers={"Authorization": f"Node {k}"}, json={"operator": "X", "room_id": rid, "mode": "main"}).status_code == 400
+
+
 def test_kiosk_keeps_its_room(admin, monkeypatch):
     from atsuit.modules import fleet
 

@@ -27,9 +27,9 @@ const Chat = (() => {
     function renderChans() {
       const items = channels.map((c) => `<${opts.compact ? "button type=button" : "a href=#"} data-id="${c.id}" class="${c.id === current?.id ? (opts.compact ? "on" : "active") : ""}">${esc(chanLabel(c))}${unread[c.id] ? ` <span class="unread">${unread[c.id]}</span>` : ""}</${opts.compact ? "button" : "a"}>`).join("");
       chansEl.innerHTML = (opts.compact ? "" : "<h3>Channels</h3>") + items +
-        `<${opts.compact ? "button type=button" : "a href=#"} data-dm="1" class="muted">+ Direct message</${opts.compact ? "button" : "a"}>`;
+        (me.kind === "node" ? "" : `<${opts.compact ? "button type=button" : "a href=#"} data-dm="1" class="muted">+ Direct message</${opts.compact ? "button" : "a"}>`);
       chansEl.querySelectorAll("[data-id]").forEach((a) => a.onclick = (e) => { e.preventDefault(); open(+a.dataset.id); });
-      chansEl.querySelector("[data-dm]").onclick = (e) => { e.preventDefault(); pickDm(); };
+      chansEl.querySelector("[data-dm]")?.addEventListener("click", (e) => { e.preventDefault(); pickDm(); });
       const total = Object.values(unread).reduce((a, b) => a + b, 0);
       opts.onUnread && opts.onUnread(total);
     }

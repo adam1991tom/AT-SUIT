@@ -15,13 +15,13 @@ from html import escape
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from .. import config, db, licence
 from ..hub import hub
-from ..security import Principal, new_token, require_admin, require_node, require_tech, token_hash
+from ..security import NODE_COOKIE, Principal, new_token, require_admin, require_node, require_tech, token_hash
 from .core import require_module, site_ok
 
 router = APIRouter(dependencies=[Depends(require_module("fleet"))])
@@ -406,6 +406,62 @@ async def node_pick_room(body: RoomPick, p: Principal = Depends(require_node)):
         c.execute("UPDATE nodes SET room_id=?, room_day=? WHERE id=?", (body.room_id, work_day(c, n["site_id"]), p.id))
     await hub.publish("fleet", "node.changed", {"id": p.id})
     return {"ok": True, "room_id": body.room_id}
+
+
+class StartIn(BaseModel):
+    operator: str = Field(min_length=1, max_length=60)
+    room_id: int
+    mode: str = Field(pattern="^(main|backup)$")
+
+
+class ModeIn(BaseModel):
+    mode: str = Field(pattern="^(main|backup)$")
+
+
+def _node_token(request: Request) -> str:
+    auth = request.headers.get("authorization", "")
+    return auth[5:].strip() if auth.lower().startswith("node ") else request.cookies.get(NODE_COOKIE, "")
+
+
+@router.post("/api/nodes/me/start")
+async def node_start(body: StartIn, request: Request, response: Response, p: Principal = Depends(require_node)):
+    """A tech starts the day on a tech laptop: their name, the room, and
+    whether this is the main PC (no notifications) or the backup (silent
+    pop-ups). The laptop's own enrolment signs them in; no password."""
+    operator = " ".join(body.operator.split())
+    if not operator:
+        raise HTTPException(422, "Enter your name")
+    with db.tx() as c:
+        n = c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone()
+        if n["kind"] != "tech":
+            raise HTTPException(400, "Only tech laptops start a day")
+        room = c.execute("SELECT * FROM rooms WHERE id=? AND enabled=1", (body.room_id,)).fetchone()
+        if not room or (n["site_id"] and room["site_id"] != n["site_id"]):
+            raise HTTPException(404, "Room not found")
+        c.execute("UPDATE nodes SET operator=?, mode=?, room_id=?, room_day=? WHERE id=?",
+                  (operator, body.mode, body.room_id, work_day(c, n["site_id"]), p.id))
+        db.audit(c, operator, "node.start", f"{n['name']}: {room['name']}, {body.mode}")
+    response.set_cookie(NODE_COOKIE, _node_token(request), httponly=True, samesite="lax", max_age=400 * 86400)
+    await hub.publish("fleet", "node.changed", {"id": p.id})
+    return {"ok": True}
+
+
+@router.put("/api/nodes/me/mode")
+async def node_mode(body: ModeIn, p: Principal = Depends(require_node)):
+    with db.tx() as c:
+        c.execute("UPDATE nodes SET mode=? WHERE id=?", (body.mode, p.id))
+    await hub.publish("fleet", "node.changed", {"id": p.id})
+    return {"ok": True}
+
+
+@router.post("/api/nodes/me/finish")
+async def node_finish(response: Response, p: Principal = Depends(require_node)):
+    """End of the day: the next tech enters their own name and room."""
+    with db.tx() as c:
+        c.execute("UPDATE nodes SET operator='', room_day='' WHERE id=? AND kind='tech'", (p.id,))
+    response.delete_cookie(NODE_COOKIE)
+    await hub.publish("fleet", "node.changed", {"id": p.id})
+    return {"ok": True}
 
 
 @router.get("/api/nodes/commands")

@@ -14,6 +14,8 @@ from fastapi import HTTPException, Request, WebSocket
 from . import config, db
 
 SESSION_COOKIE = "atsuit_session"
+# A tech laptop signed in by its own node token (the tech only types their name).
+NODE_COOKIE = "atsuit_node"
 ROLES = ("admin", "tech", "viewer")
 _ROLE_RANK = {"viewer": 0, "tech": 1, "admin": 2}
 
@@ -117,10 +119,12 @@ def _from_session(c, token: str) -> Principal | None:
 
 
 def _from_node(c, token: str) -> Principal | None:
-    r = c.execute("SELECT id,name,site_id,room_id FROM nodes WHERE token_hash=?", (token_hash(token),)).fetchone()
+    r = c.execute("SELECT id,name,kind,operator,site_id,room_id FROM nodes WHERE token_hash=?", (token_hash(token),)).fetchone()
     if not r:
         return None
-    return Principal("node", r["id"], r["name"], "tech", r["site_id"], r["room_id"])
+    # On a tech laptop the person at it is who chat and help requests come from.
+    name = r["operator"] if r["kind"] == "tech" and r["operator"] else r["name"]
+    return Principal("node", r["id"], name, "tech", r["site_id"], r["room_id"])
 
 
 def _from_apikey(c, key: str) -> Principal | None:
@@ -137,7 +141,11 @@ def resolve(headers, cookies, query) -> Principal | None:
             return _from_apikey(c, headers["x-api-key"])
         token = auth[7:].strip() if auth.lower().startswith("bearer ") else cookies.get(SESSION_COOKIE)
         if token:
-            return _from_session(c, token)
+            p = _from_session(c, token)
+            if p:
+                return p
+        if cookies.get(NODE_COOKIE):
+            return _from_node(c, cookies[NODE_COOKIE])
         if query.get("node_token"):
             return _from_node(c, query["node_token"])
         if query.get("token"):

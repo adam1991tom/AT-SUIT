@@ -50,6 +50,19 @@ async function benSays(text, roomName = "HD", priority = "normal") {
   expect(r.ok).toBeTruthy();
 }
 
+async function benHelp(text, roomName = "HD") {
+  const login = await fetch(`${env.base}/api/auth/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "ben", password: "ben-password-1" }),
+  });
+  const cookie = login.headers.get("set-cookie").split(";")[0];
+  const boot = await (await fetch(`${env.base}/api/bootstrap`, { headers: { Cookie: cookie } })).json();
+  const room = boot.rooms.find((r) => r.name === roomName);
+  const r = await fetch(`${env.base}/api/comms/help`, {
+    method: "POST", headers: { "Content-Type": "application/json", Cookie: cookie }, body: JSON.stringify({ room_id: room.id, category: "Video", description: text, priority: "urgent" }),
+  });
+  expect(r.ok).toBeTruthy();
+}
+
 test.afterEach(async () => {
   if (app) { await app.close().catch(() => {}); app = null; }
 });
@@ -62,7 +75,7 @@ test("a new laptop enrols once from the IT preset, then restarts into the worksp
   const conf = JSON.parse(fs.readFileSync(path.join(userData, "node.json"), "utf8"));
   expect(conf.server).toBe(env.base);
   expect(conf.token_enc || conf.token_plain).toBeTruthy();
-  expect(conf.popups).toBe(false); // pop-ups are off until a tech turns them on
+  expect(conf.popups).toBe(false); // nothing pops up until a tech says this is the backup PC
   // Kill the relaunched copy so the next test owns the single-instance lock.
   await new Promise((r) => setTimeout(r, 1500));
   try { execFileSync(process.platform === "win32" ? "taskkill" : "pkill", process.platform === "win32" ? ["/F", "/IM", "electron.exe"] : ["-f", `electron.*${path.join(__dirname, "..")}`]); } catch (_) {}
@@ -70,33 +83,47 @@ test("a new laptop enrols once from the IT preset, then restarts into the worksp
   fs.rmSync(preset);
 });
 
-test("after enrolment it opens straight into sign-in, then asks for today's room", async () => {
+async function start(page, { name, room, mode }) {
+  await expect(page.locator("#start")).toBeVisible();
+  if (name !== undefined) await page.fill("#startForm [name=operator]", name);
+  if (room) await page.click(`#startRooms [data-room] >> text=${room}`);
+  if (mode) await page.check(`#startForm [name=mode][value=${mode}]`);
+  await page.click("#startForm button.primary");
+  await expect(page.locator("#ws")).toBeVisible();
+}
+
+const conf = () => JSON.parse(fs.readFileSync(path.join(userData, "node.json"), "utf8"));
+
+test("after enrolment the tech gives their name, the room and Main or Backup; no password", async () => {
   app = await launch();
   const page = await mainPage(app);
   expect(app.windows().some((w) => w.url().includes("setup.html"))).toBeFalsy();
-  await page.fill("#loginForm [name=username]", "amy");
-  await page.fill("#loginForm [name=password]", "amy-password-1");
-  await page.click("#loginForm button");
-  await expect(page.locator("#pickRoom")).toBeVisible();
-  await expect(page.locator("#pickRoom h1")).toHaveText("Which room are you in today?");
-  if (process.env.ATSUIT_SHOTS) await page.screenshot({ path: path.join(process.env.ATSUIT_SHOTS, "pick-room.png") });
-  await page.click("#pickList [data-room] >> text=HD");
-  await expect(page.locator("#ws")).toBeVisible();
+  await expect(page.locator("#start h1")).toHaveText("Start on TESTLAP1");
+  await expect(page.locator("#login")).toBeHidden();
+  if (process.env.ATSUIT_SHOTS) await page.screenshot({ path: path.join(process.env.ATSUIT_SHOTS, "start.png") });
+  await start(page, { name: "Amy", room: "HD", mode: "main" });
   await expect(page.locator("#room option:checked")).toHaveText("HD");
+  await expect(page.locator("#who")).toHaveText("Amy on TESTLAP1");
+  await expect(page.locator("#modePill")).toHaveText("Main PC");
+  expect(conf().popups).toBe(false);
 });
 
-test("the main laptop: pop-ups are off, so a message shows nothing on top", async () => {
+test("the main PC: no pop-ups and no notifications of any kind", async () => {
   app = await launch();
   const page = await mainPage(app);
-  await expect(page.locator("#ws")).toBeVisible();
+  await expect(page.locator("#ws")).toBeVisible(); // still signed in after a restart
   await expect(page.locator("#conn")).toHaveText("live");
   await benSays("Mic 3 is on stage");
+  await benSays("Fire alarm test at 3pm", "RH", "urgent");
+  await benHelp("Projector off in HD");
   await expect(page.locator("#chat")).toContainText("Mic 3 is on stage");
+  await expect(page.locator("#helpList")).toContainText("Projector off in HD");
   await page.waitForTimeout(1500);
   expect(await popupWindows(app)).toEqual([]);
+  await expect(page.locator(".toast")).toHaveCount(0); // not even inside the window
 });
 
-test("the backup laptop: pop-ups are silent, on top and never take focus", async () => {
+test("the backup PC: pop-ups are silent, on top and never take focus", async () => {
   app = await launch();
   const page = await mainPage(app);
   await expect(page.locator("#conn")).toHaveText("live");
@@ -104,10 +131,12 @@ test("the backup laptop: pop-ups are silent, on top and never take focus", async
     globalThis.toasts = 0;
     Notification.prototype.show = function () { globalThis.toasts++; };
   });
-  // The tech ticks "Show pop-ups on this laptop" in This laptop.
+  // The tech makes this the backup PC in This laptop.
   await page.click("#laptopBtn");
-  await page.check("#popups");
-  expect(JSON.parse(fs.readFileSync(path.join(userData, "node.json"), "utf8")).popups).toBe(true);
+  await page.check("[name=lapmode][value=backup]");
+  await expect(page.locator("#modePill")).toHaveText("Backup PC");
+  await expect(page.locator("#conn")).toHaveText("live");
+  expect(conf().popups).toBe(true);
   // Something else (the slides) has the focus.
   await app.evaluate(({ BrowserWindow }) => {
     const w = new BrowserWindow({ width: 900, height: 600, title: "Slides" });
@@ -162,17 +191,24 @@ test("the backup laptop: pop-ups are silent, on top and never take focus", async
   await expect.poll(async () => (await popupWindows(app)).length, { timeout: 5000 }).toBe(0);
 });
 
-test("the next day the tech picks the room again, without enrolling again", async () => {
+test("the next day the tech starts again, without enrolling again", async () => {
   app = await launch();
   const page = await mainPage(app);
   await expect(page.locator("#ws")).toBeVisible();
-  // Pretend the room was picked yesterday.
+  // Pretend the day was started yesterday.
   const db = path.join(env.data, "atsuit.db");
   const python = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
   execFileSync(python, ["-c", "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute(\"UPDATE nodes SET room_day='2000-01-01'\"); c.commit()", db]);
-  // The next heartbeat notices and shows the room picker.
-  await expect(page.locator("#pickRoom")).toBeVisible({ timeout: 20000 });
+  // The next heartbeat notices and shows the start screen, remembering the name and Main/Backup.
+  await expect(page.locator("#start")).toBeVisible({ timeout: 20000 });
   expect(app.windows().some((w) => w.url().includes("setup.html"))).toBeFalsy();
-  await page.click("#pickList [data-room] >> text=CC");
+  await expect(page.locator("#startForm [name=operator]")).toHaveValue("Amy");
+  await expect(page.locator("#startForm [name=mode][value=backup]")).toBeChecked();
+  await start(page, { name: "Ben", room: "CC" });
   await expect(page.locator("#room option:checked")).toHaveText("CC");
+  await expect(page.locator("#who")).toHaveText("Ben on TESTLAP1");
+  // Sign out at the end of the day: back to the start screen, and nothing pops up.
+  await page.click("#out");
+  await expect(page.locator("#start")).toBeVisible();
+  expect(conf().popups).toBe(false);
 });

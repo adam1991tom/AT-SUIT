@@ -171,7 +171,7 @@ Message bodies and overlay tokens are encrypted at rest with a Fernet key in
 |---|---|---|
 | Node enrolment | `POST /api/nodes/enrol {code, name, kind}` → node token | site enrolment code (Admin → Fleet) |
 | Heartbeat | `POST /api/nodes/heartbeat` (reply includes today's `room_id`) | node token |
-| Room of the day | `GET /api/nodes/me` (room only if picked today), `PUT /api/nodes/me/room {room_id}` | node token |
+| Start the day | `GET /api/nodes/me` (room only if picked today), `POST /api/nodes/me/start {operator, room_id, mode: main\|backup}` (sets the `atsuit_node` cookie so the workspace runs as the laptop, named after the tech), `PUT /api/nodes/me/mode`, `POST /api/nodes/me/finish`; `PUT /api/nodes/me/room {room_id}` for agents | node token |
 | Windows app | `GET /api/nodes/app`, `/api/nodes/app/<file>` (installer and `latest.yml` for self-update); `POST /api/fleet/app` to publish | public download; admin to publish |
 | Commands | `GET /api/nodes/commands` / `POST /api/nodes/commands/<id>/ack` | node token |
 | Audio | `WS /ws/audio/<room_id>?token=` binary frames of 16 kHz mono int16 | node token or tech session |
@@ -184,10 +184,11 @@ Message bodies and overlay tokens are encrypted at rest with a Fernet key in
 
 **Tech laptops run AT-SUIT Node** (`node-app/`, Electron), which shows the
 server's `/node` workspace in its own window. It enrols once and keeps its
-token encrypted with Windows DPAPI. A tech laptop has no fixed room: the tech
-picks one after signing in and it lapses at 05:00 site time
-(`node_room_reset_hour`). Pop-ups are the app's own always-on-top window shown
-without activation, off unless switched on for that laptop, and the app mutes
+token encrypted with Windows DPAPI. A tech laptop has no fixed room and no
+password: the tech types their name, picks the room and says main or backup
+PC, and it lapses at 05:00 site time (`node_room_reset_hour`). Pop-ups are the
+app's own always-on-top window shown without activation, only on a backup PC
+(a main PC shows nothing, in or out of the window), and the app mutes
 all its audio and refuses web notifications and native dialogs, so it can
 never make a sound on a laptop that is on the projector.
 

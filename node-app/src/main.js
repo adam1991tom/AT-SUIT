@@ -297,16 +297,8 @@ function makeTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "Open workspace", click: () => openMain() },
     { type: "separator" },
-    {
-      label: "Silent pop-ups (backup laptop only)",
-      type: "checkbox",
-      checked: !!conf.popups,
-      click: (item) => {
-        conf.popups = item.checked;
-        config.save(conf);
-        if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send("app:settings-changed");
-      },
-    },
+    // Set in the workspace when the tech starts: Main PC never pops up, Backup PC pops up silently.
+    { label: conf.popups ? "Backup PC: silent pop-ups" : "Main PC: no pop-ups", enabled: false },
     {
       label: "Start with Windows",
       type: "checkbox",

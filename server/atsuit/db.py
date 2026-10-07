@@ -123,6 +123,11 @@ MIGRATIONS: list[str] = [
         filename TEXT NOT NULL, method TEXT NOT NULL, rows_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'review',
         created_by TEXT NOT NULL, created_at TEXT NOT NULL, committed_at TEXT);
     """,
+    # 5: a tech laptop's person and whether it's the main or backup PC
+    """
+    ALTER TABLE nodes ADD COLUMN operator TEXT NOT NULL DEFAULT '';
+    ALTER TABLE nodes ADD COLUMN mode TEXT NOT NULL DEFAULT '';
+    """,
 ]
 
 

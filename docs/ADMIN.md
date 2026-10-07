@@ -17,16 +17,18 @@ Everything here is done in the browser. Nothing needs a file edited.
 5. **Admin → Node setup**: the enrolment code and the Windows app. Install
    **AT-SUIT Node** on each tech laptop and enter the server address
    (`http://SERVER:PORT`), the code and the laptop's name. That is a one-off;
-   the laptop stays enrolled. Each day a tech signs in and picks the room
-   they're in; the choice resets every morning at 05:00 (site time). Kiosks
-   can still use `http://SERVER/node` in a browser; give them a room in
-   Nodes and they keep it.
-   **Pop-ups**: on the backup laptop only, open **This laptop** and tick
-   *Show pop-ups on this laptop*. Chat for the tech's room, crew-wide
-   messages, direct messages, urgent messages and help calls then appear
-   bottom-right, on top of everything including full-screen slides. They
-   never make a sound and never take the keyboard. Leave it off on the
-   laptop that is on the projector.
+   the laptop stays enrolled. Each day the tech types their name, picks the
+   room and chooses **Main PC** or **Backup PC**; no password, the laptop's
+   enrolment signs them in, and chat and help calls show their name. It
+   resets every morning at 05:00 (site time), or when they press Sign out.
+   Nodes in the console shows who is on each laptop and whether it's main
+   or backup. Kiosks can still use `http://SERVER/node` in a browser; give
+   them a room in Nodes and they keep it.
+   **Main PC** (the one on the projector): no pop-ups and no notifications
+   of any kind. **Backup PC**: chat for the tech's room, crew-wide messages,
+   urgent messages and help calls appear bottom-right, on top of everything
+   including full-screen slides. They never make a sound and never take the
+   keyboard. Switch between the two in **This laptop**.
 6. **Captions**: turn captions on per room, add vocabulary (speaker names,
    brand names, jargon), choose whether to save transcripts. A tech presses
    "Send my mic" in their workspace, or runs the node agent with `--mic`.

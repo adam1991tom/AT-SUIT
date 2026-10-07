@@ -240,7 +240,7 @@
       const isAdmin = boot.me.role === "admin";
       el.innerHTML = `<div class="row" style="justify-content:space-between"><h1>Nodes</h1>${isAdmin ? '<a class="btn" href="#/admin/fleet">Add nodes</a>' : ""}</div>
         <div class="panel"><table><tr><th></th><th>Name</th><th>Kind</th><th>Room</th><th>Address</th><th>Version</th><th>Showing</th><th>Last seen</th><th></th></tr>
-        ${nodes.map((n) => `<tr data-n="${n.id}"><td><span class="dot ${n.online ? "on" : "off"}"></span></td><td><b>${esc(n.name)}</b>${n.legacy ? ' <span class="pill">old agent</span>' : ""}</td>
+        ${nodes.map((n) => `<tr data-n="${n.id}"><td><span class="dot ${n.online ? "on" : "off"}"></span></td><td><b>${esc(n.name)}</b>${n.legacy ? ' <span class="pill">old agent</span>' : ""}${n.kind === "tech" && n.operator && n.room_id ? `<div class="small muted">${esc(n.operator)}${n.mode ? ` · <span class="pill ${n.mode === "backup" ? "warn" : ""}">${n.mode === "backup" ? "Backup" : "Main"}</span>` : ""}</div>` : ""}</td>
           <td>${isAdmin ? `<select data-kind style="width:auto">${["tech", "kiosk", "caption"].map((k) => `<option ${k === n.kind ? "selected" : ""}>${k}</option>`).join("")}</select>` : esc(n.kind)}</td>
           <td>${isAdmin ? `<select data-room style="width:auto">${roomOptions(n.room_id)}</select>` : esc(n.room_name || "")}</td>
           <td class="small">${esc(n.ip)}</td><td class="small">${esc(n.version)}</td><td class="small" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.current_url)}</td>

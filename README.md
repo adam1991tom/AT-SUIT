@@ -10,9 +10,10 @@ kiosks, and AT-LiveCaption's speech engine.
   timers and fleet control all run in one Docker container.
 - **Every laptop is a node.** Tech laptops run **AT-SUIT Node**, a Windows app
   enrolled once, with their room's chat, the room timer, live captions (their
-  mic is the audio source), help requests and the room's links. The tech picks
-  the room each day. The backup laptop can show silent pop-ups on top of
-  everything.
+  mic is the audio source), help requests and the room's links. Each day the
+  tech types their name, picks the room and says whether it's the main PC
+  (nothing ever pops up) or the backup (silent pop-ups on top of everything).
+  No password: the laptop's own enrolment signs them in.
 - **Configured on site.** A setup wizard on first run, then everything (rooms,
   people, links, nodes, branding, modules, licence) is set in the Admin pages.
   No config files to edit.
