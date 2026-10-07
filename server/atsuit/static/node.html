@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Tech workspace</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
 <link rel="stylesheet" href="/static/app.css">
 <style>
   .top { display: flex; gap: .8rem; align-items: center; padding: .7rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -64,6 +65,7 @@
 <body>
 <div id="enrol" class="center hidden">
   <form class="panel card" id="enrolForm">
+    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
     <h1>Set up this laptop</h1>
     <p class="muted">An admin can find the enrolment code in Admin → Node setup.</p>
     <label>Laptop name</label><input name="name" required placeholder="e.g. ATLAP3">
@@ -86,6 +88,7 @@
 
 <div id="start" class="center hidden">
   <form class="panel card" id="startForm" autocomplete="off">
+    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
     <h1>Start on <span id="startNode"></span></h1>
     <p class="muted small" style="margin-top:0">This resets each morning, so the next tech starts fresh.</p>
     <label>Your name</label><input name="operator" required maxlength="60" placeholder="e.g. Adam">
@@ -102,7 +105,7 @@
 
 <div id="ws" class="hidden">
   <div class="top">
-    <b data-product>AT-SUIT</b>
+    <img class="brand-mark" src="/static/brand/icon-96.png" alt=""><b data-product>AT-SUIT</b>
     <span class="muted" id="who"></span><span class="pill hidden" id="modePill"></span>
     <select id="room" style="width:auto"></select>
     <nav class="winbar" id="winBar"></nav>

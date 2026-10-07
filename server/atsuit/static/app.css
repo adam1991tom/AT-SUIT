@@ -1,6 +1,6 @@
 :root {
   --bg: #0e1116; --panel: #161b24; --panel2: #1d2430; --line: #2a3342; --text: #e8ebf2; --muted: #93a0b4;
-  --accent: #4f7cff; --good: #22c55e; --warn: #f59e0b; --bad: #ef4444; --radius: 10px;
+  --accent: #FF7A1A; --accent-ink: #0B1020; --good: #22c55e; --warn: #f59e0b; --bad: #ef4444; --radius: 10px;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -10,7 +10,7 @@ h1, h2, h3 { margin: 0 0 .6rem; font-weight: 650; }
 h1 { font-size: 1.35rem; } h2 { font-size: 1.1rem; } h3 { font-size: .95rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 button, .btn { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .85rem; font: inherit; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: .35rem; }
 button:hover, .btn:hover { border-color: var(--accent); }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 button.danger { border-color: var(--bad); color: #fecaca; }
 button.small { padding: .25rem .55rem; font-size: .85rem; }
 button:disabled { opacity: .5; cursor: default; }
@@ -40,7 +40,7 @@ th { color: var(--muted); font-weight: 500; font-size: .85rem; }
 .shell { display: grid; grid-template-columns: 220px 1fr; height: 100%; }
 .side { background: var(--panel); border-right: 1px solid var(--line); padding: 1rem .6rem; display: flex; flex-direction: column; gap: .2rem; overflow-y: auto; }
 .side .brand { font-weight: 700; padding: .2rem .6rem 1rem; display: flex; gap: .5rem; align-items: center; }
-.side .brand img { height: 26px; }
+.side .brand img { height: 30px; }
 .side a { color: var(--text); text-decoration: none; padding: .5rem .7rem; border-radius: 8px; display: flex; justify-content: space-between; }
 .side a.active, .side a:hover { background: var(--panel2); }
 .side .spacer { flex: 1; }
@@ -65,7 +65,7 @@ th { color: var(--muted); font-weight: 500; font-size: .85rem; }
 .msg.urgent { border-left: 4px solid var(--bad); } .msg.important { border-left: 4px solid var(--warn); }
 .msg .att { display: inline-block; margin-top: .3rem; font-size: .85rem; }
 .compose { display: flex; gap: .5rem; margin-top: .6rem; }
-.unread { background: var(--accent); color: #fff; border-radius: 99px; font-size: .75rem; padding: 0 .45rem; }
+.unread { background: var(--accent); color: var(--accent-ink); border-radius: 99px; font-size: .75rem; padding: 0 .45rem; }
 @media (max-width: 760px) { .chat { grid-template-columns: 1fr; height: auto; } }
 
 /* timer */
@@ -81,17 +81,12 @@ th { color: var(--muted); font-weight: 500; font-size: .85rem; }
 .steps span.on { background: var(--accent); }
 
 /* node workspace */
-.ws-grid { display: grid; gap: 1rem; grid-template-columns: minmax(300px, 1.1fr) minmax(300px, 1fr); grid-template-areas: "timer chat" "captions chat" "overlays chat" "sessions sessions" "links help"; }
-.ws-grid .sessions { grid-area: sessions; }
-.ws-grid .timer { grid-area: timer; } .ws-grid .chatbox { grid-area: chat; display: flex; flex-direction: column; min-height: 520px; }
-.ws-grid .captions { grid-area: captions; } .ws-grid .overlays { grid-area: overlays; } .ov + .ov { border-top: 1px solid var(--line); margin-top: .6rem; padding-top: .6rem; } .ws-grid .links { grid-area: links; } .ws-grid .helpbox { grid-area: help; }
-@media (max-width: 900px) { .ws-grid { grid-template-columns: 1fr; grid-template-areas: "timer" "chat" "captions" "overlays" "sessions" "links" "help"; } }
 .cap-live { min-height: 5.5rem; font-size: 1.15rem; }
 .cap-live .partial { color: var(--muted); }
 .meter { height: 6px; background: var(--line); border-radius: 6px; overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--good); width: 0; transition: width .2s; }
 .tabs { display: flex; gap: .3rem; flex-wrap: wrap; margin-bottom: .5rem; }
-.tabs button.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+.tabs button.on { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 
 /* cue list (tech workspace) */
 .cues { margin-top: .5rem; max-height: 340px; overflow: auto; }
@@ -119,4 +114,8 @@ th { color: var(--muted); font-weight: 500; font-size: .85rem; }
 .tabs.sub button { font-size: .9rem; }
 #part h3 { margin-top: 1rem; }
 #part pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .6rem; }
-a.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+a.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+/* AT-SUIT logo */
+.brand-stacked { display: block; width: 150px; max-width: 60%; margin: 0 auto 1rem; }
+.brand-mark { height: 28px; width: auto; }

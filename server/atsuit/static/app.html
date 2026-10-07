@@ -3,11 +3,13 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AT-SUIT</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
 <div id="login" class="center hidden">
   <form class="panel card" id="loginForm">
+    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
     <h1>Sign in to <span data-product>AT-SUIT</span></h1>
     <label>Username</label><input name="username" autocomplete="username" required>
     <label>Password</label><input name="password" type="password" autocomplete="current-password" required>
@@ -17,7 +19,7 @@
 </div>
 <div id="shell" class="shell hidden">
   <nav class="side" id="nav">
-    <div class="brand"><img id="logo" class="hidden" alt=""><span data-product>AT-SUIT</span></div>
+    <div class="brand"><img id="logo" src="/static/brand/icon-96.png" alt=""><span data-product>AT-SUIT</span></div>
     <a href="#/dashboard" data-mod="dashboard">Dashboard</a>
     <a href="#/chat" data-mod="comms">Chat <span class="unread hidden" id="unreadAll"></span></a>
     <a href="#/help" data-mod="comms">Help requests <span class="unread hidden" id="helpCount"></span></a>

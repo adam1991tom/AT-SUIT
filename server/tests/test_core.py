@@ -140,3 +140,18 @@ def test_admin_info_and_diagnostics_have_no_secrets(admin):
         assert s not in text
     for word in ("password_hash", "token_hash", "key_hash", "licence_key\"", "\"raw\""):
         assert word not in text, word
+
+
+def test_built_in_logo_and_brand_colour(admin):
+    assert admin.get("/favicon.ico").status_code == 200
+    assert admin.get("/static/brand/icon-96.png").status_code == 200
+    assert admin.get("/api/public/branding").json()["accent"] == "#FF7A1A"
+    # a server set up before the logo stored the old blue default: it now follows the brand
+    from atsuit import db
+    with db.connect() as c:
+        db.set_setting(c, "branding", {**db.get_setting(c, "branding", {}), "accent": "#4f7cff"})
+    assert admin.get("/api/public/branding").json()["accent"] == "#FF7A1A"
+    for page in ("/", "/node", "/setup"):
+        r = admin.get(page)
+        if r.status_code == 200 and "text/html" in r.headers.get("content-type", ""):
+            assert "/static/brand/favicon.ico" in r.text

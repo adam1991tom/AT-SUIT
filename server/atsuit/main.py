@@ -56,6 +56,15 @@ def create_app() -> FastAPI:
     app.include_router(timers.public)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
+    # Browsers and kiosks ask for these at the site root.
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon():
+        return FileResponse(STATIC / "brand" / "favicon.ico", headers={"Cache-Control": "public, max-age=86400"})
+
+    @app.get("/apple-touch-icon.png", include_in_schema=False)
+    def touch_icon():
+        return FileResponse(STATIC / "brand" / "apple-touch-icon.png", headers={"Cache-Control": "public, max-age=86400"})
+
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
         p = ws_principal(ws)

@@ -433,6 +433,8 @@ def main():
     if os.path.exists(man):
         pdf_from_html(man, os.path.join(HERE, "manual", "AT-SUIT-brand-guide.pdf"))
 
+    app_assets()
+
     # ---- copy fonts licence + share
     if os.path.isdir(os.path.dirname(SHARE)) and "--no-share" not in sys.argv:
         if os.path.exists(SHARE):
@@ -573,5 +575,32 @@ def social_svg(w, h, layers):
             '{body}</svg>\n').format(w=w, h=h, lines="".join(lines), body="".join(body))
 
 
+def app_assets():
+    """Copy the logo into the app: the web UI's icons and the Windows app's icon."""
+    from PIL import Image
+    repo = os.path.dirname(HERE)
+    web = os.path.join(repo, "server", "atsuit", "static", "brand")
+    os.makedirs(web, exist_ok=True)
+    for f in ("favicon.ico", "favicon.svg", "apple-touch-icon.png", "icon-192.png", "icon-512.png"):
+        shutil.copy(os.path.join(HERE, "app", f), os.path.join(web, f))
+    # small copies for the sidebar, top bars and screens (the full PNGs are 2000 px wide)
+    def shrink(src, dst, h):
+        im = Image.open(os.path.join(HERE, src)).convert("RGBA")
+        im = im.crop(im.getbbox())
+        im.resize((round(im.width * h / im.height), h), Image.LANCZOS).save(os.path.join(web, dst), optimize=True)
+    shrink("logo/atsuit-icon.png", "icon-96.png", 96)
+    shrink("logo/atsuit-wordmark.png", "wordmark-96.png", 96)
+    shrink("logo/atsuit-stacked.png", "stacked-320.png", 320)
+    node = os.path.join(repo, "node-app", "build")
+    if os.path.isdir(node):
+        shutil.copy(os.path.join(HERE, "app", "icon-1024.png"), os.path.join(node, "icon.png"))
+        shutil.copy(os.path.join(HERE, "app", "icon.ico"), os.path.join(node, "icon.ico"))
+        shutil.copy(os.path.join(HERE, "app", "tray-16.png"), os.path.join(node, "tray-16.png"))
+        shutil.copy(os.path.join(HERE, "app", "tray-32.png"), os.path.join(node, "tray-32.png"))
+
+
 if __name__ == "__main__":
-    main()
+    if "--app-only" in sys.argv:
+        app_assets()
+    else:
+        main()

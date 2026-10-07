@@ -852,12 +852,12 @@ def _portal(c, pr, e) -> dict:
     room = c.execute("SELECT name FROM rooms WHERE id=?", (s["room_id"],)).fetchone() if s and s["room_id"] else None
     files = db.rows(c.execute("SELECT id, original_name, size, review_status, review_note, uploaded_at FROM pr_files "
                               "WHERE presenter_id=? ORDER BY id DESC", (pr["id"],)))
-    from .core import DEFAULT_BRANDING
+    from .core import get_branding
 
     cfg = prefs(c)
     return {"full_name": pr["full_name"], "checked_in_at": pr["checked_in_at"], "event": e["name"], "colour": e["colour"],
             "session": {"title": s["title"], "starts_at": s["starts_at"], "ends_at": s["ends_at"], "room": room["name"] if room else ""} if s else None,
-            "files": files, "upload_limit_mb": cfg["upload_limit_mb"], "note": cfg["portal_note"], "branding": {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {})}}
+            "files": files, "upload_limit_mb": cfg["upload_limit_mb"], "note": cfg["portal_note"], "branding": get_branding(c)}
 
 
 @router.get("/api/present/{token}")

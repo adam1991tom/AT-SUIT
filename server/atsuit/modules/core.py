@@ -42,10 +42,20 @@ router = APIRouter()
 DEFAULT_BRANDING = {
     "product_name": "AT-SUIT",
     "organisation": "",
-    "accent": "#4f7cff",
+    "accent": "#FF7A1A",  # AT-SUIT orange
     "logo_url": "",
     "support_contact": "",
 }
+OLD_DEFAULT_ACCENT = "#4f7cff"  # before the AT-SUIT logo; servers set up then still store it
+
+
+def get_branding(c) -> dict:
+    b = {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {})}
+    if b.get("accent", "").lower() == OLD_DEFAULT_ACCENT:
+        b["accent"] = DEFAULT_BRANDING["accent"]
+    return b
+
+
 DEFAULT_MODULES = {m: True for m in licence.ALL_MODULES}
 STARTED = time.time()
 
@@ -221,7 +231,7 @@ def change_password(body: PasswordIn, p: Principal = Depends(require_user)):
 @router.get("/api/public/branding")
 def public_branding():
     with db.ro() as c:
-        return {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {})}
+        return get_branding(c)
 
 
 @router.get("/api/bootstrap")
@@ -236,7 +246,7 @@ def bootstrap(p: Principal = Depends(require_user)):
         return {
             "version": VERSION,
             "me": {"kind": p.kind, "id": p.id, "name": p.name, "role": p.role, "site_id": p.site_id, "room_id": p.room_id},
-            "branding": {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {})},
+            "branding": get_branding(c),
             "modules": modules_enabled(c),
             # Licence details are for admins; everyone else only needs the modules.
             "licence": {"licensee": lic.licensee, "edition": lic.edition, "valid": lic.valid, "reason": lic.reason}
@@ -252,7 +262,7 @@ def get_settings(p: Principal = Depends(require_admin)):
     with db.ro() as c:
         lic = licence.current(c)
         return {
-            "branding": {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {})},
+            "branding": get_branding(c),
             "modules": {**DEFAULT_MODULES, **db.get_setting(c, "modules", {})},
             "legacy_fleet_api": db.get_setting(c, "legacy_fleet_api", True),
             "message_retention_days": db.get_setting(c, "message_retention_days", 0),
@@ -652,7 +662,7 @@ def server_info() -> dict:
         sites = db.rows(c.execute("SELECT name, timezone FROM sites ORDER BY name"))
         lic = licence.current(c)
         mods = modules_enabled(c)
-        branding = {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {})}
+        branding = get_branding(c)
         legacy = bool(db.get_setting(c, "legacy_fleet_api", True))
         retention = db.get_setting(c, "message_retention_days", 0)
     data = config.cfg.data

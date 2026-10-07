@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Your presentation</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
 <link rel="stylesheet" href="/static/app.css">
 <style>
   body { height: auto; min-height: 100%; }
@@ -43,14 +44,14 @@
 
   try { data = await api(`/api/present/${encodeURIComponent(token)}`); }
   catch (e) { $("app").innerHTML = `<div class="panel" style="margin-top:2rem"><h1>Link not valid</h1><p>${esc(e.message)}</p></div>`; return; }
-  document.documentElement.style.setProperty("--accent", data.branding.accent || "#4f7cff");
+  document.documentElement.style.setProperty("--accent", data.branding.accent || "#FF7A1A");
   render();
 
   function render() {
     const b = data.branding, s = data.session, latest = data.files[0];
     document.title = `${data.event}: ${data.full_name}`;
     document.documentElement.style.setProperty("--ev", data.colour || "");
-    $("app").innerHTML = `<div class="top">${b.logo_url ? `<img src="${esc(b.logo_url)}" alt="">` : ""}<div class="grow"><div class="muted small">${esc(b.product_name || "")}</div><h1 style="margin:0">${esc(data.event)}</h1></div></div>
+    $("app").innerHTML = `<div class="top"><img class="brand-mark" src="${esc(b.logo_url || "/static/brand/icon-96.png")}" alt=""><div class="grow"><div class="muted small">${esc(b.product_name || "")}</div><h1 style="margin:0">${esc(data.event)}</h1></div></div>
       <div class="band"></div>
       <div class="panel"><p style="margin-top:0">Hello ${esc(data.full_name)}.</p>
         ${s ? `<div class="sess"><b>${esc(s.title)}</b>${esc(fmtWhen(s.starts_at))}${s.ends_at && s.ends_at.includes("T") ? "–" + esc(s.ends_at.slice(11, 16)) : ""}${s.room ? ` · ${esc(s.room)}` : ""}</div>` : '<p class="muted">Your session is still being arranged.</p>'}

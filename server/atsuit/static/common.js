@@ -90,10 +90,17 @@ const AT = (() => {
     return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : d.toLocaleString([], { dateStyle: "short", timeStyle: "short" });
   }
 
+  // Text on the accent colour: navy on light accents (the brand orange), white on dark ones.
+  function ink(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return "#0B1020";
+    const n = parseInt(m[1], 16), [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
+    return 0.299 * r + 0.587 * g + 0.114 * b > 140 ? "#0B1020" : "#ffffff";
+  }
   async function branding() {
     try {
       const b = await api("/api/public/branding");
-      document.documentElement.style.setProperty("--accent", b.accent || "#4f7cff");
+      document.documentElement.style.setProperty("--accent", b.accent || "#FF7A1A");
+      document.documentElement.style.setProperty("--accent-ink", ink(b.accent || "#FF7A1A"));
       document.querySelectorAll("[data-product]").forEach((el) => (el.textContent = b.product_name));
       return b;
     } catch (_) { return {}; }

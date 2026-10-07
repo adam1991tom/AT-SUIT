@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AT-SUIT screen</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
 <link rel="stylesheet" href="/static/app.css">
 <style>
   html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
@@ -24,6 +25,7 @@
 
 <div id="enrol" class="center hidden" style="position:fixed;inset:0;background:var(--bg);z-index:8;cursor:default">
   <form class="panel card" id="enrolForm">
+    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
     <h1>Add this screen to AT-SUIT</h1>
     <p class="muted">You only do this once. An admin finds the enrolment code in Admin → Node setup.</p>
     <label>Screen name</label><input name="name" required placeholder="e.g. HD-STAGE-1">
@@ -34,7 +36,7 @@
 </div>
 
 <div id="pick" class="hidden">
-  <h1 id="pickTitle">What should this screen show?</h1>
+  <img class="brand-mark" src="/static/brand/icon-96.png" alt="" style="height:56px;float:right"><h1 id="pickTitle">What should this screen show?</h1>
   <p class="muted" id="pickSub"></p>
   <h3>Room</h3><div class="tiles" id="pickRooms"></div>
   <h3 style="margin-top:1.4rem">View</h3><div class="tiles" id="pickViews"></div>

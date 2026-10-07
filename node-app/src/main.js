@@ -492,7 +492,9 @@ function iconPath() {
 }
 
 function makeTray() {
-  const img = nativeImage.createFromPath(iconPath()).resize({ width: 16, height: 16 });
+  // The simplified mark drawn for 16 px, with the 32 px one for high-DPI screens.
+  const img = nativeImage.createFromPath(path.join(__dirname, "..", "build", "tray-16.png"));
+  img.addRepresentation({ scaleFactor: 2, buffer: require("fs").readFileSync(path.join(__dirname, "..", "build", "tray-32.png")) });
   if (!tray) {
     tray = new Tray(img);
     tray.setToolTip("AT-SUIT Node");

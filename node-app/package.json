@@ -24,9 +24,9 @@
     "appId": "com.atsuit.node",
     "productName": "AT-SUIT Node",
     "artifactName": "AT-SUIT-Node-Setup-${version}.${ext}",
-    "files": ["src/**", "build/icon.png", "package.json"],
+    "files": ["src/**", "build/icon.png", "build/tray-16.png", "build/tray-32.png", "package.json"],
     "directories": { "output": "dist" },
-    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "build/icon.png" },
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "build/icon.ico" },
     "nsis": { "oneClick": true, "perMachine": false, "runAfterFinish": true, "deleteAppDataOnUninstall": false },
     "publish": [{ "provider": "generic", "url": "http://localhost/api/nodes/app/" }]
   }
