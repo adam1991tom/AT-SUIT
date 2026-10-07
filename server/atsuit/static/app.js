@@ -178,7 +178,7 @@
       const box = el.querySelector("#views");
       const custom = views.filter((v) => !v.builtin);
       box.innerHTML = `<p class="small muted">Built in: ${views.filter((v) => v.builtin).map((v) => esc(v.name)).join(", ")}. Custom views made for Ontime work as they are: upload the view's folder as a .zip (with index.html), or a single .html file.</p>
-        <table>${custom.map((v) => `<tr><td><b>${esc(v.name)}</b></td><td class="small">${boot.rooms.slice(0, 4).map((r) => `<a target="_blank" href="/external/${esc(v.slug)}/?room=${r.id}">${esc(r.name)} ↗</a>`).join(" · ")}</td>
+        <table>${custom.map((v) => `<tr><td><b>${esc(v.name)}</b></td><td class="small">${boot.rooms.slice(0, 4).map((r) => `<a target="_blank" href="/room/${r.id}/external/${esc(v.slug)}/">${esc(r.name)} ↗</a>`).join(" · ")}</td>
           <td>${boot.me.role === "admin" ? `<button class="small danger" data-delview="${esc(v.slug)}">Remove</button>` : ""}</td></tr>`).join("") || '<tr><td class="muted small">No custom views yet.</td></tr>'}</table>
         ${boot.me.role === "admin" ? `<form class="row" id="upView" style="margin-top:.6rem"><input name="name" placeholder="View name, e.g. Lower third timer" required class="grow"><input type="file" name="file" accept=".zip,.html,.htm" required style="width:auto"><button class="primary">Upload view</button></form>` : ""}`;
       box.querySelectorAll("[data-delview]").forEach((b) => b.onclick = () => guard(() => del(`/api/timers-views/${b.dataset.delview}`)).then(() => timers(el)));

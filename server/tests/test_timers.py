@@ -72,7 +72,7 @@ def test_import_ontime_v4_project(admin):
         "d1": {"type": "delay", "id": "d1", "duration": 300000},
         "e2": {"type": "event", "id": "e2", "cue": "2", "title": "Panel", "duration": 2700000, "timerType": "count-up", "skip": True}}}}}
     r = admin.post(f"/api/timers/{rid}/cues/import", files={"file": ("db.json", json.dumps(project).encode())})
-    assert r.json() == {"imported": 2}
+    assert r.json() == {"imported": 2, "flash_danger": None}
     cues = admin.get(f"/api/timers/{rid}/cues").json()
     assert cues[0]["title"] == "Doors" and cues[0]["time_start"] == "09:00" and cues[0]["end_action"] == "load-next"
     assert cues[1]["timer_type"] == "count-up" and cues[1]["skip"]
@@ -111,12 +111,66 @@ def test_custom_view_upload_and_shim(admin, client):
         f.writestr("countdown/../../evil.txt", "nope")
     r = admin.post("/api/timers-views?name=Big Countdown", files={"file": ("countdown.zip", z.getvalue())})
     assert r.status_code == 200, r.text
-    assert r.json()["url"] == "/external/big-countdown/"
+    assert r.json()["url"] == "/room/<room>/external/big-countdown/"
     page = client.get("/external/big-countdown/?room=1")
     assert page.status_code == 200 and '<script src="/static/ontime-shim.js"></script>' in page.text
     assert "4002/ws" in client.get("/external/big-countdown/app.js").text
     assert client.get("/external/big-countdown/../../atsuit.db").status_code == 404
+    # The room in the path, so a view's own ?room= (a display name) is left alone.
+    page = client.get("/room/2/external/big-countdown/?room=Main%20Stage")
+    assert page.status_code == 200 and "ontime-shim.js" in page.text
+    r = client.get("/room/2/external/big-countdown", follow_redirects=False)
+    assert r.status_code == 307 and r.headers["location"].endswith("/room/2/external/big-countdown/")
     assert any(v["id"] == "view:big-countdown" for v in client.get("/api/timers-views").json())
     assert admin.post("/api/timers-views?name=Bad", files={"file": ("x.exe", b"MZ")}).status_code == 400
     assert admin.delete("/api/timers-views/big-countdown").status_code == 200
     assert client.get("/external/big-countdown/").status_code == 404
+
+
+def test_venue_ontime_project_presets_and_flash(admin):
+    """Shaped like the venue's own Ontime files: a group of timer presets, a
+    clock, 12-hour time, and an automation that blinks the timer at danger
+    (pointing at another room's Ontime port, which AT-SUIT ignores)."""
+    rid = room(admin, "HD")
+    entries = {"g": {"type": "group", "id": "g", "title": "TIMERS do not touch", "parent": None},
+               "c": {"type": "event", "id": "c", "cue": ".01", "title": "CLOCK", "duration": 0, "timerType": "clock",
+                     "endAction": "none", "timeWarning": 0, "timeDanger": 0, "parent": "g"},
+               "m2": {"type": "event", "id": "m2", "cue": ".02", "title": "2 MIN", "duration": 120000, "timerType": "count-down",
+                      "endAction": "none", "timeWarning": 300000, "timeDanger": 60000, "parent": "g"}}
+    project = {"rundowns": {"default": {"id": "default", "order": ["g"], "flatOrder": ["g", "c", "m2"], "entries": entries}},
+               "settings": {"version": "4.14.1", "timeFormat": "12"},
+               "automation": {"enabledAutomations": True, "triggers": [
+                   {"title": "auto flash", "trigger": "onDanger", "automationId": "a1"},
+                   {"title": "start new", "trigger": "onStart", "automationId": "a2"}],
+                   "automations": {"a1": {"outputs": [{"type": "http", "url": "http://10.0.0.9:4001/api/message/timer?blink=true"}]},
+                                   "a2": {"outputs": [{"type": "http", "url": "http://10.0.0.9:4001/api/message/timer?blink=false"}]}}}}
+    r = admin.post(f"/api/timers/{rid}/cues/import", files={"file": ("HCC working file (migrated).json", json.dumps(project).encode())})
+    assert r.json() == {"imported": 2, "flash_danger": True}
+    assert [q["title"] for q in admin.get(f"/api/timers/{rid}/cues").json()] == ["CLOCK", "2 MIN"]
+    assert admin.get(f"/ontime/{rid}/data/settings").json()["timeFormat"] == "12"
+    s = admin.get(f"/api/timers/{rid}").json()
+    assert s["flash_danger"]
+    # Blink on at danger, once; off again when the next timer starts.
+    m2 = admin.get(f"/api/timers/{rid}/cues").json()[1]["id"]
+    admin.post(f"/api/timers/{rid}/load", json={"cue_id": m2})
+    admin.post(f"/api/timers/{rid}/start")
+    admin.post(f"/api/timers/{rid}/add", json={"delta_ms": -70000})  # 50 s left, inside danger
+    for _ in range(30):
+        if admin.get(f"/api/timers/{rid}").json()["message_blink"]:
+            break
+        time.sleep(0.1)
+    assert admin.get(f"/api/timers/{rid}").json()["message_blink"]
+    admin.post(f"/api/timers/{rid}/message", json={"message_blink": False})  # the tech turns it off
+    time.sleep(0.6)
+    assert not admin.get(f"/api/timers/{rid}").json()["message_blink"]
+    admin.post(f"/api/timers/{rid}/message", json={"message_blink": True})
+    admin.post(f"/api/timers/{rid}/load", json={"cue_id": m2})
+    admin.post(f"/api/timers/{rid}/start")
+    for _ in range(30):
+        if not admin.get(f"/api/timers/{rid}").json()["message_blink"]:
+            break
+        time.sleep(0.1)
+    assert not admin.get(f"/api/timers/{rid}").json()["message_blink"]
+    # A tech can switch it off for the room.
+    admin.post(f"/api/timers/{rid}/thresholds", json={"flash_danger": False})
+    assert not admin.get(f"/api/timers/{rid}").json()["flash_danger"]

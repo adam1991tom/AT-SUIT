@@ -17,7 +17,10 @@ from pathlib import Path
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-ALL_MODULES = ["comms", "timers", "fleet", "captions", "overlays", "dashboard"]
+ALL_MODULES = ["comms", "timers", "fleet", "captions", "overlays", "dashboard", "presenter"]
+# The modules of the first release. A licence issued then that lists all of
+# them was a full-suite licence, so it covers modules added since.
+FIRST_MODULES = {"comms", "timers", "fleet", "captions", "overlays", "dashboard"}
 
 
 @dataclass
@@ -58,6 +61,13 @@ def vendor_public_key() -> Ed25519PublicKey | None:
         return None
 
 
+def _modules(listed) -> list[str]:
+    listed = set(listed) if isinstance(listed, list) else {listed}
+    if "*" in listed or FIRST_MODULES <= listed:
+        return list(ALL_MODULES)
+    return [m for m in ALL_MODULES if m in listed]
+
+
 def parse(key: str) -> Licence:
     key = (key or "").strip()
     if not key:
@@ -78,7 +88,7 @@ def parse(key: str) -> Licence:
         expires=int(data.get("expires", 0)),
         max_nodes=int(data.get("max_nodes", 0)),
         max_sites=int(data.get("max_sites", 1)),
-        modules=[m for m in data.get("modules", ALL_MODULES) if m in ALL_MODULES],
+        modules=_modules(data.get("modules", ALL_MODULES)),
         valid=True,
         reason="",
     )

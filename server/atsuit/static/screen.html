@@ -64,7 +64,7 @@
   function urlFor(roomId, view) {
     if (!view || !roomId && !view.startsWith("url:")) return "";
     if (view.startsWith("url:")) return view.slice(4);
-    if (view.startsWith("view:")) return `/external/${encodeURIComponent(view.slice(5))}/?room=${roomId}`;
+    if (view.startsWith("view:")) return `/room/${roomId}/external/${encodeURIComponent(view.slice(5))}/`;
     if (view === "captions") return `/captions/${roomId}`;
     return `/timer/${roomId}?view=${encodeURIComponent(view)}`;
   }

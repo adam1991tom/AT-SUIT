@@ -93,6 +93,36 @@ MIGRATIONS: list[str] = [
     ALTER TABLE nodes ADD COLUMN screen_view TEXT NOT NULL DEFAULT '';
     CREATE TABLE timer_views(slug TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL);
     """,
+    # 4: flash at danger (the venue's Ontime automation), presenter module
+    """
+    ALTER TABLE timers ADD COLUMN flash_danger INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE rooms ADD COLUMN sync_code TEXT;
+    CREATE UNIQUE INDEX rooms_sync_code ON rooms(sync_code) WHERE sync_code IS NOT NULL;
+    CREATE TABLE pr_events(id INTEGER PRIMARY KEY AUTOINCREMENT, site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+        name TEXT NOT NULL, client TEXT NOT NULL DEFAULT '', colour TEXT NOT NULL DEFAULT '#8b5cf6',
+        starts_on TEXT NOT NULL DEFAULT '', ends_on TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'planning',
+        archived INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+    CREATE TABLE pr_sessions(id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER NOT NULL REFERENCES pr_events(id) ON DELETE CASCADE,
+        room_id INTEGER REFERENCES rooms(id) ON DELETE SET NULL, title TEXT NOT NULL, starts_at TEXT NOT NULL DEFAULT '',
+        ends_at TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', sort INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+    CREATE INDEX pr_sessions_event ON pr_sessions(event_id, starts_at);
+    CREATE INDEX pr_sessions_room ON pr_sessions(room_id, starts_at);
+    CREATE TABLE pr_presenters(id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER NOT NULL REFERENCES pr_events(id) ON DELETE CASCADE,
+        session_id INTEGER REFERENCES pr_sessions(id) ON DELETE SET NULL, full_name TEXT NOT NULL,
+        email_enc TEXT NOT NULL DEFAULT '', phone_enc TEXT NOT NULL DEFAULT '', token TEXT UNIQUE NOT NULL,
+        checked_in_at TEXT, created_at TEXT NOT NULL);
+    CREATE TABLE pr_files(id INTEGER PRIMARY KEY AUTOINCREMENT, presenter_id INTEGER NOT NULL REFERENCES pr_presenters(id) ON DELETE CASCADE,
+        original_name TEXT NOT NULL, stored_path TEXT NOT NULL, mime TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL,
+        sha256 TEXT NOT NULL, review_status TEXT NOT NULL DEFAULT 'pending', review_note TEXT NOT NULL DEFAULT '',
+        uploaded_at TEXT NOT NULL, uploaded_by TEXT NOT NULL DEFAULT '', reviewed_at TEXT, reviewed_by TEXT);
+    CREATE TABLE pr_show_files(id INTEGER PRIMARY KEY AUTOINCREMENT, session_id INTEGER NOT NULL REFERENCES pr_sessions(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL DEFAULT 'presentation', label TEXT NOT NULL DEFAULT '', original_name TEXT NOT NULL,
+        stored_path TEXT NOT NULL, mime TEXT NOT NULL DEFAULT '', size INTEGER NOT NULL, sha256 TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, created_by TEXT NOT NULL DEFAULT '');
+    CREATE TABLE pr_imports(id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER NOT NULL REFERENCES pr_events(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL, method TEXT NOT NULL, rows_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'review',
+        created_by TEXT NOT NULL, created_at TEXT NOT NULL, committed_at TEXT);
+    """,
 ]
 
 

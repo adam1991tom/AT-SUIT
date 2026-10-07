@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import VERSION, asr, db
 from .hub import can_subscribe, hub
-from .modules import captions, comms, core, dashboard, fleet, imports, overlays, timers
+from .modules import captions, comms, core, dashboard, fleet, imports, overlays, presenter, timers
 from .security import ws_principal
 
 STATIC = Path(__file__).parent / "static"
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="AT-SUIT", version=VERSION, lifespan=lifespan, docs_url="/api/docs", redoc_url=None)
-    for module in (core, comms, timers, fleet, captions, overlays, dashboard, imports):
+    for module in (core, comms, timers, fleet, captions, overlays, dashboard, presenter, imports):
         app.include_router(module.router)
     app.include_router(fleet.legacy)
     app.include_router(captions.ws_router)
@@ -99,6 +99,10 @@ def create_app() -> FastAPI:
     @app.get("/screen", include_in_schema=False)
     def screen_page():
         return page("screen.html")
+
+    @app.get("/present/{token}", include_in_schema=False)
+    def presenter_portal(token: str):
+        return page("present.html")
 
     @app.get("/timer/{room_id}", include_in_schema=False)
     def timer_page(room_id: int):

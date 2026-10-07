@@ -11,7 +11,7 @@
   #clock { font-size: 26vw; line-height: 1; font-variant-numeric: tabular-nums; }
   #next { font-size: 2.4vw; color: #64748b; margin-top: 2vh; min-height: 3vw; }
   #msg { font-size: 6vw; font-weight: 700; color: #fff; background: #b91c1c; padding: 1vh 3vw; border-radius: 1vw; margin-top: 3vh; }
-  #msg.blink { animation: blink 1s steps(2, start) infinite; }
+  #msg.blink, #clock.blink { animation: blink 1s steps(2, start) infinite; }
   @keyframes blink { to { visibility: hidden; } }
   #room { position: fixed; left: 2vw; bottom: 2vh; color: #475569; font-size: 1.6vw; }
   #off { position: fixed; right: 2vw; bottom: 2vh; color: #ef4444; font-size: 1.4vw; }
@@ -78,6 +78,7 @@
     $("msg").textContent = s.message;
     $("msg").classList.toggle("hidden", !s.message_visible || !s.message);
     $("msg").classList.toggle("blink", !!s.message_blink);
+    $("clock").classList.toggle("blink", !!s.message_blink); // like Ontime: Blink flashes the timer too
     $("black").classList.toggle("hidden", !s.blackout);
   };
   setInterval(draw, 100);

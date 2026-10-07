@@ -62,3 +62,19 @@ def test_signed_licence(admin, monkeypatch):
 def test_backup_zip(admin):
     r = admin.get("/api/admin/backup")
     assert r.status_code == 200 and r.content[:2] == b"PK"
+
+
+def test_version_matches_release_file():
+    from pathlib import Path
+
+    from atsuit import VERSION
+
+    assert VERSION == (Path(__file__).resolve().parents[2] / "VERSION").read_text().strip()
+
+
+def test_full_suite_licences_cover_new_modules():
+    from atsuit import licence
+
+    assert licence._modules(["comms", "timers", "fleet", "captions", "overlays", "dashboard"]) == licence.ALL_MODULES
+    assert licence._modules(["*"]) == licence.ALL_MODULES
+    assert licence._modules(["timers", "comms"]) == ["comms", "timers"]

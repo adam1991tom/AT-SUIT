@@ -22,7 +22,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from .. import config, db
@@ -105,6 +105,7 @@ def state(c, r, room_name: str = "") -> dict:
         "started_at": r["first_started_at"],
         "message": r["message"], "message_visible": bool(r["message_visible"]), "message_blink": bool(r["message_blink"]),
         "blackout": bool(r["blackout"]), "warn_ms": r["warn_ms"], "danger_ms": r["danger_ms"],
+        "flash_danger": bool(r["flash_danger"]),
         "cue": cue_out(current) if current else None, "next": cue_out(nxt) if nxt else None,
         "cue_index": [q["id"] for q in cues].index(current["id"]) if current else None, "cue_count": len(cues),
         "server_time": now,
@@ -171,6 +172,7 @@ class TimerAction(BaseModel):
     blackout: bool | None = None
     warn_ms: int | None = Field(default=None, ge=0)
     danger_ms: int | None = Field(default=None, ge=0)
+    flash_danger: bool | None = None
     cue_id: int | None = None
 
 
@@ -220,6 +222,8 @@ async def timer_action(room_id: int, action: str, body: TimerAction | None = Non
                 _update(c, room_id, **fields)
         elif action == "thresholds":
             fields = {k: getattr(body, k) for k in ("warn_ms", "danger_ms") if getattr(body, k) is not None}
+            if body.flash_danger is not None:
+                fields["flash_danger"] = int(body.flash_danger)
             if fields:
                 _update(c, room_id, **fields)
         elif action == "load":
@@ -242,15 +246,41 @@ async def timer_action(room_id: int, action: str, body: TimerAction | None = Non
     return await publish(room_id)
 
 
+_flash_seen: dict[int, tuple] = {}  # room -> (run it fired for, danger already flashed)
+
+
+def _flash(c, now: float) -> list[int]:
+    """Rooms set to flash at danger (the Ontime automation the venue used):
+    when a timer starts the blink goes off, and when it reaches its danger
+    time the stage message blinks, once per run so a tech can turn it off."""
+    changed = []
+    for r in c.execute("SELECT * FROM timers WHERE flash_danger=1 AND first_started_at IS NOT NULL").fetchall():
+        run = (r["cue_id"], r["first_started_at"])
+        seen = _flash_seen.get(r["room_id"])
+        if not seen or seen[0] != run:
+            _flash_seen[r["room_id"]] = seen = (run, False)
+            if r["message_blink"]:
+                _update(c, r["room_id"], message_blink=0)
+                changed.append(r["room_id"])
+        if (r["running"] and not seen[1] and r["timer_type"] == "count-down"
+                and remaining(r, now) <= r["danger_ms"]):
+            _flash_seen[r["room_id"]] = (run, True)
+            _update(c, r["room_id"], message_blink=1)
+            changed.append(r["room_id"])
+    return changed
+
+
 async def end_actions() -> None:
     """When a running cue reaches zero, do what the cue says: stop, load the
-    next cue, or play it. Cues set to 'none' run on into overtime, like Ontime."""
+    next cue, or play it. Cues set to 'none' run on into overtime, like Ontime.
+    Also runs flash-at-danger."""
     while True:
         await asyncio.sleep(0.25)
         try:
             changed = []
             now = time.time()
             with db.tx() as c:
+                changed += _flash(c, now)
                 for r in c.execute("SELECT * FROM timers WHERE running=1 AND end_action!='none'").fetchall():
                     if remaining(r, now) > 0:
                         continue
@@ -260,7 +290,7 @@ async def end_actions() -> None:
                     else:
                         _load(c, r["room_id"], nxt, start=r["end_action"] == "play-next")
                     changed.append(r["room_id"])
-            for room_id in changed:
+            for room_id in dict.fromkeys(changed):
                 await publish(room_id)
         except asyncio.CancelledError:
             raise
@@ -381,6 +411,27 @@ def ontime_events(data: dict) -> list[dict]:
     return [e for e in items if isinstance(e, dict) and e.get("type") == "event"]
 
 
+def ontime_flashes(data: dict) -> bool | None:
+    """Whether the project blinks the timer when it reaches danger: an
+    onDanger trigger whose automation calls /api/message/timer?blink=true
+    (on any Ontime server, since AT-SUIT keeps it inside the room). None if
+    the file has no automations at all."""
+    auto = data.get("automation")
+    if not isinstance(auto, dict) or not isinstance(auto.get("triggers"), list):
+        return None
+    if auto.get("enabledAutomations") is False:
+        return False
+    automations = auto.get("automations") or {}
+    for t in auto["triggers"]:
+        if not isinstance(t, dict) or t.get("trigger") != "onDanger":
+            continue
+        for out in (automations.get(t.get("automationId")) or {}).get("outputs") or []:
+            url = str(out.get("url", "")) if isinstance(out, dict) else ""
+            if "/api/message/timer" in url and re.search(r"[?&]blink=true", url):
+                return True
+    return False
+
+
 def _ms_to_hhmm(ms) -> str:
     if not isinstance(ms, (int, float)) or ms < 0:
         return ""
@@ -413,9 +464,16 @@ async def import_ontime(room_id: int, file: UploadFile, replace: bool = True, p:
                 colour=c_ if re.match(r"^#[0-9a-fA-F]{3,8}$", c_ := str(e.get("colour") or "")) else "", warn_ms=e.get("timeWarning"), danger_ms=e.get("timeDanger"),
                 custom=e.get("custom") if isinstance(e.get("custom"), dict) else {})
             _insert_cue(c, room_id, body)
+        flash = ontime_flashes(data)
+        if flash is not None:
+            _row(c, room_id)
+            _update(c, room_id, flash_danger=int(flash))
+        fmt = (data.get("settings") or {}).get("timeFormat")
+        if fmt in ("12", "24"):
+            db.set_setting(c, "ontime_time_format", fmt)
         db.audit(c, p.name, "timers.import_ontime", f"room {room_id}: {len(events)} cues")
     await _cues_changed(room_id)
-    return {"imported": min(len(events), 500)}
+    return {"imported": min(len(events), 500), "flash_danger": flash}
 
 
 async def _cues_changed(room_id: int) -> None:
@@ -490,7 +548,7 @@ async def upload_view(name: str, file: UploadFile, p: Principal = Depends(requir
         c.execute("INSERT INTO timer_views(slug,name,created_at) VALUES(?,?,?) ON CONFLICT(slug) DO UPDATE SET name=excluded.name",
                   (slug, name.strip()[:80], db.now_iso()))
         db.audit(c, p.name, "timers.view_upload", slug)
-    return {"id": f"view:{slug}", "slug": slug, "url": f"/external/{slug}/"}
+    return {"id": f"view:{slug}", "slug": slug, "url": f"/room/<room>/external/{slug}/"}
 
 
 @router.delete("/api/timers-views/{slug}")
@@ -507,10 +565,25 @@ def delete_view(slug: str, p: Principal = Depends(require_admin)):
 SHIM = '<script src="/static/ontime-shim.js"></script>'
 
 
+@public.get("/room/{room_id}/external/{slug}", include_in_schema=False)
+@public.get("/external/{slug}", include_in_schema=False)
+def view_slash(request: Request, slug: str, room_id: int | None = None):
+    # Relative links in a view (styles.css, assets/...) need the trailing slash.
+    url = request.url
+    return RedirectResponse(url.replace(path=url.path + "/"), status_code=307)
+
+
+@public.get("/room/{room_id}/external/{slug}/{path:path}", include_in_schema=False)
+def serve_room_view(room_id: int, slug: str, path: str = ""):
+    """A custom view for one room. The room is in the path, as each room had
+    its own Ontime server, so a view's own ?room=... setting still works."""
+    return serve_view(slug, path)
+
+
 @public.get("/external/{slug}/{path:path}", include_in_schema=False)
 def serve_view(slug: str, path: str = ""):
     """Custom views at the same path Ontime uses. Pages get the shim that
-    points their Ontime websocket at the room in ?room=."""
+    points their Ontime websocket at the room (from /room/<id>/..., or ?room=)."""
     if not SLUG.match(slug):
         raise HTTPException(404)
     root = (views_dir() / slug).resolve()
@@ -669,6 +742,15 @@ def ontime_rest_runtime(room_id: int):
     with db.tx() as c:
         room_or_404(c, room_id)
         return ontime_runtime(c, room_id)
+
+
+@public.get("/ontime/{room_id}/data/settings", include_in_schema=False)
+def ontime_rest_settings(room_id: int):
+    with db.ro() as c:
+        room_or_404(c, room_id)
+        fmt = db.get_setting(c, "ontime_time_format", "24")
+    return {"version": "4.14.1", "serverPort": 4001, "editorKey": None, "operatorKey": None,
+            "timeFormat": fmt if fmt in ("12", "24") else "24", "language": "en", "auxTimerNames": ["", "", ""]}
 
 
 @public.get("/ontime/{room_id}/data/rundowns/current", include_in_schema=False)

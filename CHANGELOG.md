@@ -4,6 +4,14 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.4.0
+
+- **The venue's Ontime views run as they are**: HCC and both BDNG views were tested against AT-SUIT. Views now live at `/room/<room>/external/<view>/`, so a view's own `?room=` setting (BDNG uses it for the room name) is left alone. Ontime's `/data/settings` is answered too.
+- **Flash at danger**: the Ontime automation the venue used (blink the timer at danger, stop blinking when the next timer starts) is built in, per room, and switched on automatically when an Ontime project with that automation is imported. It always flashes its own room, so the SD1 automation that flashed CC can't happen.
+- The stage timer blinks the clock too when Blink is on, like Ontime.
+- **Presenter** (from AT-Presenter), server side: events and their running order, a no-login page for each presenter to upload slides and check in, file review with versions, show files per session, schedule import from spreadsheets and CSV (PDF and Word through a local AI model), room sync for presentation laptops (room code or node sign-in), and turning a room's sessions into its timer cue list.
+- Licences that list every module of the first release now cover modules added since; new licences can say `*`.
+
 ## 0.3.0
 
 - **Cue lists, like Ontime**: each room's timer runs a running order. Add, edit, reorder and skip cues (title, duration, planned start, colour, note, count down / count up / clock); GO, next, previous, load, ±1 minute, stage messages with blink and blackout. At zero a cue can keep going, stop, load the next or play the next, handled by the server. Bring in an existing Ontime project file (v3 or v4).

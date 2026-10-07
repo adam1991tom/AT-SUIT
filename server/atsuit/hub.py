@@ -24,7 +24,7 @@ def can_subscribe(p: Principal | None, topic: str) -> bool:
         return False
     if topic.startswith("dm:"):
         return p.kind == "account" and topic == f"dm:{p.id}"
-    if topic in ("fleet", "audit"):
+    if topic in ("fleet", "audit", "presenter"):
         return p.at_least("tech")
     if p.site_id is None:
         return True

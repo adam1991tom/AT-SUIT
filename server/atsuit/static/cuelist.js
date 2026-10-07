@@ -27,6 +27,7 @@ const CueList = (() => {
       <div class="row" style="margin-top:.5rem"><input data-msg class="grow" placeholder="Message to the stage">
         <label class="small" style="display:flex;gap:.3rem;align-items:center;margin:0"><input type="checkbox" data-blink style="width:auto">Blink</label>
         <button data-show>Show</button><button data-hide>Hide</button></div>
+      <label class="small muted" style="display:flex;gap:.3rem;align-items:center;margin:.4rem 0 0" title="Blinks the stage timer when a cue reaches its danger time, and stops when the next one starts"><input type="checkbox" data-flash style="width:auto">Flash the timer at danger</label>
       <details style="margin-top:.6rem" open><summary><b>Cue list</b> <span class="muted small" data-count></span></summary>
         <div class="cues" data-list></div>
         <form class="cueform" data-form>
@@ -96,11 +97,13 @@ const CueList = (() => {
     el.querySelectorAll("[data-a]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/${b.dataset.a}`)));
     el.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/add`, { delta_ms: +b.dataset.add })));
     $("[data-show]").onclick = () => guard(() => post(`/api/timers/${roomId}/message`, { message: $("[data-msg]").value, message_visible: true, message_blink: $("[data-blink]").checked }));
+    $("[data-flash]").onchange = (e) => guard(() => post(`/api/timers/${roomId}/thresholds`, { flash_danger: e.target.checked }));
     $("[data-hide]").onclick = () => guard(() => post(`/api/timers/${roomId}/message`, { message_visible: false }));
 
     setInterval(() => {
       if (!s) return;
       const d = timerDisplay(s), c = $("[data-clock]");
+      $("[data-flash]").checked = !!s.flash_danger;
       c.textContent = d.text;
       c.className = "clock bigclock " + d.cls;
       $("[data-now]").textContent = (s.cue ? `${s.cue.cue ? s.cue.cue + " · " : ""}` : "") + (s.title || "") + (s.playback === "pause" ? "  (paused)" : "");
