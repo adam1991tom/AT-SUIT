@@ -6,89 +6,246 @@
 <link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
 <link rel="stylesheet" href="/static/app.css">
 <style>
-  body { background: #000; overflow: hidden; cursor: none; }
-  .stage { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 3vh 4vw; box-sizing: border-box; }
+  /* Every view works like the venue's HCC view: the timer turns amber then red,
+     Blink pulses the whole timer, the stage message covers the timer, a red
+     border flashes in overtime and Blackout blanks the screen. */
+  :root { --tbg: #000; --tfg: #fff; --c-warn: #ffcc00; --c-danger: #ff1744; --c-over: #ff0000; --fade: #6b6b6b; --tsize: 26vw; }
+  html, body { background: var(--tbg); color: var(--tfg); overflow: hidden; cursor: none; }
+  .stage { position: relative; height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; padding: 3vh 4vw 5vh; }
+  .main { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
   #title { font-size: 4vw; color: #cbd5e1; min-height: 5vw; }
-  #clock { font-size: 26vw; line-height: 1; font-variant-numeric: tabular-nums; }
+  #timer { font-size: var(--tsize); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--tfg); transition: color .4s ease; white-space: nowrap; }
+  #timer.warn { color: var(--c-warn); } #timer.danger { color: var(--c-danger); } #timer.over { color: var(--c-over); }
+  #timer.blink { animation: pulse .8s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .12; } }
   #next { font-size: 2.4vw; color: #64748b; margin-top: 2vh; min-height: 3vw; }
-  #msg { font-size: 6vw; font-weight: 700; color: #fff; background: #b91c1c; padding: 1vh 3vw; border-radius: 1vw; margin-top: 3vh; }
-  #msg.blink, #clock.blink { animation: blink 1s steps(2, start) infinite; }
-  @keyframes blink { to { visibility: hidden; } }
-  #room { position: fixed; left: 2vw; bottom: 2vh; color: #475569; font-size: 1.6vw; }
-  #off { position: fixed; right: 2vw; bottom: 2vh; color: #ef4444; font-size: 1.4vw; }
-  #black { position: fixed; inset: 0; background: #000; z-index: 10; }
+  #tod { display: none; font-variant-numeric: tabular-nums; font-weight: 700; color: #94a3b8; }
+  .logo { display: none; object-fit: contain; }
+  #room { position: fixed; left: 2vw; bottom: 2.4vh; color: #475569; font-size: 1.6vw; z-index: 2; }
+  #off { position: fixed; right: 2vw; bottom: 2.4vh; color: #ef4444; font-size: 1.4vw; z-index: 1100; }
+  /* progress: normal, warning and danger zones, dimmed until the timer reaches them */
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; height: 1.2vh; background: rgba(255,255,255,.15); overflow: hidden; }
+  #bar i { position: absolute; top: 0; bottom: 0; }
+  #bar .zn { background: var(--tfg); } #bar .zw { background: var(--c-warn); } #bar .zd { background: var(--c-danger); }
+  #bar .mask { background: var(--tbg); opacity: .55; transition: left .3s linear, width .3s linear; }
+  #bar .ot { inset: 0; background: var(--c-over); display: none; }
+  #bar.over .ot { display: block; } #bar.over .zn, #bar.over .zw, #bar.over .zd, #bar.over .mask { display: none; }
+  #bar.off { display: none; }
+  /* the stage message, over the timer */
+  #msg { display: none; position: fixed; inset: 0; z-index: 500; align-items: center; justify-content: center; padding: 4vw; background: var(--tbg); text-align: center; }
+  #msg.on { display: flex; }
+  #msg div { font-size: clamp(48px, 10vw, 220px); font-weight: 600; line-height: 1.15; color: var(--tfg); overflow-wrap: anywhere; }
+  #msg.blink div { animation: fade .8s ease-in-out infinite; }
+  @keyframes fade { 0%, 100% { color: var(--tfg); } 50% { color: var(--fade); } }
+  #alert { position: fixed; inset: 0; z-index: 600; pointer-events: none; box-sizing: border-box; border: 0 solid var(--c-over); }
+  #alert.on { animation: border 0.6s ease-in-out infinite; }
+  @keyframes border { 0%, 100% { border-width: 16px; } 50% { border-width: 44px; } }
+  #black { position: fixed; inset: 0; background: #000; z-index: 1000; display: none; }
+  #black.on { display: block; }
+
   /* minimal: just the numbers */
-  body.minimal #title, body.minimal #next, body.minimal #room { display: none; }
-  body.minimal #clock { font-size: 32vw; }
+  .v-minimal #title, .v-minimal #next, .v-minimal #room, .v-minimal #bar { display: none; }
+  .v-minimal { --tsize: 32vw; }
   /* clock: time of day */
-  body.clockview #next, body.clockview #msg { display: none; }
+  .v-clock #next, .v-clock #bar { display: none; }
   /* backstage: timer on the left, running order on the right */
-  body.backstage .stage { flex-direction: row; align-items: stretch; gap: 3vw; text-align: left; }
-  body.backstage .main { flex: 1.3; display: flex; flex-direction: column; justify-content: center; }
-  body.backstage #clock { font-size: 13vw; }
-  body.backstage #title { font-size: 3vw; }
-  body.backstage #next { font-size: 2vw; }
-  body.backstage #msg { font-size: 3vw; align-self: flex-start; }
+  .v-backstage .stage { flex-direction: row; gap: 3vw; }
+  .v-backstage .main { flex: 1.3; align-items: flex-start; text-align: left; }
+  .v-backstage { --tsize: 13vw; } .v-backstage #title { font-size: 3vw; } .v-backstage #next { font-size: 2vw; }
+  .v-backstage #msg { position: absolute; padding: 2vw; justify-content: flex-start; } .v-backstage #msg div { font-size: 5vw; }
+  .v-backstage #alert { position: absolute; }
   #list { display: none; flex: 1; overflow: hidden; font-size: 1.6vw; color: #cbd5e1; }
-  body.backstage #list { display: block; }
+  .v-backstage #list { display: block; }
   #list .q { display: flex; gap: 1vw; padding: .6vh .8vw; border-left: .5vw solid transparent; border-bottom: 1px solid #1e293b; }
   #list .q.now { background: #1e293b; color: #fff; font-weight: 700; }
   #list .q.skip { opacity: .35; text-decoration: line-through; }
   #list .q .cue { width: 4vw; color: #64748b; }
   #list .q .t { flex: 1; }
   #list .q .d { color: #94a3b8; font-variant-numeric: tabular-nums; }
+
+  /* HCC: black, logo top left, big timer, progress bar along the bottom */
+  .v-hcc, .v-bdng { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; }
+  .v-hcc .stage, .v-bdng .stage { padding: 0; }
+  .v-hcc #title, .v-hcc #next, .v-hcc #room, .v-bdng #title, .v-bdng #next, .v-bdng #room { display: none; }
+  .v-hcc { --tsize: clamp(120px, 24vw, 480px); }
+  .v-hcc #logoTop { display: block; position: absolute; top: 3.5vh; left: 3.5vw; height: clamp(50px, 8vh, 110px); z-index: 2; }
+  .v-hcc #bar, .v-bdng #bar { height: 36px; }
+  /* BDNG: light, a sponsor logo above and below the timer */
+  .v-bdng { --tbg: #f5f5f5; --tfg: #1a1a1a; --fade: #d8d8d8; --tsize: clamp(80px, 16vw, 340px); }
+  .v-bdng .main { flex: 0 0 44vh; }
+  .v-bdng .top, .v-bdng .bottom { display: flex; align-items: center; justify-content: center; height: 28vh; box-sizing: border-box; }
+  .v-bdng .top { padding-top: 3vh; } .v-bdng .bottom { gap: 2.2vw; }
+  .v-bdng #logoTop { display: block; max-width: 78vw; max-height: 22vh; }
+  .v-bdng #logoBottom { display: block; height: clamp(70px, 13vh, 170px); }
+  .v-bdng #btext { font-weight: 700; font-size: clamp(22px, 3.1vw, 56px); color: var(--tfg); }
+  .v-bdng #timer { -webkit-text-stroke: 1.5px #1a1a1a; text-shadow: 0 0 3px #1a1a1a, 0 0 3px #1a1a1a; paint-order: stroke fill; -webkit-font-smoothing: antialiased; }
+  .v-bdng #bar { background: rgba(0,0,0,.12); }
+  .top, .bottom { display: none; }
+
+  /* overlay: a see-through panel for a small borderless window or a bar across the screen */
+  html.v-overlay, .v-overlay { background: transparent !important; }
+  .v-overlay .stage { padding: 0; }
+  .v-overlay .main { position: absolute; inset: 0; background: rgba(0,0,0,.72); border-radius: min(3vh, 14px); overflow: hidden;
+    display: grid; grid-template-columns: 1fr auto; grid-template-rows: 1fr auto; grid-template-areas: "timer tod" "title next";
+    align-items: center; text-align: left; padding: 0 max(4vh, 1.4vw) calc(max(3vh, 4px) + 2px); column-gap: 3vw; }
+  .v-overlay { --tsize: min(60vh, 17vw); }
+  .v-overlay #timer { grid-area: timer; }
+  .v-overlay #tod { display: block; grid-area: tod; font-size: min(26vh, 5.5vw); justify-self: end; }
+  .v-overlay #title, .v-overlay #next { font-size: min(12vh, 2.6vw); min-height: 0; margin: 0; padding-bottom: .4vh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .v-overlay #title { grid-area: title; color: #e2e8f0; } .v-overlay #next { grid-area: next; justify-self: end; color: #94a3b8; }
+  .v-overlay #bar { position: absolute; height: max(3vh, 4px); background: rgba(255,255,255,.12); }
+  .v-overlay #bar .mask { background: #000; }
+  .v-overlay #msg { position: absolute; background: rgba(0,0,0,.92); padding: 2vh 3vw; } .v-overlay #msg div { font-size: min(34vh, 6vw); }
+  .v-overlay #alert { position: absolute; border-radius: inherit; } .v-overlay #alert.on { animation-name: border-sm; }
+  @keyframes border-sm { 0%, 100% { border-width: 3px; } 50% { border-width: 8px; } }
+  .v-overlay #black { background: transparent; } .v-overlay #black.on ~ .stage { visibility: hidden; }
+  .v-overlay #room { display: none; } .v-overlay #off { font-size: 11px; bottom: 2px; right: 8px; }
+
+  /* built in the console (Timers → Views) */
+  .v-design #logoTop.show { display: block; position: absolute; top: 3.5vh; left: 3.5vw; height: clamp(40px, 9vh, 120px); z-index: 2; }
+  .v-design #tod.show { display: block; position: fixed; top: 3vh; right: 3vw; font-size: 4vw; color: var(--tfg); opacity: .8; }
+  .v-design #room { display: none; }
+  .v-design.no-title #title, .v-design.no-next #next, .v-design.no-bar #bar { display: none; }
 </style>
 </head>
 <body>
+<div id="black"></div>
 <div class="stage">
-  <div class="main" style="display:contents">
-    <div id="title"></div><div id="clock" class="clock">--:--</div><div id="next"></div><div id="msg" class="hidden"></div>
+  <img id="logoTop" class="logo" alt="">
+  <div class="top"></div>
+  <div class="main">
+    <div id="title"></div><div id="timer">--:--</div><div id="next"></div><div id="tod"></div>
+    <div id="bar" class="off"><i class="zn"></i><i class="zw"></i><i class="zd"></i><i class="mask"></i><i class="ot"></i></div>
+    <div id="msg"><div></div></div>
+    <div id="alert"></div>
   </div>
+  <div class="bottom"><img id="logoBottom" class="logo" alt=""><div id="btext"></div></div>
   <div id="list"></div>
 </div>
-<div id="room"></div><div id="off" class="hidden">reconnecting…</div><div id="black" class="hidden"></div>
+<div id="room"></div><div id="off" class="hidden">reconnecting…</div>
 <script src="/static/common.js"></script>
 <script>
 (async () => {
-  // Built-in views: /timer/<room>?view=stage|minimal|clock|backstage
+  // /timer/<room>?view=stage|minimal|clock|backstage|hcc|bdng|overlay, or built:<name> from Timers → Views
   const roomId = location.pathname.split("/")[2];
   const view = new URLSearchParams(location.search).get("view") || "stage";
-  document.body.classList.add({ minimal: "minimal", clock: "clockview", backstage: "backstage" }[view] || "stage");
-  if (view === "backstage") document.querySelector(".main").style.display = "";
+  const KINDS = ["stage", "minimal", "clock", "backstage", "hcc", "bdng", "overlay"];
+  const kind = view.startsWith("built:") ? "design" : KINDS.includes(view) ? view : "stage";
   const $ = (id) => document.getElementById(id);
+  document.body.className = document.documentElement.className = "v-" + kind;
+  // HCC and BDNG show "--:--" until a timer starts, as the venue's own views did.
+  const strict = kind === "hcc" || kind === "bdng";
+  let design = null;
+
+  // BDNG lays out top, timer, bottom: move the logo into its row.
+  if (kind === "bdng") { document.querySelector(".top").append($("logoTop")); }
+  const setLogo = (img, url) => { if (url) { img.src = url; img.onerror = () => (img.style.display = "none"); } else img.style.display = "none"; };
+  if (strict || kind === "design") {
+    const look = await AT.api(`/api/timers-views/look/${encodeURIComponent(view)}`).catch(() => null);
+    if (look && strict) {
+      setLogo($("logoTop"), look.logos.top || look.site_logo);
+      if (kind === "bdng") { setLogo($("logoBottom"), look.logos.bottom); $("btext").textContent = look.options.bottom_text || ""; }
+    }
+    if (look && look.design) {
+      design = look.design;
+      const st = document.documentElement.style;
+      st.setProperty("--tbg", design.background); st.setProperty("--tfg", design.text); st.setProperty("--tsize", design.timer_size + "vw");
+      $("title").style.fontSize = design.title_size + "vw";
+      $("title").style.color = $("next").style.color = design.text;
+      $("next").style.opacity = ".65";
+      if (design.show_logo && look.logos.logo) { setLogo($("logoTop"), look.logos.logo); $("logoTop").classList.add("show"); }
+      $("tod").classList.toggle("show", design.show_clock);
+      for (const [k, c] of [["show_title", "no-title"], ["show_next", "no-next"], ["show_progress", "no-bar"]]) document.body.classList.toggle(c, !design[k]);
+      document.title = look.name;
+    }
+  }
+
   let s = await AT.api(`/api/timers/${roomId}`), cues = [];
+  const got = (x) => { x._rx = Date.now(); s = x; };
+  got(s);
   $("room").textContent = s.room;
+
+  const pad = (n) => String(n).padStart(2, "0");
+  // HCC style: 4:59, 1:02:03, -0:05 in overtime. The others: 04:59, +00:05.
+  const fmt = (ms) => {
+    if (!strict) return AT.fmtTime(ms);
+    const a = Math.abs(ms), h = Math.floor(a / 3600000), m = Math.floor(a % 3600000 / 60000), sec = Math.floor(a % 60000 / 1000);
+    return (ms < 0 ? "-" : "") + (h ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`);
+  };
+  const todText = () => {
+    const t = Math.floor((s.clock_ms + Date.now() - s._rx) / 1000) % 86400, h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), sec = t % 60;
+    if (s.time_format === "12") return `${h % 12 || 12}:${pad(m)}:${pad(sec)} ${h >= 12 ? "PM" : "AM"}`;
+    return `${pad(h)}:${pad(m)}:${pad(sec)}`;
+  };
   const dur = (ms) => AT.fmtTime(ms).replace(/^\+/, "");
   const renderList = () => {
     $("list").innerHTML = cues.map((q) => `<div class="q ${q.id === s.cue?.id ? "now" : ""} ${q.skip ? "skip" : ""}" style="border-left-color:${AT.esc(q.colour || "transparent")}">` +
       `<span class="cue">${AT.esc(q.cue)}</span><span class="t">${AT.esc(q.title)}</span><span class="d">${q.time_start ? AT.esc(q.time_start) + " · " : ""}${dur(q.duration_ms)}</span></div>`).join("");
     $("list").querySelector(".now")?.scrollIntoView({ block: "center" });
   };
-  if (view === "backstage") { cues = await AT.api(`/api/timers/${roomId}/cues`); renderList(); }
+  if (kind === "backstage") { cues = await AT.api(`/api/timers/${roomId}/cues`); renderList(); }
+
+  // Shrink the timer to fit when it gets longer (1:00:00, the time of day).
+  const fit = (t) => {
+    t.style.fontSize = "";
+    const room = t.parentElement.clientWidth * (kind === "overlay" ? 0.6 : 0.96);
+    if (t.scrollWidth > room) t.style.fontSize = parseFloat(getComputedStyle(t).fontSize) * room / t.scrollWidth + "px";
+  };
+  addEventListener("resize", () => fit($("timer")));
+  const bar = $("bar"), [zn, zw, zd, mask] = bar.children;
+  const place = (el, left, width) => { el.style.left = left + "%"; el.style.width = width + "%"; };
   const draw = () => {
-    if (view === "clock") {
-      $("clock").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      $("title").textContent = s.room;
-      return;
+    const type = s.timer_type || "count-down", loaded = s.playback !== "stop";
+    const idle = !loaded || (strict && s.playback === "armed");
+    const clock = kind === "clock" || s.show_clock || type === "clock";
+    const left = s.running ? s.remaining_ms - (Date.now() - s._rx) : s.remaining_ms;
+    const total = s.duration_ms + (s.added_ms || 0);
+    let text, phase = "";
+    if (clock) text = todText();
+    else if (idle) text = "--:--";
+    else if (type === "none") text = "";
+    else {
+      text = type === "count-up" ? dur(Math.max(0, total - left)) : fmt(left);
+      phase = left < 0 ? "over" : left <= s.danger_ms ? "danger" : left <= s.warn_ms ? "warn" : "";
     }
-    const d = AT.timerDisplay(s);
-    $("clock").textContent = d.text;
-    $("clock").className = "clock " + d.cls;
-    $("title").textContent = s.title || "";
-    $("next").textContent = s.next ? `Next: ${s.next.title}` : "";
-    $("msg").textContent = s.message;
-    $("msg").classList.toggle("hidden", !s.message_visible || !s.message);
+    const t = $("timer");
+    if (t.textContent !== text) {
+      const grew = text.length !== t.textContent.length;
+      t.textContent = text;
+      if (grew) fit(t);
+    }
+    t.className = phase + (s.message_blink ? " blink" : "");
+    $("tod").textContent = todText();
+    $("tod").style.visibility = clock ? "hidden" : "";
+    if (kind === "clock") $("title").textContent = s.room;
+    else {
+      $("title").textContent = s.title || "";
+      $("next").textContent = s.next ? `Next: ${s.next.title}` : "";
+    }
+    // progress
+    bar.classList.toggle("off", clock || type === "none" || type === "count-up" || (!loaded && !strict));
+    bar.classList.toggle("over", phase === "over");
+    if (total > 0) {
+      const dp = Math.min(100, Math.max(0, s.danger_ms / total * 100)), wp = Math.min(100 - dp, Math.max(0, (s.warn_ms - s.danger_ms) / total * 100));
+      place(zn, 0, 100 - dp - wp); place(zw, 100 - dp - wp, wp); place(zd, 100 - dp, dp);
+    } else { place(zn, 0, 100); place(zw, 0, 0); place(zd, 0, 0); }
+    const done = idle || total <= 0 ? 0 : Math.min(100, Math.max(0, (total - left) / total * 100));
+    place(mask, done, 100 - done);
+    $("alert").classList.toggle("on", phase === "over" && kind !== "clock");
+    const showMsg = s.message_visible && s.message && (!design || design.show_message);
+    $("msg").classList.toggle("on", !!showMsg);
     $("msg").classList.toggle("blink", !!s.message_blink);
-    $("clock").classList.toggle("blink", !!s.message_blink); // like Ontime: Blink flashes the timer too
-    $("black").classList.toggle("hidden", !s.blackout);
+    if (showMsg && $("msg").firstChild.textContent !== s.message) $("msg").firstChild.textContent = s.message;
+    $("black").classList.toggle("on", !!s.blackout);
   };
   setInterval(draw, 100);
+  draw();
   AT.socket([`timer:${roomId}`], (e) => {
-    if (e.type === "timer") { s = e.data; if (view === "backstage") renderList(); }
-    if (e.type === "cues" && view === "backstage") { cues = e.data.cues; renderList(); }
+    if (e.type === "timer") { got(e.data); if (kind === "backstage") renderList(); }
+    if (e.type === "cues" && kind === "backstage") { cues = e.data.cues; renderList(); }
   }, (up) => {
     $("off").classList.toggle("hidden", up);
-    if (up) AT.api(`/api/timers/${roomId}`).then((x) => (s = x));
+    if (up) AT.api(`/api/timers/${roomId}`).then(got);
   });
 })();
 </script>

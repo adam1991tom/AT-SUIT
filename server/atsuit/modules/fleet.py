@@ -340,14 +340,12 @@ def node_me(p: Principal = Depends(require_node)):
 
 # ------------------------------------------------------- remote screens --
 def check_view(c, view: str) -> str:
-    """What a screen shows: a built-in timer view, captions, a custom view
-    (view:<slug>) or any web page (url:https://...). Empty means 'not chosen'."""
-    from .timers import BUILTIN_VIEWS
+    """What a screen shows: a built-in timer view, captions, a view built in
+    the console (built:<slug>), an uploaded view (view:<slug>) or any web page (url:https://...). Empty means 'not chosen'."""
+    from .timers import view_known
 
     view = (view or "").strip()
-    if view in ("", "captions") or view in BUILTIN_VIEWS:
-        return view
-    if view.startswith("view:") and c.execute("SELECT 1 FROM timer_views WHERE slug=?", (view[5:],)).fetchone():
+    if view in ("", "captions") or view_known(c, view):
         return view
     if re.match(r"^url:https?://\S{1,1000}$", view):
         return view

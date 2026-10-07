@@ -175,16 +175,84 @@
       });
     }
 
-    function renderViews() {
-      const box = el.querySelector("#views");
-      const custom = views.filter((v) => !v.builtin);
-      box.innerHTML = `<p class="small muted">Built in: ${views.filter((v) => v.builtin).map((v) => esc(v.name)).join(", ")}. Custom views made for Ontime work as they are: upload the view's folder as a .zip (with index.html), or a single .html file.</p>
+    let editing = null; // the built view open in the form
+    async function renderViews() {
+      const box = el.querySelector("#views"), isAdmin = boot.me.role === "admin";
+      const custom = views.filter((v) => !v.builtin && !v.design);
+      const [designs, hcc, bdng] = await Promise.all([api("/api/timers-designs"), api("/api/timers-views/look/hcc"), api("/api/timers-views/look/bdng")]);
+      const links = (id) => boot.rooms.slice(0, 4).map((r) => `<a target="_blank" href="/timer/${r.id}?view=${encodeURIComponent(id)}">${esc(r.name)} ↗</a>`).join(" · ");
+      const logoCell = (view, slot, url, label) => `<div class="row small" style="gap:.4rem"><span style="min-width:6.5rem">${label}</span>
+        ${url ? `<img src="${esc(url)}" alt="" style="height:28px;max-width:140px;object-fit:contain;background:#555;border-radius:4px">` : `<span class="muted">${view === "bdng" && slot === "bottom" ? "none" : "site logo"}</span>`}
+        ${isAdmin ? `<input type="file" accept=".png,.jpg,.jpeg,.svg,.webp" data-logo="${view}/${slot}" style="width:auto">${url ? `<button class="small" data-unlogo="${view}/${slot}">Remove</button>` : ""}` : ""}</div>`;
+      const D = { name: "", background: "#000000", text: "#ffffff", timer_size: 24, title_size: 4, show_logo: false, show_title: true, show_next: true, show_progress: true, show_clock: false, show_message: true };
+      const SHOW = { show_logo: "Logo", show_title: "Title", show_next: "Next cue", show_progress: "Progress bar", show_clock: "Time of day", show_message: "Stage message" };
+      box.innerHTML = `<p class="small muted">Built in: ${views.filter((v) => v.builtin).map((v) => esc(v.name)).join(", ")}. All of them turn red at danger, flash with Blink, show the stage message over the timer and go black with Blackout. Overlay window is see-through, for a small window on a laptop or a bar across a screen.</p>
+        <h3>HCC and BDNG</h3>
+        <table><tr><td><b>HCC venue clock</b><div class="small">${links("hcc")}</div></td><td>${logoCell("hcc", "top", hcc.logos.top, "Logo")}</td></tr>
+          <tr><td><b>BDNG sponsor clock</b><div class="small">${links("bdng")}</div></td><td>${logoCell("bdng", "top", bdng.logos.top, "Top logo")}${logoCell("bdng", "bottom", bdng.logos.bottom, "Bottom logo")}
+            <div class="row small" style="gap:.4rem;margin-top:.3rem"><span style="min-width:6.5rem">Bottom text</span><input data-btext value="${esc(bdng.options.bottom_text || "")}" ${isAdmin ? "" : "disabled"} class="grow">${isAdmin ? '<button class="small" data-savetext>Save</button>' : ""}</div></td></tr></table>
+        <p class="small muted">No logo uploaded: HCC and the BDNG top row use the site logo from Admin → General.</p>
+        <h3 style="margin-top:1rem">Your own views</h3>
+        <table>${designs.map((d) => `<tr><td><b>${esc(d.name)}</b><div class="small">${links(d.id)}</div></td>
+          <td>${isAdmin ? `<button class="small" data-edit="${esc(d.slug)}">Edit</button> <button class="small danger" data-deldesign="${esc(d.slug)}">Remove</button>` : ""}</td></tr>`).join("") || '<tr><td class="muted small">None yet.</td></tr>'}</table>
+        ${isAdmin ? `<form id="builder" class="panel" style="margin-top:.6rem">
+          <div class="row" style="justify-content:space-between"><b data-btitle>Build a view</b><a class="small hidden" data-preview target="_blank">Preview ↗</a></div>
+          <div class="row" style="flex-wrap:wrap;margin-top:.4rem"><input name="name" placeholder="Name, e.g. Green room" required class="grow">
+            <label class="small row" style="margin:0;gap:.3rem">Background <input type="color" name="background" style="width:2.6rem;padding:0"></label>
+            <label class="small row" style="margin:0;gap:.3rem">Text <input type="color" name="text" style="width:2.6rem;padding:0"></label>
+            <label class="small row" style="margin:0;gap:.3rem">Timer size <input type="number" name="timer_size" min="5" max="40" style="width:4.5rem"></label>
+            <label class="small row" style="margin:0;gap:.3rem">Title size <input type="number" name="title_size" min="1" max="12" style="width:4rem"></label></div>
+          <div class="row small" style="flex-wrap:wrap;margin-top:.4rem">Show: ${Object.entries(SHOW).map(([k, v]) => `<label class="row" style="margin:0;gap:.3rem"><input type="checkbox" name="${k}" style="width:auto">${v}</label>`).join("")}</div>
+          <div class="row small hidden" data-dlogo style="margin-top:.4rem"></div>
+          <div class="row" style="justify-content:flex-end;margin-top:.5rem"><button type="button" class="hidden" data-new>New view</button><button class="primary" data-bsave>Save view</button></div>
+          <p class="small muted" style="margin:.3rem 0 0">Sizes are a share of the screen width. Saved views show in the screen picker and in Screens above.</p></form>` : ""}
+        <h3 style="margin-top:1rem">Uploaded views</h3>
+        <p class="small muted">Custom views made for Ontime work as they are: upload the view's folder as a .zip (with index.html), or a single .html file.</p>
         <table>${custom.map((v) => `<tr><td><b>${esc(v.name)}</b></td><td class="small">${boot.rooms.slice(0, 4).map((r) => `<a target="_blank" href="/room/${r.id}/external/${esc(v.slug)}/">${esc(r.name)} ↗</a>`).join(" · ")}</td>
-          <td>${boot.me.role === "admin" ? `<button class="small danger" data-delview="${esc(v.slug)}">Remove</button>` : ""}</td></tr>`).join("") || '<tr><td class="muted small">No custom views yet.</td></tr>'}</table>
-        ${boot.me.role === "admin" ? `<form class="row" id="upView" style="margin-top:.6rem"><input name="name" placeholder="View name, e.g. Lower third timer" required class="grow"><input type="file" name="file" accept=".zip,.html,.htm" required style="width:auto"><button class="primary">Upload view</button></form>` : ""}`;
+          <td>${isAdmin ? `<button class="small danger" data-delview="${esc(v.slug)}">Remove</button>` : ""}</td></tr>`).join("") || '<tr><td class="muted small">No custom views yet.</td></tr>'}</table>
+        ${isAdmin ? `<form class="row" id="upView" style="margin-top:.6rem"><input name="name" placeholder="View name, e.g. Lower third timer" required class="grow"><input type="file" name="file" accept=".zip,.html,.htm" required style="width:auto"><button class="primary">Upload view</button></form>` : ""}`;
+      const again = () => api("/api/timers-views").then((v) => { views.splice(0, views.length, ...v); renderScreens(); return renderViews(); });
       box.querySelectorAll("[data-delview]").forEach((b) => b.onclick = () => guard(() => del(`/api/timers-views/${b.dataset.delview}`)).then(() => timers(el)));
       const f = box.querySelector("#upView");
       if (f) f.onsubmit = (e) => { e.preventDefault(); guard(() => upload(`/api/timers-views?name=${encodeURIComponent(f.name.value)}`, f.file.files[0])).then(() => { toast("View added", "good"); timers(el); }); };
+      box.querySelectorAll("[data-logo]").forEach((i) => i.onchange = () => i.files[0] && guard(() => upload(`/api/timers-views/look/${i.dataset.logo.split("/")[0]}/logo/${i.dataset.logo.split("/")[1]}`, i.files[0])).then(() => { toast("Logo saved", "good"); renderViews(); }));
+      box.querySelectorAll("[data-unlogo]").forEach((b) => b.onclick = () => guard(() => del(`/api/timers-views/look/${b.dataset.unlogo.split("/")[0]}/logo/${b.dataset.unlogo.split("/")[1]}`)).then(renderViews));
+      const st = box.querySelector("[data-savetext]");
+      if (st) st.onclick = () => guard(() => put("/api/timers-views/look/bdng", { bottom_text: box.querySelector("[data-btext]").value })).then(() => toast("Saved", "good"));
+      box.querySelectorAll("[data-deldesign]").forEach((b) => b.onclick = () => confirm("Remove this view? Screens showing it fall back to the stage timer.") && guard(() => del(`/api/timers-designs/${b.dataset.deldesign}`)).then(() => { if (editing === b.dataset.deldesign) editing = null; return again(); }));
+      const bf = box.querySelector("#builder");
+      if (!bf) return;
+      const fill = (d, slug) => {
+        editing = slug;
+        for (const [k, v] of Object.entries({ ...D, ...d })) if (bf[k]) bf[k].type === "checkbox" ? (bf[k].checked = v) : (bf[k].value = v);
+        bf.querySelector("[data-btitle]").textContent = slug ? `Edit ${d.name}` : "Build a view";
+        bf.querySelector("[data-new]").classList.toggle("hidden", !slug);
+        const pv = bf.querySelector("[data-preview]"), dl = bf.querySelector("[data-dlogo]");
+        pv.classList.toggle("hidden", !slug || !boot.rooms.length);
+        if (slug && boot.rooms.length) pv.href = `/timer/${boot.rooms[0].id}?view=built:${encodeURIComponent(slug)}`;
+        dl.classList.toggle("hidden", !slug);
+        if (slug) {
+          const url = designs.find((x) => x.slug === slug)?.logo;
+          dl.innerHTML = `Logo (top left): ${url ? `<img src="${esc(url)}" alt="" style="height:28px;max-width:140px;object-fit:contain;background:#555;border-radius:4px">` : '<span class="muted">none</span>'}
+            <input type="file" accept=".png,.jpg,.jpeg,.svg,.webp" style="width:auto">${url ? '<button type="button" class="small" data-dunlogo>Remove</button>' : ""}`;
+          dl.querySelector("input").onchange = (e) => e.target.files[0] && guard(() => upload(`/api/timers-views/look/built:${slug}/logo/logo`, e.target.files[0])).then(() => { toast("Logo saved. Tick Show: Logo to use it.", "good"); renderViews(); });
+          dl.querySelector("[data-dunlogo]")?.addEventListener("click", () => guard(() => del(`/api/timers-views/look/built:${slug}/logo/logo`)).then(renderViews));
+        }
+      };
+      const cur = designs.find((x) => x.slug === editing);
+      cur ? fill(cur.design, cur.slug) : fill(D, null);
+      box.querySelectorAll("[data-edit]").forEach((b) => b.onclick = () => { const d = designs.find((x) => x.slug === b.dataset.edit); fill(d.design, d.slug); bf.scrollIntoView({ block: "nearest" }); });
+      bf.querySelector("[data-new]").onclick = () => fill(D, null);
+      bf.onsubmit = async (e) => {
+        e.preventDefault();
+        const body = {};
+        for (const k of Object.keys(D)) body[k] = bf[k].type === "checkbox" ? bf[k].checked : bf[k].type === "number" ? +bf[k].value : bf[k].value;
+        const r = await guard(() => editing ? put(`/api/timers-designs/${editing}`, body) : post("/api/timers-designs", body));
+        if (!r) return;
+        toast("View saved", "good");
+        editing = editing || r.slug;
+        await again();
+      };
     }
 
     renderScreens();

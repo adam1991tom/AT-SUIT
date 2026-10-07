@@ -35,7 +35,8 @@ public = APIRouter()  # custom views and the Ontime-compatible feed (module chec
 
 TIMER_TYPES = ("count-down", "count-up", "clock", "none")
 END_ACTIONS = ("none", "stop", "load-next", "play-next")
-BUILTIN_VIEWS = {"stage": "Stage timer", "minimal": "Minimal timer", "clock": "Clock", "backstage": "Backstage (cue list)"}
+BUILTIN_VIEWS = {"stage": "Stage timer", "minimal": "Minimal timer", "clock": "Clock", "backstage": "Backstage (cue list)",
+                 "hcc": "HCC venue clock", "bdng": "BDNG sponsor clock", "overlay": "Overlay window"}
 MAX_DURATION = 24 * 3600 * 1000
 
 
@@ -105,11 +106,20 @@ def state(c, r, room_name: str = "") -> dict:
         "started_at": r["first_started_at"],
         "message": r["message"], "message_visible": bool(r["message_visible"]), "message_blink": bool(r["message_blink"]),
         "blackout": bool(r["blackout"]), "warn_ms": r["warn_ms"], "danger_ms": r["danger_ms"],
-        "flash_danger": bool(r["flash_danger"]),
+        "flash_danger": bool(r["flash_danger"]), "show_clock": bool(r["show_clock"]),
+        "time_format": "12" if db.get_setting(c, "ontime_time_format", "24") == "12" else "24",
+        "clock_ms": _clock_ms(c, r["room_id"]),
         "cue": cue_out(current) if current else None, "next": cue_out(nxt) if nxt else None,
         "cue_index": [q["id"] for q in cues].index(current["id"]) if current else None, "cue_count": len(cues),
         "server_time": now,
     }
+
+
+def _clock_ms(c, room_id: int) -> int:
+    """The time of day at the venue, in ms since midnight, so screens show the
+    site's time whatever their own clock or time zone says."""
+    t = datetime.now(_site_zone(c, room_id))
+    return ((t.hour * 60 + t.minute) * 60 + t.second) * 1000 + t.microsecond // 1000
 
 
 def _room_state(c, room_id: int) -> dict:
@@ -174,10 +184,12 @@ class TimerAction(BaseModel):
     danger_ms: int | None = Field(default=None, ge=0)
     flash_danger: bool | None = None
     cue_id: int | None = None
+    on: bool | None = None  # blink, clock and blackout: on, off, or left out to toggle
 
 
 ACTIONS = ("set", "start", "pause", "toggle", "reset", "add", "message", "thresholds",
-           "load", "go", "next", "previous", "stop")
+           "load", "go", "next", "previous", "stop", "blink", "clock", "blackout")
+SWITCHES = {"blink": "message_blink", "clock": "show_clock", "blackout": "blackout"}
 
 
 async def timer_action(room_id: int, action: str, body: TimerAction | None = None, p: Principal = Depends(require_tech)):
@@ -191,6 +203,9 @@ async def timer_action(room_id: int, action: str, body: TimerAction | None = Non
         left = remaining(r, now)
         running = bool(r["running"])
         cues = cue_list(c, room_id)
+        if action in ("set", "load", "go", "next", "previous") or (action in ("start", "toggle") and not running):
+            if r["show_clock"]:
+                _update(c, room_id, show_clock=0)  # back to the timer
         if action == "set":
             dur = body.duration_ms if body.duration_ms is not None else r["duration_ms"]
             fields = {"cue_id": None, "duration_ms": dur, "remaining_ms": dur, "running": 0, "started_at": None,
@@ -243,7 +258,65 @@ async def timer_action(room_id: int, action: str, body: TimerAction | None = Non
                 _load(c, room_id, q, start=False)
         elif action == "stop":
             _stop(c, room_id)
+        elif action in SWITCHES:
+            col = SWITCHES[action]
+            _update(c, room_id, **{col: int(body.on if body.on is not None else not r[col])})
     return await publish(room_id)
+
+
+class Preset(BaseModel):
+    minutes: float = Field(gt=0, le=24 * 60)
+    start: bool = True
+    title: str = Field(default="", max_length=200)
+    warn_ms: int = Field(default=300000, ge=0)
+    danger_ms: int = Field(default=60000, ge=0)
+
+
+@router.post("/api/timers/{room_id}/preset")
+async def preset(room_id: int, body: Preset, p: Principal = Depends(require_tech)):
+    """Load a timer of so many minutes and start it (start=false to load it
+    ready): Companion's 3, 5, 10 ... 60 minute buttons."""
+    ms = int(body.minutes * 60000)
+    now = time.time() if body.start else None
+    with db.tx() as c:
+        room_or_404(c, room_id, p)
+        _row(c, room_id)
+        _update(c, room_id, cue_id=None, title=body.title, duration_ms=ms, remaining_ms=ms, added_ms=0,
+                timer_type="count-down", end_action="none", warn_ms=body.warn_ms, danger_ms=body.danger_ms,
+                running=int(body.start), started_at=now, first_started_at=now, show_clock=0)
+    return await publish(room_id)
+
+
+@router.post("/api/timers/{room_id}/preset/{minutes}")
+async def preset_minutes(room_id: int, minutes: float, start: bool = True, p: Principal = Depends(require_tech)):
+    """The same with the minutes in the address, so a button needs no body."""
+    if not 0 < minutes <= 24 * 60:
+        raise HTTPException(400, "Minutes must be between 0 and 1440")
+    return await preset(room_id, Preset(minutes=minutes, start=start), p)
+
+
+class MessageShow(BaseModel):
+    text: str | None = Field(default=None, max_length=500)
+    blink: bool | None = None
+
+
+@router.post("/api/timers/{room_id}/message/show")
+async def message_show(room_id: int, body: MessageShow | None = None, p: Principal = Depends(require_tech)):
+    """Show the stage message (with new text if given)."""
+    body = body or MessageShow()
+    return await timer_action(room_id, "message", TimerAction(message=body.text, message_visible=True, message_blink=body.blink), p)
+
+
+@router.post("/api/timers/{room_id}/message/hide")
+async def message_hide(room_id: int, p: Principal = Depends(require_tech)):
+    return await timer_action(room_id, "message", TimerAction(message_visible=False), p)
+
+
+async def switch(room_id: int, what: str, state: str, p: Principal = Depends(require_tech)):
+    """Blink, clock or blackout: /on, /off or /toggle, with no body."""
+    if what not in SWITCHES or state not in ("on", "off", "toggle"):
+        raise HTTPException(404, "Use blink, clock or blackout with on, off or toggle")
+    return await timer_action(room_id, what, TimerAction(on=None if state == "toggle" else state == "on"), p)
 
 
 _flash_seen: dict[int, tuple] = {}  # room -> (run it fired for, danger already flashed)
@@ -495,8 +568,22 @@ def views_dir() -> Path:
 
 def list_views(c) -> list[dict]:
     custom = db.rows(c.execute("SELECT slug,name,created_at FROM timer_views ORDER BY name"))
+    designs = db.rows(c.execute("SELECT slug,name,created_at FROM timer_designs ORDER BY name"))
     return [{"id": k, "name": v, "builtin": True} for k, v in BUILTIN_VIEWS.items()] + \
+           [{"id": f"built:{v['slug']}", "slug": v["slug"], "name": v["name"], "builtin": False, "design": True,
+             "created_at": v["created_at"]} for v in designs] + \
            [{"id": f"view:{v['slug']}", "slug": v["slug"], "name": v["name"], "builtin": False, "created_at": v["created_at"]} for v in custom]
+
+
+def view_known(c, view: str) -> bool:
+    """A view a screen can be routed to: built in, built in the console, or uploaded."""
+    if view in BUILTIN_VIEWS:
+        return True
+    if view.startswith("built:"):
+        return bool(c.execute("SELECT 1 FROM timer_designs WHERE slug=?", (view[6:],)).fetchone())
+    if view.startswith("view:"):
+        return bool(c.execute("SELECT 1 FROM timer_views WHERE slug=?", (view[5:],)).fetchone())
+    return False
 
 
 @router.get("/api/timers-views")
@@ -559,6 +646,178 @@ def delete_view(slug: str, p: Principal = Depends(require_admin)):
     with db.tx() as c:
         c.execute("DELETE FROM timer_views WHERE slug=?", (slug,))
         db.audit(c, p.name, "timers.view_delete", slug)
+    return {"ok": True}
+
+
+# -------------------------------------------- branded and console-built views --
+# HCC and BDNG take their logos from the site's branding, or a logo uploaded
+# for the view (kept in the data folder). Views built in the console store
+# their look as JSON and are served by timer.html like the built-in ones.
+LOGO_SLOTS = {"hcc": ("top",), "bdng": ("top", "bottom")}
+LOGO_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml", ".webp": "image/webp"}
+LOOK_DEFAULTS = {"hcc": {}, "bdng": {"bottom_text": "Official timekeeping"}}
+
+
+def logos_dir() -> Path:
+    d = config.cfg.data / "view-logos"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _logo_key(c, view: str, slot: str) -> str:
+    if view in LOGO_SLOTS and slot in LOGO_SLOTS[view]:
+        return f"{view}-{slot}"
+    if view.startswith("built:") and slot == "logo" and view_known(c, view):
+        return f"built-{view[6:]}-logo"
+    raise HTTPException(404, "That view has no logo there")
+
+
+def _logo_file(key: str) -> Path | None:
+    return next((f for f in logos_dir().glob(f"{key}.*") if f.suffix in LOGO_TYPES), None)
+
+
+def _logo_url(key: str) -> str:
+    f = _logo_file(key)
+    return f"/api/timers-views/logo/{f.name}?v={int(f.stat().st_mtime)}" if f else ""
+
+
+@router.get("/api/timers-views/look/{view}")
+def get_look(view: str):
+    """What a branded or console-built view needs: logos, text and colours. Public, like the timer."""
+    from .core import DEFAULT_BRANDING
+
+    with db.ro() as c:
+        if view in LOGO_SLOTS:
+            site_logo = {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {})}.get("logo_url", "")
+            logos = {slot: _logo_url(f"{view}-{slot}") for slot in LOGO_SLOTS[view]}
+            return {"view": view, "logos": logos, "site_logo": site_logo, "uses_site_logo": not logos["top"] and bool(site_logo),
+                    "options": {**LOOK_DEFAULTS[view], **(db.get_setting(c, "timer_view_looks", {}) or {}).get(view, {})}}
+        if view.startswith("built:"):
+            r = c.execute("SELECT * FROM timer_designs WHERE slug=?", (view[6:],)).fetchone()
+            if r:
+                return {"view": view, "name": r["name"], "logos": {"logo": _logo_url(f"built-{r['slug']}-logo")},
+                        "design": {**Design(name=r["name"]).model_dump(), **json.loads(r["config_json"] or "{}")}}
+    raise HTTPException(404, "No such view")
+
+
+class LookIn(BaseModel):
+    bottom_text: str = Field(default="", max_length=120)
+
+
+@router.put("/api/timers-views/look/{view}")
+def set_look(view: str, body: LookIn, p: Principal = Depends(require_admin)):
+    if view not in LOOK_DEFAULTS:
+        raise HTTPException(404, "No such view")
+    with db.tx() as c:
+        looks = db.get_setting(c, "timer_view_looks", {}) or {}
+        looks[view] = {k: v for k, v in body.model_dump().items() if k in LOOK_DEFAULTS[view]} if LOOK_DEFAULTS[view] else {}
+        db.set_setting(c, "timer_view_looks", looks)
+        db.audit(c, p.name, "timers.view_look", view)
+    return {"ok": True}
+
+
+@router.post("/api/timers-views/look/{view}/logo/{slot}")
+async def upload_logo(view: str, slot: str, file: UploadFile, p: Principal = Depends(require_admin)):
+    """A logo for one view (PNG with a see-through background looks best)."""
+    ext = Path((file.filename or "").lower()).suffix
+    if ext not in LOGO_TYPES:
+        raise HTTPException(400, "Upload a PNG, JPG, SVG or WebP image")
+    data = await file.read(5 * 1024 * 1024 + 1)
+    if len(data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Logos can be up to 5 MB")
+    with db.tx() as c:
+        key = _logo_key(c, view, slot)
+        db.audit(c, p.name, "timers.view_logo", key)
+    for old in logos_dir().glob(f"{key}.*"):
+        old.unlink()
+    (logos_dir() / f"{key}{'.jpg' if ext == '.jpeg' else ext}").write_bytes(data)
+    return {"url": _logo_url(key)}
+
+
+@router.delete("/api/timers-views/look/{view}/logo/{slot}")
+def delete_logo(view: str, slot: str, p: Principal = Depends(require_admin)):
+    with db.tx() as c:
+        key = _logo_key(c, view, slot)
+        db.audit(c, p.name, "timers.view_logo_delete", key)
+    for old in logos_dir().glob(f"{key}.*"):
+        old.unlink()
+    return {"ok": True}
+
+
+@public.get("/api/timers-views/logo/{name}", include_in_schema=False)
+def serve_logo(name: str):
+    f = logos_dir() / name
+    if not re.match(r"^[a-z0-9-]+\.(png|jpg|svg|webp)$", name) or not f.is_file():
+        raise HTTPException(404)
+    # SVGs can carry script: serve them as images only.
+    return FileResponse(f, media_type=LOGO_TYPES[f.suffix], headers={"Cache-Control": "public, max-age=86400",
+                                                                     "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
+
+
+COLOUR = r"^#[0-9a-fA-F]{6}$"
+
+
+class Design(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    background: str = Field(default="#000000", pattern=COLOUR)
+    text: str = Field(default="#ffffff", pattern=COLOUR)
+    timer_size: int = Field(default=24, ge=5, le=40)  # % of the screen width
+    title_size: int = Field(default=4, ge=1, le=12)
+    show_logo: bool = False
+    show_title: bool = True
+    show_next: bool = True
+    show_progress: bool = True
+    show_clock: bool = False
+    show_message: bool = True
+
+
+def _design_slug(c, name: str) -> str:
+    base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:36] or "view"
+    slug, n = base, 2
+    while c.execute("SELECT 1 FROM timer_designs WHERE slug=?", (slug,)).fetchone():
+        slug, n = f"{base}-{n}", n + 1
+    return slug
+
+
+@router.get("/api/timers-designs")
+def list_designs():
+    with db.ro() as c:
+        return [{"id": f"built:{r['slug']}", "slug": r["slug"], "name": r["name"], "created_at": r["created_at"],
+                 "logo": _logo_url(f"built-{r['slug']}-logo"),
+                 "design": {**Design(name=r["name"]).model_dump(), **json.loads(r["config_json"] or "{}")}}
+                for r in c.execute("SELECT * FROM timer_designs ORDER BY name")]
+
+
+@router.post("/api/timers-designs")
+def add_design(body: Design, p: Principal = Depends(require_admin)):
+    """A timer view built in the console: colours, sizes and which parts show."""
+    with db.tx() as c:
+        if c.execute("SELECT COUNT(*) FROM timer_designs").fetchone()[0] >= 50:
+            raise HTTPException(400, "Up to 50 built views")
+        slug = _design_slug(c, body.name)
+        c.execute("INSERT INTO timer_designs(slug,name,config_json,created_at) VALUES(?,?,?,?)",
+                  (slug, body.name.strip(), body.model_dump_json(), db.now_iso()))
+        db.audit(c, p.name, "timers.design_add", slug)
+    return {"id": f"built:{slug}", "slug": slug}
+
+
+@router.put("/api/timers-designs/{slug}")
+def edit_design(slug: str, body: Design, p: Principal = Depends(require_admin)):
+    with db.tx() as c:
+        if not c.execute("UPDATE timer_designs SET name=?, config_json=? WHERE slug=?",
+                         (body.name.strip(), body.model_dump_json(), slug)).rowcount:
+            raise HTTPException(404, "No such view")
+        db.audit(c, p.name, "timers.design_edit", slug)
+    return {"ok": True}
+
+
+@router.delete("/api/timers-designs/{slug}")
+def delete_design(slug: str, p: Principal = Depends(require_admin)):
+    with db.tx() as c:
+        c.execute("DELETE FROM timer_designs WHERE slug=?", (slug,))
+        db.audit(c, p.name, "timers.design_delete", slug)
+    for old in logos_dir().glob(f"built-{slug}-logo.*"):
+        old.unlink()
     return {"ok": True}
 
 
@@ -659,6 +918,14 @@ def ontime_runtime(c, room_id: int) -> dict:
     def of_day(t):
         return int(clock - (now - t) * 1000) % 86400000 if t else None
     idle = {"current": 0, "duration": 0, "playback": "stop", "direction": "count-down"}
+    now_event = ontime_event(current) if current else (
+        {"type": "event", "id": "manual", "cue": "", "title": r["title"], "note": "", "duration": r["duration_ms"],
+         "timerType": r["timer_type"], "endAction": "none", "colour": "", "timeStart": 0, "timeEnd": 0,
+         "timeWarning": r["warn_ms"], "timeDanger": r["danger_ms"], "custom": {}, "skip": False} if loaded else None)
+    if r["show_clock"]:  # Clock on: views show the time of day, as for a "clock" event
+        now_event = {**(now_event or {"type": "event", "id": "clock", "cue": "", "title": "", "note": "", "duration": 0,
+                                      "endAction": "none", "colour": "", "timeStart": 0, "timeEnd": 0, "timeWarning": 0,
+                                      "timeDanger": 0, "custom": {}, "skip": False}), "timerType": "clock"}
     return {
         "clock": clock,
         "timer": {
@@ -676,10 +943,7 @@ def ontime_runtime(c, room_id: int) -> dict:
                     "currentDay": 0, "actualGroupStart": None},
         "offset": {"absolute": 0, "relative": 0, "mode": "absolute", "expectedGroupEnd": None,
                    "expectedRundownEnd": None, "expectedFlagStart": None},
-        "eventNow": ontime_event(current) if current else (
-            {"type": "event", "id": "manual", "cue": "", "title": r["title"], "note": "", "duration": r["duration_ms"],
-             "timerType": r["timer_type"], "endAction": "none", "colour": "", "timeStart": 0, "timeEnd": 0,
-             "timeWarning": r["warn_ms"], "timeDanger": r["danger_ms"], "custom": {}, "skip": False} if loaded else None),
+        "eventNow": now_event,
         "eventNext": ontime_event(nxt),
         "eventFlag": None, "groupNow": None,
         "auxtimer1": idle, "auxtimer2": idle, "auxtimer3": idle,
@@ -763,4 +1027,5 @@ def ontime_rest_rundown(room_id: int):
 
 
 # Registered last so /api/timers/<room>/cues/... routes win over /<action>.
+router.add_api_route("/api/timers/{room_id}/{what}/{state}", switch, methods=["POST"])
 router.add_api_route("/api/timers/{room_id}/{action}", timer_action, methods=["POST"])

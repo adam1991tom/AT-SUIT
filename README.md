@@ -48,7 +48,7 @@ backups and updates, and [docs/ADMIN.md](docs/ADMIN.md) for day-to-day setup.
 | `/present/<link>` | presenters | their own page: upload slides, see review notes, check in. No account; each presenter has their own link |
 | `/captions/<room>` | audience screens | captions, no sign-in |
 | `/captions/<room>/overlay` | OBS / vMix | transparent caption overlay |
-| `/api/docs` | integrators | REST API (Companion, automation) |
+| `/api/docs` | integrators | REST API (Companion, automation); Companion set-up and button list in [docs/COMPANION.md](docs/COMPANION.md) |
 
 ## Repository
 

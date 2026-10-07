@@ -146,21 +146,23 @@ The first run saves the settings, so after that `python atsuit_room_sync.py` is 
 
 ## Companion
 
-Use Companion's Generic HTTP module. Every request needs the header
-`X-API-Key: <key>`. Room numbers are in the console address bar
-(`/timer/3` is room 3).
+How to make a key, set up Companion's Generic HTTP module, a ready list of
+buttons (timer presets 3 to 60 minutes, +/−1, blink, messages, clock,
+overlays, captions) and every endpoint a key can call:
+**[COMPANION.md](COMPANION.md)**.
 
-| Button | Method and path | Body |
+Every request is a POST with the header `X-API-Key: <key>` (Admin → API
+keys). Room 3 here; the room number is in its stage screen address
+(`/timer/3`).
+
+| Button | POST | Body |
 |---|---|---|
-| Start/pause | `POST /api/timers/3/toggle` | |
-| Reset | `POST /api/timers/3/reset` | |
-| Set 20 min | `POST /api/timers/3/set` | `{"duration_ms":1200000}` |
-| Add a minute | `POST /api/timers/3/add` | `{"delta_ms":60000}` |
-| Stage message | `POST /api/timers/3/message` | `{"message":"Wrap up","message_visible":true}` |
-| Overlay show | `POST /api/overlays/targets/1/action` | `{"overlay":"1","action":"show"}` |
-| Caption test | `POST /api/captions/3/test` | `{"text":"Caption check"}` |
-
-The full API is at `/api/docs` on the server.
+| 5 min, started | `/api/timers/3/preset/5` | |
+| Start/pause | `/api/timers/3/toggle` | |
+| Add a minute | `/api/timers/3/add` | `{"delta_ms":60000}` |
+| Blink | `/api/timers/3/blink/toggle` | |
+| Stage message | `/api/timers/3/message/show` | `{"text":"Wrap up"}` |
+| Clock | `/api/timers/3/clock/toggle` | |
 
 ## Licences (for resellers)
 
