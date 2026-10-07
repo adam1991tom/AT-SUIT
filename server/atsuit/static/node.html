@@ -12,7 +12,8 @@
   #ident { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12vw; font-weight: 800; background: var(--accent); color: #fff; z-index: 50; }
   .bigclock { font-size: clamp(3rem, 9vw, 6rem); line-height: 1; }
   .helpbtn { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 700; font-size: 1.05rem; padding: .8rem 1.2rem; }
-  .top { position: sticky; top: 0; z-index: 900; }
+  .top { position: sticky; top: 0; z-index: 900; border-bottom: 3px solid var(--accent); border-image: linear-gradient(90deg, var(--ember), var(--accent) 40%, var(--glow)) 1; }
+  .top b[data-product] { font-family: var(--brand-font); font-weight: 800; letter-spacing: .02em; }
   .winbar { display: flex; gap: .3rem; flex-wrap: wrap; }
   .winbar button.on { border-color: var(--accent); color: #fff; background: color-mix(in srgb, var(--accent) 35%, var(--panel2)); }
   .winbar .unread { margin-left: .3rem; }
@@ -63,6 +64,7 @@
 </style>
 </head>
 <body>
+<div id="boot" class="gear-load"><img src="/static/brand/gear-64.png" alt=""><span>Starting AT-SUIT…</span></div>
 <div id="enrol" class="center hidden">
   <form class="panel card" id="enrolForm">
     <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">

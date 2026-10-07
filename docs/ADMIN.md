@@ -1,3 +1,5 @@
+<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUIT" width="200">
+
 # Setting up a venue
 
 Everything here is done in the browser. Nothing needs a file edited.

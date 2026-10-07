@@ -1,4 +1,8 @@
+/* AT-SUIT brand font (Saira, SIL Open Font Licence: brand/fonts/OFL.txt) */
+@font-face { font-family: "Saira"; font-weight: 700; font-display: swap; src: url("/static/brand/fonts/saira-700.woff2") format("woff2"); }
+@font-face { font-family: "Saira"; font-weight: 800; font-display: swap; src: url("/static/brand/fonts/saira-800.woff2") format("woff2"); }
 :root {
+  --navy: #0B1020; --ember: #C85400; --glow: #FFB27A; --brand-font: "Saira", system-ui, sans-serif;
   --bg: #0e1116; --panel: #161b24; --panel2: #1d2430; --line: #2a3342; --text: #e8ebf2; --muted: #93a0b4;
   --accent: #FF7A1A; --accent-ink: #0B1020; --good: #22c55e; --warn: #f59e0b; --bad: #ef4444; --radius: 10px;
   color-scheme: dark;
@@ -6,11 +10,17 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 a { color: var(--accent); }
-h1, h2, h3 { margin: 0 0 .6rem; font-weight: 650; }
-h1 { font-size: 1.35rem; } h2 { font-size: 1.1rem; } h3 { font-size: .95rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+::selection { background: var(--accent); color: var(--navy); }
+h1, h2, h3 { margin: 0 0 .6rem; font-family: var(--brand-font); font-weight: 700; letter-spacing: .01em; }
+h1 { font-size: 1.5rem; font-weight: 800; } h2 { font-size: 1.15rem; } h3 { font-size: .9rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+h3::before { content: ""; display: inline-block; width: .7em; height: .22em; background: var(--accent); border-radius: 2px; margin-right: .45em; vertical-align: middle; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 button, .btn { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .85rem; font: inherit; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: .35rem; }
 button:hover, .btn:hover { border-color: var(--accent); }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+button.primary:hover { background: var(--glow); border-color: var(--glow); }
+button.primary:active { background: var(--ember); border-color: var(--ember); color: #fff; }
 button.danger { border-color: var(--bad); color: #fecaca; }
 button.lit { background: var(--warn); border-color: var(--warn); color: #111; font-weight: 700; }
 button.small { padding: .25rem .55rem; font-size: .85rem; }
@@ -39,11 +49,12 @@ th { color: var(--muted); font-weight: 500; font-size: .85rem; }
 
 /* shell */
 .shell { display: grid; grid-template-columns: 220px 1fr; height: 100%; }
-.side { background: var(--panel); border-right: 1px solid var(--line); padding: 1rem .6rem; display: flex; flex-direction: column; gap: .2rem; overflow-y: auto; }
-.side .brand { font-weight: 700; padding: .2rem .6rem 1rem; display: flex; gap: .5rem; align-items: center; }
+.side { background: var(--navy); border-right: 1px solid var(--line); padding: 1rem .6rem; display: flex; flex-direction: column; gap: .2rem; overflow-y: auto; }
+.side .brand { font-family: var(--brand-font); font-weight: 800; font-size: 1.15rem; letter-spacing: .02em; padding: .2rem .6rem 1rem; display: flex; gap: .5rem; align-items: center; }
 .side .brand img { height: 30px; }
 .side a { color: var(--text); text-decoration: none; padding: .5rem .7rem; border-radius: 8px; display: flex; justify-content: space-between; }
-.side a.active, .side a:hover { background: var(--panel2); }
+.side a:hover { background: var(--panel2); }
+.side a.active { background: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: inset 3px 0 0 var(--accent); color: #fff; }
 .side .spacer { flex: 1; }
 .main { overflow-y: auto; padding: 1.4rem; }
 .banner { background: #3b2f12; border: 1px solid var(--warn); color: #fde68a; padding: .5rem .8rem; border-radius: 8px; margin-bottom: 1rem; }
@@ -120,3 +131,15 @@ a.btn.primary { background: var(--accent); border-color: var(--accent); color: v
 /* AT-SUIT logo */
 .brand-stacked { display: block; width: 150px; max-width: 60%; margin: 0 auto 1rem; }
 .brand-mark { height: 28px; width: auto; }
+
+/* brand touches: the orange stripe, the gear while loading, cards that open a page */
+.brand-stripe { height: 3px; background: linear-gradient(90deg, var(--ember), var(--accent) 40%, var(--glow)); }
+.center > .card, .center > form.card { border-top: 3px solid var(--accent); }
+.gear-load { display: flex; flex-direction: column; align-items: center; gap: .8rem; padding: 3rem 1rem; color: var(--muted); }
+.gear-load img { width: 56px; height: 56px; animation: gear-spin 2.4s linear infinite; }
+@keyframes gear-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .gear-load img { animation: none; } }
+.brand-font { font-family: var(--brand-font); }
+/* the gear shows until the page knows what to show */
+body:has(> .center:not(.hidden):not(#boot), > #shell:not(.hidden), > #ws:not(.hidden), > #kiosk:not(.hidden)) > #boot { display: none; }
+#boot { min-height: 100%; justify-content: center; }

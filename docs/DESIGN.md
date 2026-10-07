@@ -1,3 +1,5 @@
+<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUIT" width="200">
+
 # AT-SUIT design
 
 AT-SUIT replaces the separate AT apps, Docker containers and dashboards with

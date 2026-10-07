@@ -1,3 +1,5 @@
+<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUIT" width="200">
+
 # Companion and the AT-SUIT API
 
 Bitfocus Companion (and anything else that can send a web request) drives

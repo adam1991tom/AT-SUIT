@@ -1,3 +1,5 @@
+<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUIT" width="200">
+
 # Installing AT-SUIT
 
 ## Requirements

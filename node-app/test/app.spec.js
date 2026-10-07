@@ -358,3 +358,20 @@ test("an overlay left on comes back after a restart, and the server knows", asyn
   await new Promise((r) => setTimeout(r, 2000));
   expect(await overlayWindows(app)).toEqual([]);
 });
+
+test("with the server down the app shows its own branded page, not a browser error", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "atsuit-node-off-"));
+  fs.writeFileSync(path.join(dir, "node.json"), JSON.stringify({ server: "http://127.0.0.1:9", name: "OFFLINE-TEST", token_plain: "x" }));
+  const args = [path.join(__dirname, "..")];
+  if (process.platform === "linux") args.push("--no-sandbox");
+  app = await electron.launch({ args, env: { ...process.env, ATSUIT_NODE_USERDATA: dir, ATSUIT_NODE_PRESET: path.join(dir, "none.json"), ATSUIT_NODE_NO_UPDATES: "1" } });
+  let page = null;
+  for (let i = 0; i < 50 && !page; i++) {
+    page = app.windows().find((w) => w.url().includes("offline.html")) || null;
+    if (!page) await new Promise((r) => setTimeout(r, 200));
+  }
+  expect(page).toBeTruthy();
+  await expect(page.locator("h1")).toHaveText("Can't reach the AT-SUIT server");
+  await expect(page.locator("#where")).toContainText("http://127.0.0.1:9");
+  expect(await page.locator("img").evaluate((i) => i.naturalWidth)).toBeGreaterThan(0); // the gear loads
+});

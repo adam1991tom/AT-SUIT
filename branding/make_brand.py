@@ -591,12 +591,30 @@ def app_assets():
     shrink("logo/atsuit-icon.png", "icon-96.png", 96)
     shrink("logo/atsuit-wordmark.png", "wordmark-96.png", 96)
     shrink("logo/atsuit-stacked.png", "stacked-320.png", 320)
+    shrink("logo/atsuit-gear.png", "gear-64.png", 64)
+    # Saira for headings, as woff2 (Latin only, ~13 KB each); needs `pip install brotli`
+    from fontTools.ttLib import TTFont
+    from fontTools import subset
+    os.makedirs(os.path.join(web, "fonts"), exist_ok=True)
+    chars = list(range(0x20, 0x7f)) + list(range(0xa0, 0x180)) + [0x2013, 0x2014, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2026, 0x2190, 0x2192, 0x20ac]
+    for w in ("700", "800"):
+        opts = subset.Options(); opts.flavor = "woff2"; opts.layout_features = ["*"]
+        f = TTFont(os.path.join(HERE, "fonts", "saira-%s.ttf" % w))
+        sub = subset.Subsetter(opts); sub.populate(unicodes=chars); sub.subset(f)
+        f.flavor = "woff2"; f.save(os.path.join(web, "fonts", "saira-%s.woff2" % w))
+    shutil.copy(os.path.join(HERE, "fonts", "OFL.txt"), os.path.join(web, "fonts", "OFL.txt"))
     node = os.path.join(repo, "node-app", "build")
     if os.path.isdir(node):
         shutil.copy(os.path.join(HERE, "app", "icon-1024.png"), os.path.join(node, "icon.png"))
         shutil.copy(os.path.join(HERE, "app", "icon.ico"), os.path.join(node, "icon.ico"))
         shutil.copy(os.path.join(HERE, "app", "tray-16.png"), os.path.join(node, "tray-16.png"))
         shutil.copy(os.path.join(HERE, "app", "tray-32.png"), os.path.join(node, "tray-32.png"))
+        # the app's own pages (setup, pop-ups, offline) load these from disk
+        app_brand = os.path.join(repo, "node-app", "src", "brand")
+        os.makedirs(app_brand, exist_ok=True)
+        for f in ("icon-96.png", "stacked-320.png", "gear-64.png", "fonts/saira-700.woff2", "fonts/saira-800.woff2", "fonts/OFL.txt"):
+            os.makedirs(os.path.dirname(os.path.join(app_brand, f)), exist_ok=True)
+            shutil.copy(os.path.join(web, f), os.path.join(app_brand, f))
 
 
 if __name__ == "__main__":

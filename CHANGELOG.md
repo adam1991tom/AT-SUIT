@@ -6,7 +6,7 @@ release workflow publishes the image and the GitHub release.
 
 ## 0.5.0
 
-- **AT-SUIT logo and brand.** The app, the Windows app, its tray icon, the favicons and the sign-in pages use the new AT-SUIT logo, and the default accent is the brand orange. `branding/` has the logo files, app icons, social images, the brand guide (HTML and PDF) and `make_brand.py`, which rebuilds them all.
+- **AT-SUIT logo and brand.** The app, the Windows app, its tray icon, the favicons and the sign-in pages use the new AT-SUIT logo, and the default accent is the brand orange. `branding/` has the logo files, app icons, social images, the brand guide (HTML and PDF) and `make_brand.py`, which rebuilds them all. Headings use the brand font (Saira), the console sidebar is navy with an orange marker on the current page, pages show the spinning gear while they start, and the Windows app's setup, pop-ups and a new "can't reach the server" page carry the logo.
 - **Tech workspace redesign.** The room timer fills the screen. Captions, sessions, screens, overlays and links open as windows you can move, resize and close; the layout is remembered. Chat is a small dock in the corner, and the red **Help** button at the top drops down with the message and the room's open calls.
 - **Notifications** for chat, help calls, the timer (warning, danger, overtime), new presenter files, captions stopping and the connection dropping: a bell list and a note in the window, and silent pop-ups on the backup PC. The main PC still shows nothing.
 - **Captions** in their own window, with a live overview next to the timer. **Linux screens** in the room can be switched from the workspace to any view or any web page.

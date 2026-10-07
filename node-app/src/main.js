@@ -138,7 +138,10 @@ function openMain() {
   });
   mainWin.webContents.on("render-process-gone", () => setTimeout(() => mainWin && !mainWin.isDestroyed() && mainWin.reload(), 2000));
   mainWin.webContents.on("did-fail-load", (_e, code, _desc, url, isMain) => {
-    if (isMain && code !== -3) setTimeout(() => mainWin && !mainWin.isDestroyed() && mainWin.loadURL(`${conf.server}/node`), 5000);
+    if (!isMain || code === -3) return;
+    // Show our own "can't reach the server" page (not Chromium's), then try again.
+    mainWin.loadFile(path.join(__dirname, "offline.html"), { query: { server: conf.server } }).catch(() => {});
+    setTimeout(() => mainWin && !mainWin.isDestroyed() && mainWin.loadURL(`${conf.server}/node`).catch(() => {}), 5000);
   });
   mainWin.loadURL(`${conf.server}/node`);
 }
