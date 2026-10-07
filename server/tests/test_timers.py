@@ -174,3 +174,107 @@ def test_venue_ontime_project_presets_and_flash(admin):
     # A tech can switch it off for the room.
     admin.post(f"/api/timers/{rid}/thresholds", json={"flash_danger": False})
     assert not admin.get(f"/api/timers/{rid}").json()["flash_danger"]
+
+
+def _apikey(admin):
+    key = admin.post("/api/admin/api-keys", json={"name": "Companion"}).json()["key"]
+    return {"X-API-Key": key}
+
+
+def test_companion_presets_switches_and_messages(admin, client):
+    rid = room(admin)
+    k = _apikey(admin)
+    client.cookies.clear()  # only the API key from here on, as Companion sends
+    assert client.post(f"/api/timers/{rid}/preset", json={"minutes": 5}).status_code == 401
+    s = client.post(f"/api/timers/{rid}/preset", headers=k, json={"minutes": 5}).json()
+    assert s["running"] and s["duration_ms"] == 300000 and s["cue"] is None and s["warn_ms"] == 300000 and s["danger_ms"] == 60000
+    for m in (3, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60):
+        s = client.post(f"/api/timers/{rid}/preset/{m}", headers=k).json()
+        assert s["duration_ms"] == m * 60000 and s["running"]
+    s = client.post(f"/api/timers/{rid}/preset/10?start=false", headers=k).json()
+    assert not s["running"] and s["playback"] == "armed" and s["remaining_ms"] == 600000
+    assert client.post(f"/api/timers/{rid}/preset/0", headers=k).status_code == 400
+    assert client.post(f"/api/timers/{rid}/preset", headers=k, json={"minutes": -1}).status_code == 422
+    s = client.post(f"/api/timers/{rid}/add", headers=k, json={"delta_ms": 60000}).json()
+    assert s["remaining_ms"] == 660000
+    # Blink, clock and blackout: on, off, toggle, with or without a body.
+    assert client.post(f"/api/timers/{rid}/blink/on", headers=k).json()["message_blink"]
+    assert not client.post(f"/api/timers/{rid}/blink/toggle", headers=k).json()["message_blink"]
+    assert client.post(f"/api/timers/{rid}/blink", headers=k).json()["message_blink"]
+    assert not client.post(f"/api/timers/{rid}/blink", headers=k, json={"on": False}).json()["message_blink"]
+    assert client.post(f"/api/timers/{rid}/blackout/on", headers=k).json()["blackout"]
+    assert not client.post(f"/api/timers/{rid}/blackout/off", headers=k).json()["blackout"]
+    assert client.post(f"/api/timers/{rid}/sideways/on", headers=k).status_code == 404
+    assert client.post(f"/api/timers/{rid}/blink/maybe", headers=k).status_code == 404
+    s = client.post(f"/api/timers/{rid}/clock/on", headers=k).json()
+    assert s["show_clock"] and s["time_format"] == "24" and 0 <= s["clock_ms"] < 86400000
+    with client.websocket_connect(f"/ontime/{rid}/ws") as ws:  # Ontime views show the time of day too
+        ws.receive_json()
+        assert ws.receive_json()["payload"]["eventNow"]["timerType"] == "clock"
+    assert not client.post(f"/api/timers/{rid}/clock/toggle", headers=k).json()["show_clock"]
+    client.post(f"/api/timers/{rid}/clock/on", headers=k)
+    assert not client.post(f"/api/timers/{rid}/preset/5", headers=k).json()["show_clock"]  # a new timer brings it back
+    # Messages.
+    s = client.post(f"/api/timers/{rid}/message/show", headers=k, json={"text": "Wrap up", "blink": True}).json()
+    assert s["message"] == "Wrap up" and s["message_visible"] and s["message_blink"]
+    s = client.post(f"/api/timers/{rid}/message/hide", headers=k).json()
+    assert not s["message_visible"] and s["message"] == "Wrap up"
+    assert client.post(f"/api/timers/{rid}/message/show", headers=k).json()["message_visible"]  # no body: same text again
+    # Cue routes still win over the switch route.
+    assert client.post(f"/api/timers/{rid}/cues", headers=k, json={"title": "A", "duration_ms": 1000}).status_code == 200
+    assert client.post(f"/api/timers/{rid}/cues/reorder", headers=k, json={"ids": [q["id"] for q in client.get(f"/api/timers/{rid}/cues").json()]}).status_code == 200
+
+
+def test_clock_button_and_back(admin):
+    rid = room(admin)
+    a = add(admin, rid, title="A", duration_ms=60000)
+    admin.post(f"/api/timers/{rid}/go")
+    assert admin.post(f"/api/timers/{rid}/clock", json={}).json()["show_clock"]
+    s = admin.post(f"/api/timers/{rid}/pause").json()
+    assert s["show_clock"]  # pausing keeps the clock up
+    assert not admin.post(f"/api/timers/{rid}/clock", json={}).json()["show_clock"]
+    admin.post(f"/api/timers/{rid}/clock", json={"on": True})
+    assert not admin.post(f"/api/timers/{rid}/load", json={"cue_id": a}).json()["show_clock"]
+
+
+def test_branded_views_logos_and_builder(admin, client):
+    rid = room(admin)
+    ids = {v["id"] for v in client.get("/api/timers-views").json()}
+    assert {"hcc", "bdng", "overlay"} <= ids
+    admin.put("/api/admin/settings", json={"branding": {"logo_url": "/static/site-logo.png"}})
+    look = client.get("/api/timers-views/look/hcc").json()
+    assert look["logos"] == {"top": ""} and look["site_logo"] == "/static/site-logo.png" and look["uses_site_logo"]
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 64
+    r = admin.post("/api/timers-views/look/bdng/logo/bottom", files={"file": ("sponsor.png", png)})
+    assert r.status_code == 200 and r.json()["url"].startswith("/api/timers-views/logo/bdng-bottom.png")
+    assert client.get(r.json()["url"]).content == png
+    assert admin.post("/api/timers-views/look/bdng/logo/side", files={"file": ("x.png", png)}).status_code == 404
+    assert admin.post("/api/timers-views/look/hcc/logo/top", files={"file": ("x.exe", b"MZ")}).status_code == 400
+    assert client.get("/api/timers-views/logo/..%2Fatsuit.db").status_code == 404
+    assert admin.put("/api/timers-views/look/bdng", json={"bottom_text": "Official timekeeping sponsor"}).status_code == 200
+    look = client.get("/api/timers-views/look/bdng").json()
+    assert look["options"]["bottom_text"] == "Official timekeeping sponsor" and look["logos"]["bottom"]
+    assert admin.delete("/api/timers-views/look/bdng/logo/bottom").status_code == 200
+    assert client.get("/api/timers-views/look/bdng").json()["logos"]["bottom"] == ""
+    # A view built in the console.
+    assert admin.post("/api/timers-designs", json={"name": "Green room", "background": "red"}).status_code == 422
+    d = admin.post("/api/timers-designs", json={"name": "Green room", "background": "#0b3d2e", "show_clock": True}).json()
+    assert d == {"id": "built:green-room", "slug": "green-room"}
+    assert admin.post("/api/timers-designs", json={"name": "Green room"}).json()["slug"] == "green-room-2"
+    assert admin.post("/api/timers-views/look/built:green-room/logo/logo", files={"file": ("l.svg", b"<svg/>")}).status_code == 200
+    look = client.get("/api/timers-views/look/built:green-room").json()
+    assert look["design"]["background"] == "#0b3d2e" and look["design"]["show_clock"] and look["design"]["show_title"]
+    assert "Content-Security-Policy" in client.get(look["logos"]["logo"]).headers
+    assert admin.put("/api/timers-designs/green-room", json={"name": "Green room", "text": "#ffcc00"}).status_code == 200
+    assert client.get("/api/timers-views/look/built:green-room").json()["design"]["text"] == "#ffcc00"
+    assert "built:green-room" in {v["id"] for v in client.get("/api/timers-views").json()}
+    # Screens can be routed to all of them.
+    code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
+    n = admin.post("/api/nodes/enrol", json={"code": code, "name": "scr", "kind": "kiosk"}).json()
+    for v in ("hcc", "bdng", "overlay", "built:green-room"):
+        assert admin.put(f"/api/fleet/nodes/{n['node_id']}/screen", json={"room_id": rid, "view": v}).status_code == 200
+    assert admin.put(f"/api/fleet/nodes/{n['node_id']}/screen", json={"room_id": rid, "view": "built:nope"}).status_code == 400
+    assert admin.delete("/api/timers-designs/green-room").status_code == 200
+    assert client.get("/api/timers-views/look/built:green-room").status_code == 404
+    page = client.get(f"/timer/{rid}?view=hcc")
+    assert page.status_code == 200 and "v-hcc" in page.text

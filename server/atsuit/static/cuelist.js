@@ -15,7 +15,8 @@ const CueList = (() => {
     let s = null, cues = [], editing = null;
     el.innerHTML = `
       <div class="row" style="justify-content:space-between"><h3>Room timer</h3>
-        <span class="small"><a target="_blank" href="/timer/${roomId}">Stage ↗</a> · <a target="_blank" href="/timer/${roomId}?view=backstage">Backstage ↗</a></span></div>
+        <span class="small"><a target="_blank" href="/timer/${roomId}">Stage ↗</a> · <a target="_blank" href="/timer/${roomId}?view=backstage">Backstage ↗</a>
+          <select data-views style="width:auto;padding:.15rem .3rem;font-size:.85rem;margin-left:.3rem"><option value="">More views…</option></select></span></div>
       <div class="clock bigclock" data-clock>--:--</div>
       <div data-now style="font-weight:600"></div><div class="muted small" data-next></div>
       <div class="row" style="margin-top:.6rem;flex-wrap:wrap">
@@ -24,8 +25,12 @@ const CueList = (() => {
         <button data-a="previous" title="Load the previous cue">◀ Prev</button><button data-a="next" title="Load the next cue without starting">Next ▶</button>
         <button data-add="-60000">−1m</button><button data-add="60000">+1m</button>
       </div>
+      <div class="row" style="margin-top:.5rem;flex-wrap:wrap">
+        <button data-sw="blink" title="Flash the timer (and the message) on the stage screens">Blink</button>
+        <button data-sw="clock" title="Show the time of day on the stage screens instead of the timer">Clock</button>
+        <button data-sw="blackout" title="Blank the stage screens">Blackout</button>
+      </div>
       <div class="row" style="margin-top:.5rem"><input data-msg class="grow" placeholder="Message to the stage">
-        <label class="small" style="display:flex;gap:.3rem;align-items:center;margin:0"><input type="checkbox" data-blink style="width:auto">Blink</label>
         <button data-show>Show</button><button data-hide>Hide</button></div>
       <label class="small muted" style="display:flex;gap:.3rem;align-items:center;margin:.4rem 0 0" title="Blinks the stage timer when a cue reaches its danger time, and stops when the next one starts"><input type="checkbox" data-flash style="width:auto">Flash the timer at danger</label>
       <details style="margin-top:.6rem" open><summary><b>Cue list</b> <span class="muted small" data-count></span></summary>
@@ -96,7 +101,17 @@ const CueList = (() => {
     };
     el.querySelectorAll("[data-a]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/${b.dataset.a}`)));
     el.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/add`, { delta_ms: +b.dataset.add })));
-    $("[data-show]").onclick = () => guard(() => post(`/api/timers/${roomId}/message`, { message: $("[data-msg]").value, message_visible: true, message_blink: $("[data-blink]").checked }));
+    $("[data-show]").onclick = () => guard(() => post(`/api/timers/${roomId}/message`, { message: $("[data-msg]").value, message_visible: true }));
+    el.querySelectorAll("[data-sw]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/${b.dataset.sw}`, {})).then((x) => (s = x)));
+    api("/api/timers-views").then((views) => {
+      const sel = $("[data-views]");
+      sel.insertAdjacentHTML("beforeend", views.filter((v) => !["stage", "backstage"].includes(v.id)).map((v) => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join(""));
+      sel.onchange = () => {
+        const v = sel.value;
+        if (v) open(v.startsWith("view:") ? `/room/${roomId}/external/${encodeURIComponent(v.slice(5))}/` : `/timer/${roomId}?view=${encodeURIComponent(v)}`, "_blank");
+        sel.value = "";
+      };
+    }).catch(() => {});
     $("[data-flash]").onchange = (e) => guard(() => post(`/api/timers/${roomId}/thresholds`, { flash_danger: e.target.checked }));
     $("[data-hide]").onclick = () => guard(() => post(`/api/timers/${roomId}/message`, { message_visible: false }));
 
@@ -104,6 +119,7 @@ const CueList = (() => {
       if (!s) return;
       const d = timerDisplay(s), c = $("[data-clock]");
       $("[data-flash]").checked = !!s.flash_danger;
+      for (const [k, on] of [["blink", s.message_blink], ["clock", s.show_clock], ["blackout", s.blackout]]) $(`[data-sw="${k}"]`).classList.toggle("lit", !!on);
       c.textContent = d.text;
       c.className = "clock bigclock " + d.cls;
       $("[data-now]").textContent = (s.cue ? `${s.cue.cue ? s.cue.cue + " · " : ""}` : "") + (s.title || "") + (s.playback === "pause" ? "  (paused)" : "");

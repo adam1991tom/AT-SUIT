@@ -128,6 +128,12 @@ MIGRATIONS: list[str] = [
     ALTER TABLE nodes ADD COLUMN operator TEXT NOT NULL DEFAULT '';
     ALTER TABLE nodes ADD COLUMN mode TEXT NOT NULL DEFAULT '';
     """,
+    # 6: the time of day on the stage screens, timer views built in the console
+    """
+    ALTER TABLE timers ADD COLUMN show_clock INTEGER NOT NULL DEFAULT 0;
+    CREATE TABLE timer_designs(slug TEXT PRIMARY KEY, name TEXT NOT NULL, config_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL);
+    """,
 ]
 
 
