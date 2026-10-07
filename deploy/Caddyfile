@@ -5,6 +5,8 @@
 {
 	local_certs
 	skip_install_trust
+	# Browsers send no SNI when the address is a bare IP, so default to the TLS host.
+	default_sni {$ATSUIT_TLS_HOST}
 }
 
 https://{$ATSUIT_TLS_HOST}, https://localhost {
