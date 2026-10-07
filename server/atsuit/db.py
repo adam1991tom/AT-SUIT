@@ -70,6 +70,10 @@ MIGRATIONS: list[str] = [
     CREATE TABLE overlay_targets(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
         room_id INTEGER REFERENCES rooms(id) ON DELETE SET NULL, base_url TEXT NOT NULL, token_enc TEXT NOT NULL DEFAULT '');
     """,
+    # 2: tech laptops pick their room each day
+    """
+    ALTER TABLE nodes ADD COLUMN room_day TEXT NOT NULL DEFAULT '';
+    """,
 ]
 
 

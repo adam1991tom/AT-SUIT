@@ -1,4 +1,4 @@
-name: Release image
+name: Release
 
 # Pushes to main publish ghcr.io/<owner>/at-suit:edge.
 # A tag like v0.1.0 publishes :0.1.0 and :latest and creates a GitHub release.
@@ -13,7 +13,33 @@ permissions:
   packages: write
 
 jobs:
+  windows-app:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: node-app/package-lock.json
+      - name: Build the installer
+        working-directory: node-app
+        run: |
+          npm ci
+          npm version --no-git-tag-version --allow-same-version (Get-Content ../VERSION)
+          npx electron-builder --win --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-app
+          path: |
+            node-app/dist/*.exe
+            node-app/dist/*.blockmap
+            node-app/dist/latest.yml
+
   publish:
+    needs: [windows-app]
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +75,12 @@ jobs:
       - name: Release notes from CHANGELOG
         if: startsWith(github.ref, 'refs/tags/v')
         run: awk -v v="## ${GITHUB_REF_NAME#v}" '$0 ~ "^"v {f=1; next} /^## / && f {exit} f' CHANGELOG.md > notes.md
+      - name: Fetch the Windows app
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-app
+          path: windows-app
       - name: GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -56,3 +88,4 @@ jobs:
           body_path: notes.md
           files: |
             node-agent/atsuit_node.py
+            windows-app/*

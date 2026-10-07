@@ -358,16 +358,29 @@
 
   async function admFleet(a) {
     const sites = await api("/api/fleet/enrolment");
-    const origin = location.origin;
+    const origin = location.origin, winApp = await api("/api/nodes/app");
+    const dl = winApp.ready ? `<a class="btn primary" href="/api/nodes/app/${encodeURIComponent(winApp.file)}">Download AT-SUIT Node ${esc(winApp.version)} for Windows</a>` : '<span class="pill warn">No Windows app published yet</span>';
     a.innerHTML = `<div class="grid"><div class="panel"><h2>Add a tech laptop</h2>
-      <ol class="small"><li>On the laptop, open <code>${esc(origin)}/node</code> in Chrome or Edge.</li><li>Enter a name (e.g. ATLAP3) and the enrolment code below.</li><li>A tech signs in with their own account. The laptop then shows chat, the room timer, captions and the room's links.</li></ol>
+      <p>${dl}</p>
+      <ol class="small"><li>Install AT-SUIT Node on the laptop.</li><li>Enter this server's address (<code>${esc(origin)}</code>), the enrolment code below and a laptop name. This is a one-off; the laptop stays enrolled.</li>
+        <li>Each day a tech signs in and picks the room they're in. The choice resets every morning.</li>
+        <li>On the backup laptop only, tick <b>This laptop → Show pop-ups</b>. Pop-ups are silent and sit on top of everything.</li></ol>
+      <p class="small muted">For a silent roll-out, put <code>{"server": "${esc(origin)}", "enrol_code": "CODE"}</code> in <code>C:\\ProgramData\\AT-SUIT\\node.json</code> and install with <code>/S</code>. A browser at <code>${esc(origin)}/node</code> still works too.</p>
       <p class="small muted">For captions without a browser, run the node agent: <code>python atsuit_node.py --server ${esc(origin)} --code CODE --name ATLAP3 --room CC --mic</code></p>
       ${sites.map((s) => `<p><b>${esc(s.name)}</b>: <code style="font-size:1.2rem">${esc(s.enrol_code)}</code> <button class="small" data-new="${s.id}">New code</button></p>`).join("")}
+      <label>Windows app release (the .exe, .blockmap and latest.yml from the GitHub release; laptops update when the app next closes)</label><div class="row"><input type="file" id="appFiles" class="grow" multiple accept=".exe,.blockmap,.yml"><button class="small" id="upApp">Publish app</button></div>
       <label>Node agent update (laptops pull it on their next check-in)</label><div class="row"><input type="file" id="agentFile" class="grow"><button class="small" id="upAgent">Publish agent</button></div></div>
       <div class="panel"><h2>Older kiosk agents</h2><p class="small muted">Kiosks running the Device Suite agent can report here without reinstalling: point their server address at <code>${esc(origin)}</code>. Reboot, shut down and update for them go over SSH, so upload the fleet key.</p>
       <label>Fleet SSH private key</label><input type="file" id="key"><button class="small" id="upKey" style="margin-top:.4rem">Upload key</button>
       <label>Kiosk agent release (script)</label><div class="row"><input type="file" id="rel" class="grow"><input id="ver" placeholder="version, e.g. 2.0.4" style="width:9rem"></div><button class="small" id="upRel" style="margin-top:.4rem">Publish release</button></div></div>`;
     a.querySelectorAll("[data-new]").forEach((b) => b.onclick = () => confirm("Make a new code? The old one stops working for new laptops.") && guard(() => post(`/api/admin/sites/${b.dataset.new}/enrol-code`)).then(() => admFleet(a)));
+    a.querySelector("#upApp").onclick = () => {
+      const files = [...a.querySelector("#appFiles").files];
+      if (!files.length) return;
+      const fd = new FormData();
+      files.forEach((f) => fd.append("files", f));
+      guard(() => api("/api/fleet/app", { method: "POST", form: fd })).then((r) => { toast(`AT-SUIT Node ${r.version} published`, "good"); admFleet(a); });
+    };
     a.querySelector("#upAgent").onclick = () => { const f = a.querySelector("#agentFile").files[0]; f && guard(() => upload("/api/fleet/agent", f)).then((r) => toast(`Agent ${r.version} published`, "good")); };
     a.querySelector("#upKey").onclick = () => { const f = a.querySelector("#key").files[0]; f && guard(() => upload("/api/fleet/ssh-key", f)).then(() => toast("Key saved", "good")); };
     a.querySelector("#upRel").onclick = () => { const f = a.querySelector("#rel").files[0], v = a.querySelector("#ver").value.trim(); f && v && guard(() => upload(`/api/fleet/client-release?version=${encodeURIComponent(v)}`, f)).then(() => toast("Published", "good")); };

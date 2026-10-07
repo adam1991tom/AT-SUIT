@@ -38,6 +38,14 @@
   </form>
 </div>
 
+<div id="pickRoom" class="center hidden">
+  <div class="panel card">
+    <h1>Which room are you in today?</h1>
+    <p class="muted"><span id="pickWho"></span> This resets each morning, so pick again when you come back tomorrow.</p>
+    <div class="tiles" id="pickList"></div>
+  </div>
+</div>
+
 <div id="ws" class="hidden">
   <div class="top">
     <b data-product>AT-SUIT</b>
@@ -45,8 +53,16 @@
     <select id="room" style="width:auto"></select>
     <span class="grow"></span>
     <span class="pill" id="conn">connecting</span>
-    <a class="btn" href="/">Console</a>
+    <button id="laptopBtn" class="hidden">This laptop</button>
+    <a class="btn" href="/" target="_blank">Console</a>
     <button id="out">Sign out</button>
+  </div>
+  <div id="laptop" class="panel hidden" style="margin:1rem 1rem 0">
+    <h3>This laptop</h3>
+    <label style="display:flex;gap:.5rem;align-items:center"><input type="checkbox" id="popups" style="width:auto"> Show pop-ups on this laptop</label>
+    <p class="muted small">Turn this on only on the backup laptop. Pop-ups show on top of everything, including slides, and never make a sound.
+      Leave it off on the laptop that's on screen.</p>
+    <div class="row"><button id="popTest" class="small">Test a pop-up</button><span class="muted small" id="appVer"></span></div>
   </div>
   <div class="wrap ws-grid">
     <section class="panel timer">
@@ -93,9 +109,12 @@
 (async () => {
   const { esc, api, post, guard, toast, fmtTime, timerClock } = AT;
   const $ = (id) => document.getElementById(id);
-  const VERSION = "web-0.1.0";
+  // Inside the AT-SUIT Node Windows app the app owns enrolment and pop-ups.
+  const APP = window.atsuitApp || null;
+  const VERSION = APP ? `app-${await APP.version()}` : "web-0.1.0";
   let nodeToken = null, node = null, boot = null, roomId = null, sock = null, chat = null, timer = null;
-  try { nodeToken = localStorage.getItem("atsuit_node_token"); } catch (_) {}
+  if (APP) nodeToken = await APP.nodeToken();
+  else try { nodeToken = localStorage.getItem("atsuit_node_token"); } catch (_) {}
   const nodeHdr = () => (nodeToken ? { Authorization: `Node ${nodeToken}` } : {});
   await AT.branding();
 
@@ -103,13 +122,22 @@
   async function nodeMe() {
     if (!nodeToken) return null;
     try { return await api("/api/nodes/me", { headers: nodeHdr() }); }
-    catch (e) { if (e.status === 401) { try { localStorage.removeItem("atsuit_node_token"); } catch (_) {} nodeToken = null; } return null; }
+    catch (e) {
+      if (e.status === 401) {
+        if (APP) { APP.reEnrol(); return null; }
+        try { localStorage.removeItem("atsuit_node_token"); } catch (_) {}
+        nodeToken = null;
+      }
+      return null;
+    }
   }
   async function heartbeat() {
     if (!nodeToken) return;
     try {
-      await api("/api/nodes/heartbeat", { method: "POST", headers: nodeHdr(), body: { version: VERSION, current_url: $("kiosk").src || location.href,
+      const r = await api("/api/nodes/heartbeat", { method: "POST", headers: nodeHdr(), body: { version: VERSION, current_url: $("kiosk").src || location.href,
         info: { user_agent: navigator.userAgent, screen: `${screen.width}x${screen.height}`, signed_in: boot?.me?.name || "", room_id: roomId } } });
+      // A new working day (or an admin moving this laptop) changes the room: start over.
+      if (techLaptop() && !$("ws").classList.contains("hidden") && (r.room_id || null) !== roomId) location.reload();
     } catch (_) {}
   }
   async function pollCommands() {
@@ -126,6 +154,7 @@
       await api(`/api/nodes/commands/${c.id}/ack`, { method: "POST", headers: nodeHdr(), body: { ok, detail: ok ? "" : "Browser nodes can't do that; run the node agent" } }).catch(() => {});
     }
   }
+  function techLaptop() { return node?.node?.kind === "tech"; }
   function showKiosk(url) {
     try { localStorage.setItem("atsuit_kiosk_url", url); } catch (_) {}
     if (node?.node?.kind !== "kiosk") { window.open(url, "_blank"); return; }
@@ -133,6 +162,7 @@
   }
 
   node = await nodeMe();
+  if (APP && !node) return; // the app is showing its own set-up screen
   if (!node && !sessionStorage.getItem("atsuit_skip_enrol")) {
     try { await api("/api/auth/me"); } catch (_) {}
     $("enrol").classList.remove("hidden");
@@ -172,6 +202,19 @@
     return;
   }
 
+  // ------------------------------------------------------ room for today --
+  if (techLaptop()) {
+    roomId = node.room?.id || null;
+    if (!roomId || !boot.rooms.some((r) => r.id === roomId)) {
+      $("pickRoom").classList.remove("hidden");
+      $("pickWho").textContent = `${boot.me.name} on ${node.node.name}.`;
+      $("pickList").innerHTML = boot.rooms.map((r) => `<button class="tile" data-room="${r.id}">${esc(r.name)}</button>`).join("") || '<p class="muted">No rooms yet. An admin adds them in Admin → Sites.</p>';
+      $("pickList").querySelectorAll("[data-room]").forEach((b) => b.onclick = () =>
+        guard(() => api("/api/nodes/me/room", { method: "PUT", headers: nodeHdr(), body: { room_id: +b.dataset.room } })).then(() => location.reload()));
+      return;
+    }
+  }
+
   // ----------------------------------------------------------- workspace --
   $("ws").classList.remove("hidden");
   $("who").textContent = `${boot.me.name}${node ? " on " + node.node.name : ""}`;
@@ -180,10 +223,32 @@
     const mod = { timer: "timers", chatbox: "comms", captions: "captions", links: "dashboard", helpbox: "comms" }[c];
     if (!boot.modules[mod]) document.querySelector(`.${c}`).classList.add("hidden");
   });
-  let saved = null; try { saved = +localStorage.getItem("atsuit_room") || null; } catch (_) {}
-  roomId = (node?.room?.id) || saved || boot.rooms[0]?.id;
+  if (!techLaptop()) {
+    let saved = null; try { saved = +localStorage.getItem("atsuit_room") || null; } catch (_) {}
+    roomId = (node?.room?.id) || saved || boot.rooms[0]?.id;
+  }
   $("room").innerHTML = boot.rooms.map((r) => `<option value="${r.id}" ${r.id === roomId ? "selected" : ""}>${esc(r.name)}</option>`).join("");
-  $("room").onchange = () => { try { localStorage.setItem("atsuit_room", $("room").value); } catch (_) {} location.reload(); };
+  $("room").onchange = async () => {
+    if (techLaptop()) await guard(() => api("/api/nodes/me/room", { method: "PUT", headers: nodeHdr(), body: { room_id: +$("room").value } }));
+    else try { localStorage.setItem("atsuit_room", $("room").value); } catch (_) {}
+    location.reload();
+  };
+
+  // This-laptop settings and silent pop-ups (Windows app only).
+  if (APP) {
+    $("laptopBtn").classList.remove("hidden");
+    const refresh = async () => { $("popups").checked = !!(await APP.getSettings()).popups; };
+    $("laptopBtn").onclick = () => { $("laptop").classList.toggle("hidden"); refresh(); };
+    await refresh();
+    $("appVer").textContent = `AT-SUIT Node ${await APP.version()}`;
+    $("popups").onchange = () => APP.setSettings({ popups: $("popups").checked }).then(() =>
+      toast($("popups").checked ? "Pop-ups on for this laptop" : "Pop-ups off for this laptop", "good"));
+    $("popTest").onclick = async () => {
+      const shown = await APP.notify({ title: "Test pop-up", body: "This is what an alert looks like. It never makes a sound.", kind: "info" });
+      if (!shown) toast("Pop-ups are off on this laptop. Tick the box first.");
+    };
+  }
+  function notify(title, body, kind) { if (APP) APP.notify({ title, body: String(body || "").slice(0, 300), kind }); }
 
   const topics = [...boot.sites.map((s) => `site:${s.id}`), ...boot.rooms.map((r) => `room:${r.id}`), `dm:${boot.me.id}`, `timer:${roomId}`, `captions:${roomId}`];
   sock = AT.socket(topics, onEvent, (up) => { $("conn").textContent = up ? "live" : "reconnecting"; $("conn").className = "pill " + (up ? "good" : "bad"); });
@@ -248,6 +313,11 @@
 
   function onEvent(evt) {
     chat && chat.onEvent(evt);
+    if (evt.type === "message.new" && evt.data.sender_id !== boot.me.id) {
+      const m = evt.data, mine = evt.topic.startsWith("dm:") || evt.topic === `room:${roomId}` || evt.topic.startsWith("site:");
+      if (mine || m.priority === "urgent") notify(evt.topic.startsWith("dm:") ? `${m.sender_name} (direct)` : m.sender_name, m.body || "Sent a file", m.priority === "urgent" ? "urgent" : "chat");
+    }
+    if (evt.type === "help.new") notify(`Help needed in ${evt.data.room_name}`, evt.data.description || evt.data.category, "urgent");
     if (evt.topic === `timer:${roomId}` && evt.type === "timer") timer = evt.data;
     if (evt.topic === `captions:${roomId}`) {
       if (evt.type === "final") { finals.push(evt.data.text); partial = ""; renderCaps(); }

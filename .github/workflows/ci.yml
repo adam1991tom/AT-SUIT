@@ -48,3 +48,40 @@ jobs:
           docker run -d --name atsuit -p 8080:8080 -e ATSUIT_ASR=0 atsuit:ci
           for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/api/health && exit 0; sleep 2; done
           docker logs atsuit; exit 1
+
+  windows-app:
+    # The tech workspace app, tested for real on Windows against a live server,
+    # then packaged as the installer laptops use.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: node-app/package-lock.json
+      - name: Install
+        run: |
+          pip install -r server/requirements.txt
+          cd node-app
+          npm ci
+      - name: Test the app (enrol once, daily room, silent pop-ups)
+        working-directory: node-app
+        run: npx playwright test
+      - name: Build the installer
+        working-directory: node-app
+        run: |
+          npm version --no-git-tag-version --allow-same-version (Get-Content ../VERSION)
+          npx electron-builder --win --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AT-SUIT-Node-windows
+          path: |
+            node-app/dist/*.exe
+            node-app/dist/*.blockmap
+            node-app/dist/latest.yml
+          if-no-files-found: error

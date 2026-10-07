@@ -8,9 +8,11 @@ kiosks, and AT-LiveCaption's speech engine.
 
 - **The server does the heavy lifting.** Speech recognition, storage, chat,
   timers and fleet control all run in one Docker container.
-- **Every laptop is a node.** A tech opens `/node` and gets one workspace with
-  their room's chat, the room timer, live captions (their mic is the audio
-  source), help requests and the room's links.
+- **Every laptop is a node.** Tech laptops run **AT-SUIT Node**, a Windows app
+  enrolled once, with their room's chat, the room timer, live captions (their
+  mic is the audio source), help requests and the room's links. The tech picks
+  the room each day. The backup laptop can show silent pop-ups on top of
+  everything.
 - **Configured on site.** A setup wizard on first run, then everything (rooms,
   people, links, nodes, branding, modules, licence) is set in the Admin pages.
   No config files to edit.
@@ -49,6 +51,7 @@ backups and updates, and [docs/ADMIN.md](docs/ADMIN.md) for day-to-day setup.
 ```
 server/atsuit/        FastAPI app (modules/, static/ web UI, asr.py speech engine)
 server/tests/         pytest suite (set ATSUIT_TEST_MODELS to include the real speech model)
+node-app/             AT-SUIT Node, the Windows tech workspace app (Electron; npm test runs it against a live server)
 node-agent/           optional Python agent for laptops: heartbeat, commands, mic streaming
 tools/licence.py      vendor tool to make keys and issue licences
 deploy/Caddyfile      https front end (compose profile "tls")
@@ -60,7 +63,8 @@ docs/DESIGN.md        architecture, module map, migration and build order
 `main` is always releasable and publishes `ghcr.io/adam1991tom/at-suit:edge`.
 To release, bump `VERSION`, add a section to [CHANGELOG.md](CHANGELOG.md),
 merge, and push a tag `vX.Y.Z`. CI then publishes `:X.Y.Z` and `:latest` and
-creates the GitHub release with the node agent attached. See
+creates the GitHub release with the Windows app installer and the node agent
+attached. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence

@@ -170,13 +170,24 @@ Message bodies and overlay tokens are encrypted at rest with a Fernet key in
 | Purpose | Endpoint | Auth |
 |---|---|---|
 | Node enrolment | `POST /api/nodes/enrol {code, name, kind}` → node token | site enrolment code (Admin → Fleet) |
-| Heartbeat | `POST /api/nodes/heartbeat` | node token |
+| Heartbeat | `POST /api/nodes/heartbeat` (reply includes today's `room_id`) | node token |
+| Room of the day | `GET /api/nodes/me` (room only if picked today), `PUT /api/nodes/me/room {room_id}` | node token |
+| Windows app | `GET /api/nodes/app`, `/api/nodes/app/<file>` (installer and `latest.yml` for self-update); `POST /api/fleet/app` to publish | public download; admin to publish |
 | Commands | `GET /api/nodes/commands` / `POST /api/nodes/commands/<id>/ack` | node token |
 | Audio | `WS /ws/audio/<room_id>?token=` binary frames of 16 kHz mono int16 | node token or tech session |
 | Live updates | `WS /ws?topics=…` | session, node token, or public topics only |
 | Agent updates | `GET /api/nodes/agent`, `/api/nodes/agent/file` (also offered in every heartbeat reply) | node token |
 | Old kiosk agents | `POST /heartbeat`, `GET /agent/poll/<host>`, `POST /agent/ack`, `/client-update`, `/client-bootstrap` | none (as today), can be switched off |
 | Companion / automation | `/api/v1/timers/<room>/start` etc. | API key header `X-API-Key` |
+
+**Tech laptops run AT-SUIT Node** (`node-app/`, Electron), which shows the
+server's `/node` workspace in its own window. It enrols once and keeps its
+token encrypted with Windows DPAPI. A tech laptop has no fixed room: the tech
+picks one after signing in and it lapses at 05:00 site time
+(`node_room_reset_hour`). Pop-ups are the app's own always-on-top window shown
+without activation, off unless switched on for that laptop, and the app mutes
+all its audio and refuses web notifications and native dialogs, so it can
+never make a sound on a laptop that is on the projector.
 
 **Nodes pull their own updates.** Every heartbeat reply names the current
 node agent version and checksum; an older agent downloads it, checks the
@@ -270,7 +281,8 @@ Cut-over per server, after the side-by-side trial:
 | 1b | Side-by-side install on ATSERVER1 port 8180, import copies of live data, trial with two laptops in one room | needs the owner's go |
 | 2 | Presenter module from AT-Presenter (portal, file review, schedule import via Ollama, room sync) | next |
 | 3 | Native timers replace Ontime views on kiosks, Companion module for AT-SUIT (timers + overlays) | |
-| 4 | Node desktop wrapper (Windows) bundling node agent + LiveOverlay + ScreenTest; browser ScreenTest page | |
+| 4 | Node desktop app (Windows): enrol once, room of the day, silent pop-ups for the backup laptop, self-update from the server | done in v0.2 (`node-app/`) |
+| 4b | Bundle LiveOverlay and ScreenTest into the Node app; browser ScreenTest page | |
 | 5 | Retire old containers per section 5, then Homarr and the Fleet Dashboard | |
 
 ### Risks

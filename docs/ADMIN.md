@@ -14,10 +14,19 @@ Everything here is done in the browser. Nothing needs a file edited.
    views, kiosk pages) show up in that room's tech workspace. Admin-board
    links only show to admins. Admin → Import brings in the old Homarr board
    and Device Suite `rooms.txt`.
-5. **Admin → Node setup**: the enrolment code. On each laptop open
-   `http://SERVER/node`, enter its name and the code, and choose Tech
-   workspace, Kiosk screen or Caption source. In Nodes, give each laptop its
-   room.
+5. **Admin → Node setup**: the enrolment code and the Windows app. Install
+   **AT-SUIT Node** on each tech laptop and enter the server address
+   (`http://SERVER:PORT`), the code and the laptop's name. That is a one-off;
+   the laptop stays enrolled. Each day a tech signs in and picks the room
+   they're in; the choice resets every morning at 05:00 (site time). Kiosks
+   can still use `http://SERVER/node` in a browser; give them a room in
+   Nodes and they keep it.
+   **Pop-ups**: on the backup laptop only, open **This laptop** and tick
+   *Show pop-ups on this laptop*. Chat for the tech's room, crew-wide
+   messages, direct messages, urgent messages and help calls then appear
+   bottom-right, on top of everything including full-screen slides. They
+   never make a sound and never take the keyboard. Leave it off on the
+   laptop that is on the projector.
 6. **Captions**: turn captions on per room, add vocabulary (speaker names,
    brand names, jargon), choose whether to save transcripts. A tech presses
    "Send my mic" in their workspace, or runs the node agent with `--mic`.
@@ -31,6 +40,18 @@ Everything here is done in the browser. Nothing needs a file edited.
 10. **Admin → API keys**: a key for Companion.
 
 ## Updating laptops
+
+**AT-SUIT Node (Windows app).** Each release on GitHub has
+`AT-SUIT-Node-Setup-X.Y.Z.exe`, its `.blockmap` and `latest.yml`. Upload all
+three in Admin → Node setup → Windows app release. Laptops download it in
+the background and install it the next time the app closes, never during a
+show. For a silent roll-out, put
+`{"server": "http://SERVER:PORT", "enrol_code": "CODE"}` in
+`C:\ProgramData\AT-SUIT\node.json` and run the installer with `/S`; the
+app enrols itself under the PC's name on first start. The installer isn't
+code-signed yet, so Windows SmartScreen asks once ("More info → Run anyway").
+
+**Node agent (Python).**
 
 Laptops running the node agent update themselves: when the server has a newer
 agent (a new AT-SUIT release, or one uploaded in Admin → Node setup), each

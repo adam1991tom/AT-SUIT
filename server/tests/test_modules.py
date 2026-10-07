@@ -209,3 +209,51 @@ def test_node_agent_self_update_feed(admin):
     assert admin.get("/api/nodes/agent", headers=hdr).json()["version"] == "9.9.9"
     assert admin.get("/api/nodes/agent/file", headers=hdr).content == new
     assert admin.post("/api/fleet/agent", files={"file": ("x.py", b"rm -rf /")}).status_code == 400
+
+
+def test_tech_laptop_picks_room_each_day(admin, monkeypatch):
+    from atsuit.modules import fleet
+
+    code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
+    tok = admin.post("/api/nodes/enrol", json={"code": code, "name": "atlap9", "kind": "tech"}).json()["token"]
+    h = {"Authorization": f"Node {tok}"}
+    me = admin.get("/api/nodes/me", headers=h).json()
+    assert me["room"] is None and [r["name"] for r in me["rooms"]] == ["CC", "HD", "RH"]
+    rid = me["rooms"][1]["id"]
+    assert admin.put("/api/nodes/me/room", headers=h, json={"room_id": 99999}).status_code == 404
+    assert admin.put("/api/nodes/me/room", headers=h, json={"room_id": rid}).status_code == 200
+    assert admin.get("/api/nodes/me", headers=h).json()["room"]["id"] == rid
+    assert admin.post("/api/nodes/heartbeat", headers=h, json={}).json()["room_id"] == rid
+    # The next working day the laptop has no room until the tech picks one again.
+    monkeypatch.setattr(fleet, "work_day", lambda c, site_id: "2099-01-01")
+    assert admin.get("/api/nodes/me", headers=h).json()["room"] is None
+    assert admin.post("/api/nodes/heartbeat", headers=h, json={}).json()["room_id"] is None
+    assert [n for n in admin.get("/api/fleet/nodes").json() if n["name"] == "ATLAP9"][0]["room_id"] is None
+    # Enrolment is once: the same token still works on the new day.
+    assert admin.put("/api/nodes/me/room", headers=h, json={"room_id": rid}).status_code == 200
+    assert admin.get("/api/nodes/me", headers=h).json()["room"]["id"] == rid
+
+
+def test_kiosk_keeps_its_room(admin, monkeypatch):
+    from atsuit.modules import fleet
+
+    code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
+    n = admin.post("/api/nodes/enrol", json={"code": code, "name": "kiosk1", "kind": "kiosk"}).json()
+    rid = admin.get("/api/bootstrap").json()["rooms"][0]["id"]
+    assert admin.put(f"/api/fleet/nodes/{n['node_id']}", json={"room_id": rid}).status_code == 200
+    monkeypatch.setattr(fleet, "work_day", lambda c, site_id: "2099-01-01")
+    assert admin.get("/api/nodes/me", headers={"Authorization": f"Node {n['token']}"}).json()["room"]["id"] == rid
+
+
+def test_windows_app_release(admin, client):
+    assert client.get("/api/nodes/app").json() == {"version": None}
+    yml = b"version: 0.2.0\nfiles:\n  - url: AT-SUIT-Node-Setup-0.2.0.exe\npath: AT-SUIT-Node-Setup-0.2.0.exe\nsha512: abc\n"
+    files = [("files", ("latest.yml", yml)), ("files", ("AT-SUIT-Node-Setup-0.2.0.exe", b"MZ fake installer"))]
+    assert admin.post("/api/fleet/app", files=[("files", ("../evil.sh", b"x"))]).status_code == 400
+    r = admin.post("/api/fleet/app", files=files).json()
+    assert r == {"version": "0.2.0", "file": "AT-SUIT-Node-Setup-0.2.0.exe", "ready": True}
+    assert client.get("/api/nodes/app/latest.yml").content == yml
+    assert client.get("/api/nodes/app/AT-SUIT-Node-Setup-0.2.0.exe").content == b"MZ fake installer"
+    assert client.get("/api/nodes/app/..%2Fatsuit.db").status_code == 404
+    client.post("/api/auth/logout")
+    assert client.post("/api/fleet/app", files=files).status_code in (401, 403)

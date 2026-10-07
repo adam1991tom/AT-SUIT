@@ -10,8 +10,10 @@ import os
 import re
 import sqlite3
 import time
+from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
@@ -72,9 +74,39 @@ def ssh_key() -> Path:
     return config.cfg.data / "ssh" / "fleet_key"
 
 
-def node_out(r) -> dict:
+def work_day(c, site_id) -> str:
+    """Today's date at the node's site. A tech laptop's room choice lasts until
+    the day rolls over at node_room_reset_hour (default 05:00), so a late show
+    keeps its room past midnight and the next morning starts with a fresh pick."""
+    tz = None
+    if site_id:
+        row = c.execute("SELECT timezone FROM sites WHERE id=?", (site_id,)).fetchone()
+        tz = row["timezone"] if row else None
+    try:
+        zone = ZoneInfo(tz or os.getenv("TZ") or "UTC")
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = ZoneInfo("UTC")
+    hour = int(db.get_setting(c, "node_room_reset_hour", 5) or 0)
+    return (datetime.now(zone) - timedelta(hours=hour)).date().isoformat()
+
+
+def current_room_id(c, n):
+    """Kiosks and caption sources keep the room an admin gave them; a tech
+    laptop's room only counts on the day the tech picked it."""
+    if not n["room_id"]:
+        return None
+    if n["kind"] != "tech":
+        return n["room_id"]
+    return n["room_id"] if n["room_day"] == work_day(c, n["site_id"]) else None
+
+
+def node_out(r, c=None) -> dict:
     d = dict(r)
     d.pop("token_hash", None)
+    if c is not None and r["kind"] == "tech" and current_room_id(c, r) is None:
+        d["room_id"] = None
+        if "room_name" in d:
+            d["room_name"] = None
     d["online"] = bool(r["last_seen"] and time.time() - r["last_seen"] < ONLINE_SECONDS)
     d["info"] = json.loads(r["info_json"] or "{}")
     d.pop("info_json", None)
@@ -138,8 +170,9 @@ async def heartbeat(body: HeartbeatIn, request: Request, p: Principal = Depends(
             (ip[:64], body.mac[:64], body.version[:32], body.current_url[:1000], json.dumps(body.info)[:8000],
              time.time(), p.id))
         pending = c.execute("SELECT COUNT(*) FROM node_commands WHERE node_id=? AND status='queued'", (p.id,)).fetchone()[0]
+        room_id = current_room_id(c, c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone())
     await hub.publish("fleet", "node.heartbeat", {"id": p.id})
-    return {"ok": True, "pending_commands": pending, "agent": agent_release()}
+    return {"ok": True, "pending_commands": pending, "room_id": room_id, "agent": agent_release()}
 
 
 @router.get("/api/nodes/agent")
@@ -169,12 +202,100 @@ async def upload_agent(file: UploadFile, p: Principal = Depends(require_admin)):
     return agent_release()
 
 
+# ------------------------------------------------------- Windows app --
+APP_FILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ._-]{0,120}\.(exe|blockmap|yml)$")
+
+
+def app_dir() -> Path:
+    d = config.cfg.data / "app"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def app_release() -> dict:
+    """What the laptops' AT-SUIT Node app updates to: electron-builder's
+    latest.yml plus the installer it names, uploaded by an admin."""
+    f = app_dir() / "latest.yml"
+    if not f.is_file():
+        return {"version": None}
+    text = f.read_text(errors="replace")
+    version = re.search(r"^version:\s*['\"]?([^'\"\s]+)", text, re.M)
+    path = re.search(r"^path:\s*['\"]?([^'\"\n]+?)['\"]?\s*$", text, re.M)
+    name = path.group(1) if path else None
+    return {"version": version.group(1) if version else None, "file": name,
+            "ready": bool(name and (app_dir() / name).is_file())}
+
+
+@router.get("/api/nodes/app")
+def app_info():
+    return app_release()
+
+
+@router.get("/api/nodes/app/{filename}")
+def app_download(filename: str):
+    """Public: a new laptop downloads the installer here before it is enrolled,
+    and installed apps pull updates from here. Licences are enforced at enrolment."""
+    if not APP_FILE.match(filename):
+        raise HTTPException(404)
+    f = app_dir() / filename
+    if not f.is_file():
+        raise HTTPException(404, "Not published yet")
+    return FileResponse(f, headers={"Cache-Control": "no-cache"})
+
+
+@router.post("/api/fleet/app")
+async def upload_app(files: list[UploadFile], p: Principal = Depends(require_admin)):
+    """Publish a Windows app release: the Setup .exe, its .blockmap and latest.yml
+    from the GitHub release. Installed apps update next time they close."""
+    names = []
+    for file in files:
+        name = os.path.basename(file.filename or "")
+        if not APP_FILE.match(name):
+            raise HTTPException(400, f"{name or 'That file'} isn't part of an app release")
+        tmp = app_dir() / f".{name}.part"
+        with tmp.open("wb") as out:
+            while chunk := await file.read(1024 * 1024):
+                out.write(chunk)
+        tmp.replace(app_dir() / name)
+        names.append(name)
+    rel = app_release()
+    keep = {"latest.yml", rel.get("file"), f"{rel.get('file')}.blockmap"}
+    for old in app_dir().iterdir():
+        if old.is_file() and old.name not in keep and not old.name.startswith("."):
+            old.unlink()
+    with db.tx() as c:
+        db.audit(c, p.name, "fleet.app_release", rel.get("version") or ",".join(names))
+    return rel
+
+
 @router.get("/api/nodes/me")
 def node_me(p: Principal = Depends(require_node)):
     with db.ro() as c:
         n = c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone()
-        room = c.execute("SELECT id,name,short_name FROM rooms WHERE id=?", (n["room_id"],)).fetchone() if n["room_id"] else None
-        return {"node": node_out(n), "room": dict(room) if room else None}
+        rid = current_room_id(c, n)
+        room = c.execute("SELECT id,name,short_name FROM rooms WHERE id=?", (rid,)).fetchone() if rid else None
+        rooms = db.rows(c.execute("SELECT id,name,short_name FROM rooms WHERE enabled=1 AND (site_id=? OR ? IS NULL) "
+                                  "ORDER BY sort,name", (n["site_id"], n["site_id"])))
+        return {"node": node_out(n, c), "room": dict(room) if room else None, "rooms": rooms,
+                "day": work_day(c, n["site_id"])}
+
+
+class RoomPick(BaseModel):
+    room_id: int | None = None
+
+
+@router.put("/api/nodes/me/room")
+async def node_pick_room(body: RoomPick, p: Principal = Depends(require_node)):
+    """The tech says which room this laptop is in today."""
+    with db.tx() as c:
+        n = c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone()
+        if body.room_id is not None:
+            room = c.execute("SELECT * FROM rooms WHERE id=?", (body.room_id,)).fetchone()
+            if not room or (n["site_id"] and room["site_id"] != n["site_id"]):
+                raise HTTPException(404, "Room not found")
+        c.execute("UPDATE nodes SET room_id=?, room_day=? WHERE id=?", (body.room_id, work_day(c, n["site_id"]), p.id))
+    await hub.publish("fleet", "node.changed", {"id": p.id})
+    return {"ok": True, "room_id": body.room_id}
 
 
 @router.get("/api/nodes/commands")
@@ -209,7 +330,7 @@ async def ack_command(command_id: int, body: AckIn, p: Principal = Depends(requi
 def list_nodes(p: Principal = Depends(require_tech)):
     with db.ro() as c:
         rows = c.execute("SELECT n.*, r.name AS room_name FROM nodes n LEFT JOIN rooms r ON r.id=n.room_id ORDER BY n.name").fetchall()
-        return [node_out(r) for r in rows if site_ok(p, r["site_id"])]
+        return [node_out(r, c) for r in rows if site_ok(p, r["site_id"])]
 
 
 @router.get("/api/fleet/enrolment")
@@ -234,9 +355,10 @@ async def edit_node(node_id: int, body: NodeEdit, p: Principal = Depends(require
         if body.kind and body.kind not in NODE_KINDS:
             raise HTTPException(400, "Unknown node kind")
         try:
-            c.execute("UPDATE nodes SET name=?, room_id=?, site_id=?, kind=? WHERE id=?",
-                      (norm_host(body.name) if body.name else n["name"], body.room_id,
-                       body.site_id or n["site_id"], body.kind or n["kind"], node_id))
+            site_id = body.site_id or n["site_id"]
+            c.execute("UPDATE nodes SET name=?, room_id=?, room_day=?, site_id=?, kind=? WHERE id=?",
+                      (norm_host(body.name) if body.name else n["name"], body.room_id, work_day(c, site_id),
+                       site_id, body.kind or n["kind"], node_id))
         except sqlite3.IntegrityError:
             raise HTTPException(409, "Another node has that name")
         db.audit(c, p.name, "node.edit", n["name"])

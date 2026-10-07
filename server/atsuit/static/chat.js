@@ -62,8 +62,19 @@ const Chat = (() => {
     async function pickDm() {
       people = await api("/api/comms/people");
       if (!people.length) { AT.toast("There's nobody else to message yet."); return; }
-      const name = prompt("Message who?\n" + people.map((p) => p.display_name).join(", "));
-      const p = name && people.find((x) => x.display_name.toLowerCase() === name.trim().toLowerCase());
+      // An in-page picker, not prompt(): native dialogs can play a system sound.
+      const pick = document.createElement("div");
+      pick.className = "row dm-pick";
+      pick.innerHTML = `<select class="grow"><option value="">Message who?</option>${people.map((x) => `<option value="${x.id}">${esc(x.display_name)}</option>`).join("")}</select><button type="button" class="primary">Open</button><button type="button">Cancel</button>`;
+      el.querySelector(".dm-pick")?.remove();
+      chansEl.after(pick);
+      const choice = await new Promise((done) => {
+        const [sel, ok, cancel] = pick.children;
+        ok.onclick = () => done(sel.value);
+        cancel.onclick = () => done("");
+      });
+      pick.remove();
+      const p = choice && people.find((x) => String(x.id) === choice);
       if (!p) return;
       const { id } = await guard(() => post("/api/comms/dm", { account_id: p.id }));
       await load(id);
