@@ -213,3 +213,148 @@ test("the next day the tech starts again, without enrolling again", async () => 
   await expect(page.locator("#start")).toBeVisible();
   expect(conf().popups).toBe(false);
 });
+
+// ------------------------------------------------------------- overlay --
+async function adminCookie() {
+  const login = await fetch(`${env.base}/api/auth/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "admin", password: "correct-horse" }),
+  });
+  return login.headers.get("set-cookie").split(";")[0];
+}
+
+async function roomId(name) {
+  const boot = await (await fetch(`${env.base}/api/bootstrap`, { headers: { Cookie: await adminCookie() } })).json();
+  return boot.rooms.find((r) => r.name === name).id;
+}
+
+async function overlayWindows(a) {
+  return a.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows().filter((w) => w.getTitle() === "AT-SUIT Overlay").map((w) => ({
+      id: w.id, onTop: w.isAlwaysOnTop(), focusable: w.isFocusable(), focused: w.isFocused(), visible: w.isVisible(),
+      clickThrough: (globalThis.ignoreMouse || {})[w.id] === true,
+      muted: w.webContents.isAudioMuted(), url: w.webContents.getURL(), bounds: w.getBounds(),
+    })));
+}
+
+test("the overlay floats over the slides, lets clicks through and never takes focus", async () => {
+  app = await launch();
+  const page = await mainPage(app);
+  const hd = await roomId("HD");
+  // Watch which windows let the mouse through.
+  await app.evaluate(({ BrowserWindow }) => {
+    globalThis.ignoreMouse = {};
+    const orig = BrowserWindow.prototype.setIgnoreMouseEvents;
+    BrowserWindow.prototype.setIgnoreMouseEvents = function (v, ...rest) { globalThis.ignoreMouse[this.id] = v; return orig.call(this, v, ...rest); };
+  });
+  // The slides have the focus.
+  await app.evaluate(({ BrowserWindow }) => {
+    const w = new BrowserWindow({ width: 900, height: 600, title: "Slides" });
+    w.loadURL("data:text/html,<h1>Slide 1</h1>");
+    w.focus();
+    globalThis.slides = w.id;
+  });
+  await page.waitForTimeout(500);
+  const before = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id ?? null);
+  expect(before).toBe(await app.evaluate(() => globalThis.slides));
+
+  const r = await page.evaluate((id) => window.atsuitApp.overlay({ on: true, room_id: id, position: "bottom-right", size: "small", opacity: 0.8 }), hd);
+  expect(r.ok).toBe(true);
+  expect(r.target).toBe(`${env.base}/timer/${hd}?view=overlay`);
+  await expect.poll(async () => (await overlayWindows(app)).filter((w) => w.visible).length, { timeout: 10000 }).toBe(1);
+  await new Promise((res) => setTimeout(res, 500));
+  const [o] = await overlayWindows(app);
+  expect(o.url).toBe(`${env.base}/timer/${hd}?view=overlay`);
+  expect(o.onTop).toBe(true);
+  expect(o.focusable).toBe(false);
+  expect(o.focused).toBe(false);
+  expect(o.clickThrough).toBe(true);
+  expect(o.muted).toBe(true);
+  expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id ?? null)).toBe(before);
+  // No permissions at all for whatever page the overlay shows.
+  const perm = await app.evaluate(async ({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() === "AT-SUIT Overlay");
+    return w.webContents.executeJavaScript("Notification.requestPermission()");
+  });
+  expect(perm).toBe("denied");
+
+  // Bottom right of the main display, 16px in.
+  const wa = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().workArea);
+  expect(o.bounds.x + o.bounds.width).toBe(wa.x + wa.width - 16);
+  expect(o.bounds.y + o.bounds.height).toBe(wa.y + wa.height - 16);
+  expect(o.bounds.width).toBe(320);
+
+  // Moves and resizes in place; the same window, still not focused.
+  let s = await page.evaluate(() => window.atsuitApp.overlay({ position: "top-left", size: "large" }));
+  expect(s.bounds).toEqual({ x: wa.x + 16, y: wa.y + 16, width: 600, height: 200 });
+  s = await page.evaluate(() => window.atsuitApp.overlay({ position: "bottom-bar", display: 5 })); // no 6th display: the main one
+  expect(s.bounds).toEqual({ x: wa.x, y: wa.y + wa.height - 110, width: wa.width, height: 110 });
+  expect(s.displays.length).toBeGreaterThanOrEqual(1);
+  expect((await overlayWindows(app)).map((w) => w.id)).toEqual([o.id]);
+  expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id ?? null)).toBe(before);
+
+  // Only http(s) pages.
+  const bad = await page.evaluate(() => window.atsuitApp.overlay({ url: "file:///etc/passwd" }));
+  expect(bad.ok).toBe(false);
+  expect(bad.target).toBe(`${env.base}/timer/${hd}?view=overlay`);
+  // A tech's own page.
+  s = await page.evaluate((u) => window.atsuitApp.overlay({ url: u }), `${env.base}/api/health`);
+  expect(s.target).toBe(`${env.base}/api/health`);
+  await expect.poll(async () => (await overlayWindows(app))[0]?.url).toBe(`${env.base}/api/health`);
+  // The window is see-through: where the page draws nothing, the slides show.
+  await new Promise((res) => setTimeout(res, 500));
+  const alpha = await app.evaluate(async ({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() === "AT-SUIT Overlay");
+    const img = await w.webContents.capturePage();
+    const { width, height } = img.getSize();
+    const px = img.toBitmap();
+    return px[((height - 2) * width + (width - 2)) * 4 + 3];
+  });
+  expect(alpha).toBe(0);
+  s = await page.evaluate(() => window.atsuitApp.overlay({ url: "" })); // back to the room timer
+  expect(s.target).toBe(`${env.base}/timer/${hd}?view=overlay`);
+  expect(conf().overlay).toMatchObject({ on: true, url: "", position: "bottom-bar", size: "large", room_id: hd });
+
+  // Off.
+  s = await page.evaluate(() => window.atsuitApp.overlay({ on: false }));
+  expect(s.on).toBe(false);
+  expect(await overlayWindows(app)).toEqual([]);
+  expect(conf().overlay.on).toBe(false);
+  expect((await page.evaluate(() => window.atsuitApp.overlayState())).on).toBe(false);
+});
+
+test("an overlay left on comes back after a restart, and the server knows", async () => {
+  app = await launch();
+  let page = await mainPage(app);
+  const rh = await roomId("RH");
+  const s = await page.evaluate((id) => window.atsuitApp.overlay({ on: true, room_id: id, position: "top-right", size: "medium" }), rh);
+  expect(s.ok).toBe(true);
+  await expect.poll(async () => (await overlayWindows(app)).filter((w) => w.visible).length, { timeout: 10000 }).toBe(1);
+  await app.close();
+  app = null;
+
+  app = await launch();
+  page = await mainPage(app);
+  await expect.poll(async () => (await overlayWindows(app)).filter((w) => w.visible).length, { timeout: 15000 }).toBe(1);
+  const [o] = await overlayWindows(app);
+  const wa = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().workArea);
+  expect(o.url).toBe(`${env.base}/timer/${rh}?view=overlay`);
+  expect(o.bounds).toEqual({ x: wa.x + wa.width - 440 - 16, y: wa.y + 16, width: 440, height: 150 });
+  expect(o.focusable).toBe(false);
+  expect((await page.evaluate(() => window.atsuitApp.overlayState())).on).toBe(true);
+
+  // The app told the server what it is showing.
+  const cookie = await adminCookie();
+  const node = (await (await fetch(`${env.base}/api/fleet/nodes`, { headers: { Cookie: cookie } })).json()).find((n) => n.name === "TESTLAP1");
+  await expect.poll(async () => {
+    const ov = await (await fetch(`${env.base}/api/fleet/nodes/${node.id}/overlay`, { headers: { Cookie: cookie } })).json();
+    return ov.state && ov.state.on && ov.state.target;
+  }, { timeout: 10000 }).toBe(`${env.base}/timer/${rh}?view=overlay`);
+
+  // Off stays off after a restart.
+  await page.evaluate(() => window.atsuitApp.overlay({ on: false }));
+  await app.close();
+  app = await launch();
+  await mainPage(app);
+  await new Promise((r) => setTimeout(r, 2000));
+  expect(await overlayWindows(app)).toEqual([]);
+});
