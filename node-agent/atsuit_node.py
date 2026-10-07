@@ -117,15 +117,44 @@ def run_command(cmd: dict, args) -> tuple[bool, str]:
     return False, f"This agent can't do '{kind}'"
 
 
+def newer(a: str, b: str) -> bool:
+    def parts(v):
+        return [int(x) if x.isdigit() else 0 for x in v.split(".")]
+    return parts(a) > parts(b)
+
+
+def self_update(server: str, token: str, release: dict) -> None:
+    """Pull a newer agent from the server, check it, swap it in and restart.
+    Nodes update themselves; the server never has to reach in over SSH."""
+    import hashlib
+
+    req = urllib.request.Request(server.rstrip("/") + "/api/nodes/agent/file")
+    req.add_header("Authorization", f"Node {token}")
+    with urllib.request.urlopen(req, timeout=30) as r:
+        data = r.read()
+    if hashlib.sha256(data).hexdigest() != release.get("sha256"):
+        raise RuntimeError("downloaded agent failed its checksum")
+    me = Path(__file__).resolve()
+    tmp = me.with_suffix(".new")
+    tmp.write_bytes(data)
+    compile(data, str(tmp), "exec")  # refuse to install something that doesn't even parse
+    os.replace(tmp, me)
+    print(f"Updated agent {VERSION} -> {release['version']}, restarting")
+    os.execv(sys.executable, [sys.executable, str(me), *sys.argv[1:]])
+
+
 async def control_loop(args, state) -> None:
     server, token = args.server, state["token"]
     last_url = ""
     while True:
         try:
-            http(server, "POST", "/api/nodes/heartbeat", {
+            hb = http(server, "POST", "/api/nodes/heartbeat", {
                 "ip": local_ip(server), "mac": mac(), "version": f"agent-{VERSION}", "current_url": last_url,
                 "info": {"os": platform.platform(), "python": sys.version.split()[0], "mic": bool(args.mic)},
             }, token)
+            release = (hb or {}).get("agent") or {}
+            if args.self_update and release.get("version") and newer(release["version"], VERSION):
+                self_update(server, token, release)
             for cmd in http(server, "GET", "/api/nodes/commands", token=token) or []:
                 ok, detail = run_command(cmd, args)
                 if ok and cmd["kind"] == "set_url":
@@ -197,6 +226,9 @@ def main() -> None:
     ap.add_argument("--kiosk-cmd", default="", help='command to open a screen, e.g. "chromium --kiosk {url}"')
     ap.add_argument("--allow-power", action="store_true", help="allow reboot and shutdown from the console")
     ap.add_argument("--interval", type=float, default=10)
+    ap.add_argument("--re-enrol", action="store_true", help="enrol again even if this node has a token")
+    ap.add_argument("--no-self-update", dest="self_update", action="store_false",
+                    help="don't install newer agents the server offers")
     args = ap.parse_args()
 
     if args.list_devices:
@@ -207,7 +239,7 @@ def main() -> None:
     args.server = args.server or state.get("server")
     if not args.server:
         ap.error("--server is required the first time")
-    if args.code or not state.get("token"):
+    if args.re_enrol or not state.get("token") or state.get("server") != args.server:
         if not args.code:
             ap.error("--code is required the first time")
         r = http(args.server, "POST", "/api/nodes/enrol", {"code": args.code, "name": args.name, "kind": args.kind})

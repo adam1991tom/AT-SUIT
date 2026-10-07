@@ -40,6 +40,28 @@ def norm_host(h) -> str:
     return re.sub(r"[^A-Z0-9_.-]", "", str(h or "").strip().upper())[:64]
 
 
+def agent_file() -> Path | None:
+    """The node agent laptops pull updates from: an uploaded one in the data
+    volume wins, then the one bundled in the image, then the repo copy (dev)."""
+    here = Path(__file__).resolve()
+    for f in (config.cfg.data / "agent" / "atsuit_node.py", here.parents[1] / "agent" / "atsuit_node.py",
+              here.parents[3] / "node-agent" / "atsuit_node.py"):
+        if f.is_file():
+            return f
+    return None
+
+
+def agent_release() -> dict:
+    import hashlib
+
+    f = agent_file()
+    if not f:
+        return {"version": None}
+    data = f.read_bytes()
+    m = re.search(rb'^VERSION = "([^"]+)"', data, re.M)
+    return {"version": m.group(1).decode() if m else None, "sha256": hashlib.sha256(data).hexdigest()}
+
+
 def client_dir() -> Path:
     d = config.cfg.data / "client-updates"
     d.mkdir(parents=True, exist_ok=True)
@@ -117,7 +139,34 @@ async def heartbeat(body: HeartbeatIn, request: Request, p: Principal = Depends(
              time.time(), p.id))
         pending = c.execute("SELECT COUNT(*) FROM node_commands WHERE node_id=? AND status='queued'", (p.id,)).fetchone()[0]
     await hub.publish("fleet", "node.heartbeat", {"id": p.id})
-    return {"ok": True, "pending_commands": pending}
+    return {"ok": True, "pending_commands": pending, "agent": agent_release()}
+
+
+@router.get("/api/nodes/agent")
+def agent_info(p: Principal = Depends(require_node)):
+    return agent_release()
+
+
+@router.get("/api/nodes/agent/file")
+def agent_download(p: Principal = Depends(require_node)):
+    f = agent_file()
+    if not f:
+        raise HTTPException(404, "No node agent on this server")
+    return FileResponse(f, media_type="text/x-python", filename="atsuit_node.py")
+
+
+@router.post("/api/fleet/agent")
+async def upload_agent(file: UploadFile, p: Principal = Depends(require_admin)):
+    """Publish a newer node agent; laptops pick it up on their next heartbeat."""
+    data = await file.read(2 * 1024 * 1024)
+    if not re.search(rb'^VERSION = "[^"]+"', data, re.M):
+        raise HTTPException(400, "That isn't an AT-SUIT node agent")
+    d = config.cfg.data / "agent"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "atsuit_node.py").write_bytes(data)
+    with db.tx() as c:
+        db.audit(c, p.name, "fleet.agent_release", agent_release().get("version") or "")
+    return agent_release()
 
 
 @router.get("/api/nodes/me")

@@ -196,3 +196,16 @@ def test_overlay_target_validation(admin):
     r = admin.post(f"/api/overlays/targets/{t['id']}/action", json={"overlay": "1", "action": "show"})
     assert r.status_code == 502
     assert admin.post(f"/api/overlays/targets/{t['id']}/action", json={"overlay": "all", "action": "seturl"}).status_code == 400
+
+
+def test_node_agent_self_update_feed(admin):
+    code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
+    hdr = {"Authorization": f"Node {admin.post('/api/nodes/enrol', json={'code': code, 'name': 'lap9'}).json()['token']}"}
+    bundled = admin.post("/api/nodes/heartbeat", json={}, headers=hdr).json()["agent"]
+    assert bundled["version"]
+    new = b'VERSION = "9.9.9"\nprint("hi")\n'
+    r = admin.post("/api/fleet/agent", files={"file": ("atsuit_node.py", new)}).json()
+    assert r["version"] == "9.9.9"
+    assert admin.get("/api/nodes/agent", headers=hdr).json()["version"] == "9.9.9"
+    assert admin.get("/api/nodes/agent/file", headers=hdr).content == new
+    assert admin.post("/api/fleet/agent", files={"file": ("x.py", b"rm -rf /")}).status_code == 400

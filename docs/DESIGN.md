@@ -174,8 +174,18 @@ Message bodies and overlay tokens are encrypted at rest with a Fernet key in
 | Commands | `GET /api/nodes/commands` / `POST /api/nodes/commands/<id>/ack` | node token |
 | Audio | `WS /ws/audio/<room_id>?token=` binary frames of 16 kHz mono int16 | node token or tech session |
 | Live updates | `WS /ws?topics=…` | session, node token, or public topics only |
+| Agent updates | `GET /api/nodes/agent`, `/api/nodes/agent/file` (also offered in every heartbeat reply) | node token |
 | Old kiosk agents | `POST /heartbeat`, `GET /agent/poll/<host>`, `POST /agent/ack`, `/client-update`, `/client-bootstrap` | none (as today), can be switched off |
 | Companion / automation | `/api/v1/timers/<room>/start` etc. | API key header `X-API-Key` |
+
+**Nodes pull their own updates.** Every heartbeat reply names the current
+node agent version and checksum; an older agent downloads it, checks the
+checksum and that it parses, swaps itself in and restarts. The server never
+pushes over SSH. Today's device-agent-updater on ATSERVER1 does push over SSH
+every 60 seconds and fails on seven laptops and ATPI1 (over 14,000 errors in
+its log), which is exactly what pulling avoids: a laptop that's off or
+unreachable just updates the next time it checks in. SSH remains only as a
+stop-gap for the old Device Suite kiosk agents until they are re-enrolled.
 
 Every existing kiosk keeps working on day one through the old-agent API, so
 the fleet can be cut over by pointing the agents at AT-SUIT's address and
@@ -192,7 +202,7 @@ of what they took and skipped.
 | Source | What comes across | How |
 |---|---|---|
 | RoomComms `roomcomms.db` + `.encryption_key` (0.9.2 on ATSERVER, 1.0.0 on ATSERVER1) | accounts (password hashes kept), rooms, messages (decrypted with the old key, re-encrypted with the new one), help requests | `docker cp at-roomcomms:/data ./roomcomms-data` then upload the folder as a zip, or run the CLI against it |
-| Device Suite `rooms.txt` | room kiosk links (Ontime views, Companion emulators) | upload the file; only `ROOM\|URL\|LABEL;` rows, bad rows reported |
+| Device Suite `rooms.txt` (only the live copy in `/opt/device-suite`; the older copies in `~` are history) | room kiosk links (Ontime views, Companion emulators) | upload the file; only `ROOM\|URL\|LABEL;` rows, bad rows reported |
 | Device Suite `state.json` | known kiosk hosts, IPs, MACs, current URL | upload the file |
 | Homarr links (`homarr-links.tsv` export) | dashboard links on ADMIN and USERS boards | upload the TSV |
 | AT-Presenter `presenter.db` | (phase 2) sessions, presenters, files | CLI |

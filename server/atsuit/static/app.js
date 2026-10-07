@@ -362,11 +362,13 @@
     a.innerHTML = `<div class="grid"><div class="panel"><h2>Add a tech laptop</h2>
       <ol class="small"><li>On the laptop, open <code>${esc(origin)}/node</code> in Chrome or Edge.</li><li>Enter a name (e.g. ATLAP3) and the enrolment code below.</li><li>A tech signs in with their own account. The laptop then shows chat, the room timer, captions and the room's links.</li></ol>
       <p class="small muted">For captions without a browser, run the node agent: <code>python atsuit_node.py --server ${esc(origin)} --code CODE --name ATLAP3 --room CC --mic</code></p>
-      ${sites.map((s) => `<p><b>${esc(s.name)}</b>: <code style="font-size:1.2rem">${esc(s.enrol_code)}</code> <button class="small" data-new="${s.id}">New code</button></p>`).join("")}</div>
+      ${sites.map((s) => `<p><b>${esc(s.name)}</b>: <code style="font-size:1.2rem">${esc(s.enrol_code)}</code> <button class="small" data-new="${s.id}">New code</button></p>`).join("")}
+      <label>Node agent update (laptops pull it on their next check-in)</label><div class="row"><input type="file" id="agentFile" class="grow"><button class="small" id="upAgent">Publish agent</button></div></div>
       <div class="panel"><h2>Older kiosk agents</h2><p class="small muted">Kiosks running the Device Suite agent can report here without reinstalling: point their server address at <code>${esc(origin)}</code>. Reboot, shut down and update for them go over SSH, so upload the fleet key.</p>
       <label>Fleet SSH private key</label><input type="file" id="key"><button class="small" id="upKey" style="margin-top:.4rem">Upload key</button>
       <label>Kiosk agent release (script)</label><div class="row"><input type="file" id="rel" class="grow"><input id="ver" placeholder="version, e.g. 2.0.4" style="width:9rem"></div><button class="small" id="upRel" style="margin-top:.4rem">Publish release</button></div></div>`;
     a.querySelectorAll("[data-new]").forEach((b) => b.onclick = () => confirm("Make a new code? The old one stops working for new laptops.") && guard(() => post(`/api/admin/sites/${b.dataset.new}/enrol-code`)).then(() => admFleet(a)));
+    a.querySelector("#upAgent").onclick = () => { const f = a.querySelector("#agentFile").files[0]; f && guard(() => upload("/api/fleet/agent", f)).then((r) => toast(`Agent ${r.version} published`, "good")); };
     a.querySelector("#upKey").onclick = () => { const f = a.querySelector("#key").files[0]; f && guard(() => upload("/api/fleet/ssh-key", f)).then(() => toast("Key saved", "good")); };
     a.querySelector("#upRel").onclick = () => { const f = a.querySelector("#rel").files[0], v = a.querySelector("#ver").value.trim(); f && v && guard(() => upload(`/api/fleet/client-release?version=${encodeURIComponent(v)}`, f)).then(() => toast("Published", "good")); };
   }

@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && if [ "$WITH_ASR" = "1" ]; then pip install --no-cache-dir -r requirements-asr.txt; fi
 
 COPY server/atsuit ./atsuit
+COPY node-agent/atsuit_node.py ./atsuit/agent/atsuit_node.py
 RUN mkdir -p /data && chown -R atsuit:atsuit /data /app
 LABEL org.opencontainers.image.title="AT-SUIT" org.opencontainers.image.version="${VERSION}"
 

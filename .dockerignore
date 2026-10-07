@@ -4,6 +4,6 @@
 .env
 backups
 data
-node-agent
+node-agent/atsuit_node.json
 docs
 server/tests

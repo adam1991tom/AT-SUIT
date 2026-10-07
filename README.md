@@ -24,6 +24,11 @@ git clone https://github.com/adam1991tom/AT-SUIT.git && cd AT-SUIT
 ./install.sh --tls           # also https on 8443, so browsers allow the microphone
 ```
 
+Or skip the build and run the published image: `./install.sh --pull` (or
+`--pull 0.1.0` for a fixed version). Images are at
+`ghcr.io/adam1991tom/at-suit`; make the package public in GitHub, or run
+`docker login ghcr.io` on the server first.
+
 Then open `http://SERVER-IP:PORT/` and follow the setup wizard. See
 [docs/INSTALL.md](docs/INSTALL.md) for https, migration from the old apps,
 backups and updates, and [docs/ADMIN.md](docs/ADMIN.md) for day-to-day setup.
@@ -50,7 +55,22 @@ deploy/Caddyfile      https front end (compose profile "tls")
 docs/DESIGN.md        architecture, module map, migration and build order
 ```
 
-Development:
+## Releases
+
+`main` is always releasable and publishes `ghcr.io/adam1991tom/at-suit:edge`.
+To release, bump `VERSION`, add a section to [CHANGELOG.md](CHANGELOG.md),
+merge, and push a tag `vX.Y.Z`. CI then publishes `:X.Y.Z` and `:latest` and
+creates the GitHub release with the node agent attached. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Licence
+
+The repository is currently under the MIT licence (see `LICENSE`), which lets
+anyone use and resell the code. Before selling AT-SUIT, replace it with a
+proprietary licence; customer installs are controlled separately by licence
+keys (see docs/ADMIN.md).
+
+## Development
 
 ```bash
 cd server && pip install -r requirements.txt -r requirements-asr.txt -r requirements-dev.txt

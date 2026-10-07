@@ -30,6 +30,13 @@ Everything here is done in the browser. Nothing needs a file edited.
    chat retention, and whether old kiosk agents are accepted.
 10. **Admin → API keys**: a key for Companion.
 
+## Updating laptops
+
+Laptops running the node agent update themselves: when the server has a newer
+agent (a new AT-SUIT release, or one uploaded in Admin → Node setup), each
+agent downloads it on its next heartbeat, checks it and restarts. Start an
+agent with `--no-self-update` to pin it.
+
 ## Companion
 
 Use Companion's Generic HTTP module. Every request needs the header
