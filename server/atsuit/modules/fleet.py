@@ -736,3 +736,136 @@ def legacy_bootstrap():
     if not f.is_file():
         raise HTTPException(404, "No bootstrap script uploaded")
     return FileResponse(f, media_type="text/x-shellscript")
+
+
+# ------------------------------------------------ AT-SUIT Node overlay --
+# The Windows app can float a click-through overlay (the room timer, by
+# default) over the slides. Any tech, a laptop in the room or Companion can
+# turn a laptop's overlay on or off and move it. What was asked for is kept in
+# the node's info JSON as "overlay_want"; what the app actually shows comes
+# back as "overlay" (PUT /api/nodes/me/overlay). No schema change needed.
+OVERLAY_POSITIONS = ("bottom-right", "bottom-left", "top-right", "top-left", "bottom-bar", "top-bar")
+OVERLAY_SIZES = ("small", "medium", "large")
+OVERLAY_DEFAULT = {"on": False, "url": "", "position": "bottom-right", "size": "medium", "display": 0, "opacity": 0.85}
+
+
+class OverlayIn(BaseModel):
+    """Every field is optional: anything left out keeps its last value."""
+    on: bool | None = None
+    url: str | None = Field(None, max_length=1000)  # "" = this room's timer overlay
+    position: str | None = Field(None, pattern="^(" + "|".join(OVERLAY_POSITIONS) + ")$")
+    size: str | None = Field(None, pattern="^(small|medium|large)$")
+    display: int | None = Field(None, ge=0, le=8)
+    opacity: float | None = Field(None, ge=0.2, le=1.0)
+
+
+class OverlayReport(BaseModel):
+    on: bool = False
+    url: str = Field("", max_length=1000)
+    target: str = Field("", max_length=1100)
+    position: str = Field("", max_length=20)
+    size: str = Field("", max_length=10)
+    display: int = 0
+    opacity: float = 1.0
+    room_id: int | None = None
+    error: str = Field("", max_length=300)
+
+
+def _info(n) -> dict:
+    try:
+        return json.loads(n["info_json"] or "{}")
+    except ValueError:
+        return {}
+
+
+def _save_info(c, node_id: int, info: dict) -> None:
+    c.execute("UPDATE nodes SET info_json=? WHERE id=?", (json.dumps(info), node_id))
+
+
+def overlay_out(c, n) -> dict:
+    info = _info(n)
+    return {"id": n["id"], "name": n["name"], "operator": n["operator"] or "", "mode": n["mode"] or "",
+            "online": bool(n["last_seen"] and time.time() - n["last_seen"] < ONLINE_SECONDS),
+            "app": str(n["version"] or "").startswith("app-"), "room_id": current_room_id(c, n),
+            "want": {**OVERLAY_DEFAULT, **(info.get("overlay_want") or {})}, "state": info.get("overlay")}
+
+
+async def _overlay_changed(node_id: int, room_id) -> None:
+    data = {"id": node_id, "room_id": room_id}
+    if room_id:
+        await hub.publish(f"room:{room_id}", "overlay.changed", data)
+    await hub.publish("fleet", "overlay.changed", data)
+    await hub.publish("fleet", "node.changed", {"id": node_id})
+
+
+@router.get("/api/rooms/{room_id}/overlays")
+def room_overlays(room_id: int, p: Principal = Depends(require_tech)):
+    """The tech laptops in this room today, and each one's overlay."""
+    from .core import room_or_404
+
+    with db.ro() as c:
+        room_or_404(c, room_id, p)
+        rows = c.execute("SELECT * FROM nodes WHERE kind='tech' ORDER BY mode='backup', name").fetchall()
+        return [overlay_out(c, n) for n in rows if site_ok(p, n["site_id"]) and current_room_id(c, n) == room_id]
+
+
+@router.get("/api/fleet/nodes/{node_id}/overlay")
+def get_overlay(node_id: int, p: Principal = Depends(require_tech)):
+    with db.ro() as c:
+        n = c.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
+        if not n or n["kind"] != "tech" or not site_ok(p, n["site_id"]):
+            raise HTTPException(404, "Tech laptop not found")
+        return overlay_out(c, n)
+
+
+@router.put("/api/fleet/nodes/{node_id}/overlay")
+async def set_overlay(node_id: int, body: OverlayIn, p: Principal = Depends(require_tech)):
+    """Turn a tech laptop's overlay on or off, or move it. The laptop's app
+    picks up a node command of kind "overlay" with the full settings."""
+    url = (body.url or "").strip() if body.url is not None else None
+    if url and not re.match(r"^https?://\S+$", url, re.I):
+        raise HTTPException(400, "URL must start with http:// or https://")
+    with db.tx() as c:
+        n = c.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
+        if not n or not site_ok(p, n["site_id"]):
+            raise HTTPException(404, "Node not found")
+        if n["kind"] != "tech":
+            raise HTTPException(400, "Only tech laptops running AT-SUIT Node have an overlay")
+        info = _info(n)
+        want = {**OVERLAY_DEFAULT, **(info.get("overlay_want") or {})}
+        changes = body.model_dump(exclude_none=True)
+        if url is not None:
+            changes["url"] = url
+        want.update(changes)
+        room_id = current_room_id(c, n)
+        want["room_id"] = room_id
+        want["by"] = p.name
+        want["at"] = db.now_iso()
+        info["overlay_want"] = want
+        _save_info(c, node_id, info)
+        # Only the latest overlay command matters: older queued ones are dropped.
+        c.execute("UPDATE node_commands SET status='superseded', acked_at=? WHERE node_id=? AND kind='overlay' AND status='queued'",
+                  (db.now_iso(), node_id))
+        cid = queue_command(c, node_id, "overlay", {k: want[k] for k in (*OVERLAY_DEFAULT, "room_id", "by")})
+        db.audit(c, p.name, "node.overlay", f"{n['name']}: {'on' if want['on'] else 'off'} {want['position']} {want['url'] or 'room timer'}")
+    await _overlay_changed(node_id, room_id)
+    return {"ok": True, "command_id": cid, "want": want}
+
+
+@router.get("/api/nodes/me/overlay")
+def my_overlay(p: Principal = Depends(require_node)):
+    with db.ro() as c:
+        return overlay_out(c, c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone())
+
+
+@router.put("/api/nodes/me/overlay")
+async def report_overlay(body: OverlayReport, p: Principal = Depends(require_node)):
+    """The app says what its overlay is actually doing."""
+    with db.tx() as c:
+        n = c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone()
+        info = _info(n)
+        info["overlay"] = {**body.model_dump(), "at": db.now_iso()}
+        _save_info(c, p.id, info)
+        room_id = current_room_id(c, n)
+    await _overlay_changed(p.id, room_id)
+    return {"ok": True}
