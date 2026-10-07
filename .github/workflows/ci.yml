@@ -34,7 +34,7 @@ jobs:
           ATSUIT_TEST_MODELS: ${{ github.workspace }}/models
         run: python -m pytest -q
       - name: Check node agent
-        run: python -m py_compile node-agent/atsuit_node.py tools/licence.py
+        run: python -m py_compile node-agent/atsuit_node.py room-sync/atsuit_room_sync.py tools/licence.py
 
   image:
     runs-on: ubuntu-latest

@@ -104,6 +104,25 @@ agent with `--no-self-update` to pin it.
 on their next check-in after an AT-SUIT update. The Update button in
 Timers → Screens makes one check now.
 
+## Presenters
+
+Presenters in the console is the AT-Presenter workflow.
+
+1. **New event**: name, client, colour and dates. An admin makes events; techs work in them.
+2. **Running order**: add sessions by hand, or **Import** a spreadsheet or CSV with column headings (Room, Date or Day, Start, End or a "09:00 - 09:45" Time, Session or Title, Speaker or Presenter, Email, Phone). Check and edit the rows, then **Add these sessions**. Rooms not set up at the site are shown in amber and the sessions come in without a room. PDF and Word running orders need a local AI model (Settings → Schedule AI, through Ollama).
+3. **Presenter links**: every presenter gets their own link (Copy link). On it they upload their slides from a phone or laptop, see whether the AV team approved them (with the note if not) and tap "I'm here" on the day. **New link** stops the old one working.
+4. **File review**: approve or reject each upload. A rejection's note shows on the presenter's page; their next upload becomes a new version.
+5. **Show files**: the show's own files per session (walk-in video, stings, the final deck), in running order.
+6. **On the day** the tech workspace shows the room's sessions with who's here and their files. **Send this day to the timer** replaces the room's cue list with one cue per session.
+
+**Room sync.** The presentation laptop in each room keeps a folder with every session's approved file and show files. Make the room's code in Presenters → Settings, then on the laptop (Python 3.8 or later, nothing else):
+
+```
+python atsuit_room_sync.py --server http://10.100.70.100:8180 --code ABCD-2345
+```
+
+The first run saves the settings, so after that `python atsuit_room_sync.py` is enough (put it in the laptop's startup). Download the tool from the link in Presenters → Settings. For the https address with AT-SUIT's own certificate, add `--cafile` with that certificate. Files are stored on the server in `/data/presenter-files`; set `ATSUIT_PRESENTER_FILES` to keep them on a NAS mount instead.
+
 ## Companion
 
 Use Companion's Generic HTTP module. Every request needs the header

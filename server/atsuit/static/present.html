@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Your presentation</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  body { height: auto; min-height: 100%; }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
+  .top { display: flex; align-items: center; gap: .8rem; margin-bottom: 1.2rem; }
+  .top img { max-height: 42px; max-width: 160px; }
+  .band { height: 5px; border-radius: 5px; background: var(--ev, var(--accent)); margin-bottom: 1rem; }
+  .sess { font-size: 1.05rem; } .sess b { display: block; font-size: 1.25rem; margin-bottom: .2rem; }
+  .drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 1.6rem 1rem; margin-top: .8rem; text-align: center; cursor: pointer; }
+  .drop.over { border-color: var(--accent); background: var(--panel2); }
+  .bar { height: 8px; background: var(--line); border-radius: 8px; overflow: hidden; margin-top: .7rem; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+  .file { padding: .6rem 0; border-bottom: 1px solid var(--line); }
+  .file:last-child { border-bottom: 0; }
+  .note { border-left: 3px solid var(--bad); padding: .3rem .6rem; margin-top: .35rem; background: var(--panel2); border-radius: 0 6px 6px 0; }
+  section { margin-top: 1rem; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><p class="muted">Loading…</p></div>
+<script src="/static/common.js"></script>
+<script>
+(async () => {
+  const { esc, api, when } = AT;
+  const $ = (id) => document.getElementById(id);
+  const token = location.pathname.split("/").filter(Boolean).pop();
+  const STATUS = { pending: ["Received, the AV team will check it", "warn"], approved: ["Approved, ready in the room", "good"], rejected: ["Please send a new version", "bad"] };
+  const fmtSize = (b) => (b > 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB");
+  const fmtWhen = (iso) => {
+    if (!iso) return "";
+    if (!iso.includes("T")) return iso;
+    const d = new Date(iso);
+    return d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }) + ", " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+  let data;
+
+  try { data = await api(`/api/present/${encodeURIComponent(token)}`); }
+  catch (e) { $("app").innerHTML = `<div class="panel" style="margin-top:2rem"><h1>Link not valid</h1><p>${esc(e.message)}</p></div>`; return; }
+  document.documentElement.style.setProperty("--accent", data.branding.accent || "#4f7cff");
+  render();
+
+  function render() {
+    const b = data.branding, s = data.session, latest = data.files[0];
+    document.title = `${data.event}: ${data.full_name}`;
+    document.documentElement.style.setProperty("--ev", data.colour || "");
+    $("app").innerHTML = `<div class="top">${b.logo_url ? `<img src="${esc(b.logo_url)}" alt="">` : ""}<div class="grow"><div class="muted small">${esc(b.product_name || "")}</div><h1 style="margin:0">${esc(data.event)}</h1></div></div>
+      <div class="band"></div>
+      <div class="panel"><p style="margin-top:0">Hello ${esc(data.full_name)}.</p>
+        ${s ? `<div class="sess"><b>${esc(s.title)}</b>${esc(fmtWhen(s.starts_at))}${s.ends_at && s.ends_at.includes("T") ? "–" + esc(s.ends_at.slice(11, 16)) : ""}${s.room ? ` · ${esc(s.room)}` : ""}</div>` : '<p class="muted">Your session is still being arranged.</p>'}
+        ${data.note ? `<p class="small" style="margin-bottom:0">${esc(data.note)}</p>` : ""}</div>
+
+      <section class="panel"><h2>Your presentation</h2>
+        ${latest ? `<p class="small" style="margin-top:0"><span class="pill ${STATUS[latest.review_status][1]}">${STATUS[latest.review_status][0]}</span></p>
+          ${latest.review_status === "rejected" && latest.review_note ? `<div class="note small"><b>From the AV team:</b> ${esc(latest.review_note)}</div>` : ""}` : '<p class="muted" style="margin-top:0">Nothing uploaded yet.</p>'}
+        <div class="drop" id="drop" tabindex="0" role="button"><b>${latest ? "Upload a new version" : "Upload your slides"}</b><div class="muted small">Drop the file here or tap to choose it. Up to ${data.upload_limit_mb} MB.</div></div>
+        <input type="file" id="file" class="hidden">
+        <div id="prog" class="hidden"><div class="small" id="progText"></div><div class="bar"><i id="progBar"></i></div></div>
+        ${data.files.length ? `<div style="margin-top:.8rem">${data.files.map((f, i) => `<div class="file"><div class="row"><span class="grow">${esc(f.original_name)}</span><span class="muted small">${fmtSize(f.size)} · ${esc(when(f.uploaded_at))}</span></div>
+          ${i ? `<div class="muted small">Earlier version</div>` : ""}${i && f.review_note ? `<div class="muted small">${esc(f.review_note)}</div>` : ""}</div>`).join("")}</div>` : ""}
+      </section>
+
+      <section class="panel"><h2>On the day</h2>
+        ${data.checked_in_at ? `<p style="margin:0"><span class="pill good">Checked in ${esc(when(data.checked_in_at))}</span> Thank you, the room team knows you're here.</p>`
+          : `<p class="small" style="margin-top:0">When you arrive at the venue, let the room team know you're here.</p><button class="primary" id="checkin">I'm here</button>`}
+      </section>`;
+    const drop = $("drop"), input = $("file");
+    drop.onclick = () => input.click();
+    drop.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } };
+    drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+    drop.ondragleave = () => drop.classList.remove("over");
+    drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); if (e.dataTransfer.files[0]) send(e.dataTransfer.files[0]); };
+    input.onchange = () => input.files[0] && send(input.files[0]);
+    $("checkin")?.addEventListener("click", async () => {
+      try { data = await api(`/api/present/${encodeURIComponent(token)}/checkin`, { method: "POST" }); render(); } catch (e) { AT.toast(e.message, "bad"); }
+    });
+  }
+
+  function send(file) {
+    if (file.size > data.upload_limit_mb * 1048576) return AT.toast(`That file is ${fmtSize(file.size)}; the limit is ${data.upload_limit_mb} MB.`, "bad");
+    const form = new FormData();
+    form.append("file", file);
+    const xhr = new XMLHttpRequest();
+    $("prog").classList.remove("hidden"); $("drop").classList.add("hidden");
+    $("progText").textContent = `Uploading ${file.name}…`;
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) { const pc = Math.round(e.loaded / e.total * 100); $("progBar").style.width = pc + "%"; $("progText").textContent = `Uploading ${file.name}: ${pc}%`; } };
+    xhr.onload = () => {
+      let body = null;
+      try { body = JSON.parse(xhr.responseText); } catch (_) {}
+      if (xhr.status === 200 && body) { data = body; render(); AT.toast("Uploaded. Thank you.", "good"); }
+      else { AT.toast(body?.detail || "The upload didn't finish. Please try again.", "bad"); render(); }
+    };
+    xhr.onerror = () => { AT.toast("The upload didn't finish. Check your connection and try again.", "bad"); render(); };
+    xhr.open("POST", `/api/present/${encodeURIComponent(token)}/upload`);
+    xhr.send(form);
+  }
+})();
+</script>
+</body>
+</html>

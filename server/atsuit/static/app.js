@@ -21,7 +21,7 @@
 
   function topics() {
     return [...boot.sites.map((s) => `site:${s.id}`), ...boot.rooms.map((r) => `room:${r.id}`), `dm:${boot.me.id}`, "fleet",
-      ...boot.rooms.map((r) => `timer:${r.id}`), ...boot.rooms.map((r) => `captions:${r.id}`)];
+      ...boot.rooms.map((r) => `timer:${r.id}`), ...boot.rooms.map((r) => `captions:${r.id}`), ...(boot.modules.presenter ? ["presenter"] : [])];
   }
 
   function start() {
@@ -59,7 +59,8 @@
     const banner = boot.licence.valid ? "" : `<div class="banner">Evaluation mode: ${esc(boot.licence.reason)}. Add a licence in Admin → Licence.</div>`;
     main.innerHTML = banner + '<div id="view"></div>';
     const el = document.getElementById("view");
-    const views = { dashboard, chat: chatView, help, timers, captions, fleet, admin };
+    const presenter = (el, sub) => { view = PresenterPage.mount(el, sub, boot); };
+    const views = { dashboard, chat: chatView, help, timers, presenter, captions, fleet, admin };
     (views[name] || dashboard)(el, sub);
   }
 

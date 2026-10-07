@@ -134,9 +134,10 @@ def test_schedule_import_from_spreadsheet(admin):
     assert [p["full_name"] for p in ev["sessions"][0]["presenters"]] == ["Jo Bloggs", "Ann Lee"]
     assert admin.post(f"/api/presenter/imports/{body['id']}/commit", json={"rows": []}).status_code == 409
     # CSV works the same; a PDF needs the AI, which isn't set up here.
-    csv_data = b"Room,Start,End,Title,Presenter\nCC,2026-10-12 11:00,2026-10-12 11:30,Lunch talk,Max\n"
+    csv_data = b"Room,Start,End,Title,Presenter\nCC,2026-10-13 11:00,2026-10-13 11:30,Lunch talk,Max\nCC,14/10/2026 9:30am,,Day 3,\n"
     rows = admin.post(f"/api/presenter/events/{eid}/import", files={"file": ("o.csv", csv_data)}).json()["rows"]
-    assert rows[0]["starts_at"] == "2026-10-12T11:00" and rows[0]["presenter_name"] == "Max"
+    assert rows[0]["starts_at"] == "2026-10-13T11:00" and rows[0]["ends_at"] == "2026-10-13T11:30" and rows[0]["presenter_name"] == "Max"
+    assert rows[1]["starts_at"] == "2026-10-14T09:30"
     r = admin.post(f"/api/presenter/events/{eid}/import", files={"file": ("o.pdf", b"%PDF-1.4 nothing")})
     assert r.status_code == 422
 
@@ -150,3 +151,43 @@ def test_presenter_is_scoped(admin, client):
     assert client.post("/api/presenter/events", json={"name": "x"}).status_code == 403  # events are for admins
     assert client.delete(f"/api/presenter/events/{eid}").status_code == 403
     assert client.get("/api/presenter/settings").status_code == 403
+
+
+def test_room_sync_tool_keeps_the_folder(admin, client, tmp_path):
+    tmp_path = tmp_path / "laptop"  # the server's own data is in tmp_path
+    """The stand-alone sync tool, run against this server: downloads the
+    room's approved files and show files, then tidies up what's withdrawn."""
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("rs", Path(__file__).resolve().parents[2] / "room-sync" / "atsuit_room_sync.py")
+    rs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rs)
+    eid, rid = make_event(admin), rooms(admin)["CC"]
+    s = admin.post("/api/presenter/sessions", json={"event_id": eid, "room_id": rid, "title": "Keynote: 2026/27",
+                                                    "starts_at": "2026-10-12T09:30"}).json()
+    pr = admin.post("/api/presenter/presenters", json={"event_id": eid, "session_id": s["id"], "full_name": "Ada"}).json()
+    admin.post(f"/api/presenter/presenters/{pr['id']}/files", files={"file": ("../../deck.pptx", b"slides")})
+    fid = admin.get(f"/api/presenter/events/{eid}/review").json()[0]["id"]
+    admin.put(f"/api/presenter/files/{fid}/review", json={"status": "approved"})
+    sid = admin.post(f"/api/presenter/sessions/{s['id']}/show-files?kind=video", files={"file": ("walkin.mp4", b"video")}).json()["id"]
+    code = admin.post(f"/api/presenter/rooms/{rid}/sync-code").json()["sync_code"]
+
+    class Resp(io.BytesIO):
+        def __init__(self, r):
+            if r.status_code >= 400:
+                raise rs.urllib.error.HTTPError(r.url, r.status_code, "", {}, None)
+            super().__init__(r.content)
+
+    sync = rs.Sync({"server": "http://testserver", "code": code, "dir": str(tmp_path), "cafile": ""})
+    sync.get = lambda url, timeout=20: Resp(client.get(url))
+    client.cookies.clear()
+    assert sync.once() == ("CC", 2)
+    files = sorted(p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*") if p.is_file() and not p.name.startswith("."))
+    assert files == ["2026-10-12 0930 Keynote 202627/deck.pptx", "2026-10-12 0930 Keynote 202627/show/01 walkin.mp4"]
+    assert sync.once() == ("CC", 0)  # nothing new
+    admin.post("/api/auth/login", json={"username": "admin", "password": "correct-horse"})
+    admin.delete(f"/api/presenter/show-files/{sid}")
+    admin.put(f"/api/presenter/files/{fid}/review", json={"status": "rejected", "note": "x"})
+    assert sync.once() == ("CC", 2)
+    assert [p for p in tmp_path.rglob("*") if not p.name.startswith(".")] == []

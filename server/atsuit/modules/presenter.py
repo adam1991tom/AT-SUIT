@@ -516,12 +516,12 @@ async def add_show_file(session_id: int, file: UploadFile, kind: str = "presenta
     saved = await _save(file, f"show/{session_id}", limit)
     with db.tx() as c:
         pos = c.execute("SELECT COALESCE(MAX(position),-1)+1 FROM pr_show_files WHERE session_id=?", (session_id,)).fetchone()[0]
-        c.execute("INSERT INTO pr_show_files(session_id,kind,label,original_name,stored_path,mime,size,sha256,position,created_at,created_by) "
+        cur = c.execute("INSERT INTO pr_show_files(session_id,kind,label,original_name,stored_path,mime,size,sha256,position,created_at,created_by) "
                   "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                   (session_id, kind, label.strip()[:120] or saved["name"], saved["name"], saved["path"], saved["mime"], saved["size"],
                    saved["sha256"], pos, db.now_iso(), p.name))
     await _changed(s["event_id"], s["room_id"])
-    return {"ok": True}
+    return {"ok": True, "id": cur.lastrowid}
 
 
 class ShowEdit(BaseModel):

@@ -121,7 +121,7 @@ licence can limit which modules are available.
 | `captions` | AT-LiveCaption | ASR engine and model, vocabulary, transcripts, caption fan-out to audience/overlay pages | streams mic audio |
 | `overlays` | Companion → LiveOverlay direct calls | registry of LiveOverlay endpoints and tokens, show/hide/reload/set URL/scene | runs AT-LiveOverlay (unchanged Windows app) |
 | `dashboard` | Homarr USER CONTROL | link boards (admin/public), per-room links, status of each node | shows its room's links |
-| `presenter` (phase 2) | AT-Presenter | presenter portal, file review, schedule import, room sync | room sync agent |
+| `presenter` | AT-Presenter | presenter portal, file review, schedule import, room sync | room sync agent |
 | `screentest` (phase 4) | AT-ScreenTest | nothing (test patterns are local) | `/screentest` page full-screen on any output |
 
 AT-ScreenTest and AT-LiveOverlay are native Windows apps doing work that has
@@ -295,8 +295,8 @@ Cut-over per server, after the side-by-side trial:
 | 0 | Design (this doc), repo layout, CI, Docker image, installer | done |
 | 1 | Core (setup, accounts, sites, rooms, licence), comms, timers, fleet with old-agent API, dashboard, node UI, captions with server ASR, overlay control, importers for RoomComms, rooms.txt, state.json, Homarr | done in v0.1 |
 | 1b | Side-by-side install on ATSERVER1 port 8180, import copies of live data, trial with two laptops in one room | needs the owner's go |
-| 2 | Presenter module from AT-Presenter (portal, file review, schedule import via Ollama, room sync) | next |
-| 3 | Native timers replace Ontime views on kiosks, Companion module for AT-SUIT (timers + overlays) | |
+| 2 | Presenter module from AT-Presenter (portal, file review, schedule import via Ollama, room sync) | done in v0.4 |
+| 3 | Native timers replace Ontime views on kiosks, Companion module for AT-SUIT (timers + overlays) | timers and custom views done in v0.3/v0.4; Companion module next |
 | 4 | Node desktop app (Windows): enrol once, room of the day, silent pop-ups for the backup laptop, self-update from the server | done in v0.2 (`node-app/`) |
 | 4b | Bundle LiveOverlay and ScreenTest into the Node app; browser ScreenTest page | |
 | 5 | Retire old containers per section 5, then Homarr and the Fleet Dashboard | |

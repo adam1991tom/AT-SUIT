@@ -115,6 +115,12 @@ def _time(v) -> time | None:
     return time(h, mi) if h < 24 and mi < 60 else None
 
 
+def _cell_date(v) -> date | None:
+    """The date in a "2026-10-12 09:30" or "12/10/2026 9:30am" cell."""
+    m = re.match(r"^\s*(\d{4}-\d{2}-\d{2}|\d{1,2}[/.]\d{1,2}[/.]\d{2,4})[ T]", str(v or ""))
+    return _date(m.group(1), None) if m else None
+
+
 def _iso(d: date | None, t: time | None) -> str:
     if not t:
         return ""
@@ -142,7 +148,7 @@ def from_table(rows: list[list], event_start: str = "") -> list[dict] | None:
             start_t, end_t = _time(a), _time(b)
         else:
             start_t, end_t = _time(start_v), _time(get(r, "end"))
-        sd = start_v.date() if isinstance(start_v, datetime) else day
+        sd = start_v.date() if isinstance(start_v, datetime) else _cell_date(start_v) or day
         if not end_t and start_t and "duration" in cols:
             try:
                 end_t = (datetime.combine(date.today(), start_t) + timedelta(minutes=float(get(r, "duration")))).time()

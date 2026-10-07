@@ -82,6 +82,12 @@
 
     <section class="panel overlays hidden" id="ovBox"><h3>Overlays in this room</h3><div id="ovList"></div></section>
 
+    <section class="panel sessions hidden" id="sessBox">
+      <div class="row" style="justify-content:space-between"><h3>Sessions in this room</h3>
+        <div class="row"><select id="sessDay" style="width:auto"></select><button class="small" id="sessTimer" title="Replaces this room's cue list">Send this day to the timer</button></div></div>
+      <div id="sessList"></div>
+    </section>
+
     <section class="panel links"><h3>Room links</h3><div class="tiles" id="links"></div></section>
 
     <section class="panel helpbox">
@@ -277,6 +283,42 @@
   }
   if (boot.modules.overlays) renderOverlays();
 
+  // this room's presenter sessions: who's here, their files, the show files
+  const PR_ST = { pending: ["to review", "warn"], approved: ["approved", "good"], rejected: ["rejected", "bad"] };
+  let sessions = [], sessDay = null, sessTimer = null;
+  const sDay = (iso) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? iso.slice(0, 10) : "");
+  const sTime = (iso) => (iso && iso.includes("T") ? iso.slice(11, 16) : iso || "");
+  async function renderSessions() {
+    try { sessions = await api(`/api/presenter/rooms/${roomId}/schedule`); } catch (_) { return; }
+    $("sessBox").classList.toggle("hidden", !sessions.length);
+    if (!sessions.length) return;
+    const today = new Date().toLocaleDateString("en-CA"), days = [...new Set(sessions.map((s) => sDay(s.starts_at)))].filter(Boolean).sort();
+    if (!days.includes(sessDay)) sessDay = days.includes(today) ? today : days.find((d) => d > today) || days[days.length - 1] || "";
+    $("sessDay").innerHTML = days.map((d) => `<option value="${d}" ${d === sessDay ? "selected" : ""}>${d === today ? "Today" : new Date(d + "T12:00").toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}</option>`).join("");
+    $("sessDay").classList.toggle("hidden", !days.length);
+    const nowHm = new Date().toTimeString().slice(0, 5);
+    const shown = sessions.filter((s) => !days.length || sDay(s.starts_at) === sessDay || !sDay(s.starts_at));
+    $("sessList").innerHTML = shown.map((s) => {
+      const live = sDay(s.starts_at) === today && sTime(s.starts_at) <= nowHm && (!s.ends_at || sTime(s.ends_at) > nowHm);
+      return `<div class="ws-sess ${live ? "now" : ""}"><b>${esc(sTime(s.starts_at))}${s.ends_at ? "–" + esc(sTime(s.ends_at)) : ""}</b><div><b>${esc(s.title)}</b>${s.notes ? ` <span class="muted small">${esc(s.notes)}</span>` : ""}</div>` +
+        s.presenters.map((p) => { const f = p.files[0]; return `<div class="f">${esc(p.full_name)} <span class="pill ${p.checked_in_at ? "good" : ""}">${p.checked_in_at ? "here" : "not here"}</span>` +
+          (f ? `<a href="/api/presenter/files/${f.id}">${esc(f.original_name)}</a> <span class="pill ${PR_ST[f.review_status][1]}">${PR_ST[f.review_status][0]}</span>` +
+            (f.review_status !== "approved" ? `<button class="small" data-ok="${f.id}">Approve</button>` : "") + (f.review_status !== "rejected" ? `<button class="small" data-no="${f.id}">Reject</button>` : "")
+            : '<span class="muted">no file yet</span>') +
+          (!p.checked_in_at ? `<button class="small" data-in="${p.id}">Check in</button>` : "") + "</div>"; }).join("") +
+        (s.show_files.length ? `<div class="f"><span class="muted">Show files:</span> ${s.show_files.map((f) => `<a href="/api/presenter/show-files/${f.id}">${esc(f.label)}</a>`).join(", ")}</div>` : "") + "</div>";
+    }).join("") || '<p class="muted small">No sessions on this day.</p>';
+    $("sessList").querySelectorAll("[data-ok]").forEach((b) => (b.onclick = () => guard(() => AT.put(`/api/presenter/files/${b.dataset.ok}/review`, { status: "approved" }))));
+    $("sessList").querySelectorAll("[data-no]").forEach((b) => (b.onclick = () => { const note = prompt("What should the presenter change? They see this on their page.", ""); if (note !== null) guard(() => AT.put(`/api/presenter/files/${b.dataset.no}/review`, { status: "rejected", note })); }));
+    $("sessList").querySelectorAll("[data-in]").forEach((b) => (b.onclick = () => guard(() => post(`/api/presenter/presenters/${b.dataset.in}/checkin`))));
+  }
+  if (boot.modules.presenter) {
+    $("sessDay").onchange = (e) => { sessDay = e.target.value; renderSessions(); };
+    $("sessTimer").onclick = () => confirm("Replace this room's cue list with this day's sessions?") &&
+      guard(() => post(`/api/presenter/rooms/${roomId}/to-timer`, { day: sessDay || "" })).then((r) => toast(`${r.cues} cues in the timer`, "good"));
+    renderSessions();
+  }
+
   // chat: open on this room's channel
   if (boot.modules.comms) {
     const chans = await api("/api/comms/channels");
@@ -322,6 +364,7 @@
     }
     if (evt.type === "help.new") notify(`Help needed in ${evt.data.room_name}`, evt.data.description || evt.data.category, "urgent");
     cuelist && cuelist.onEvent(evt);
+    if (evt.type === "presenter.changed" && evt.topic === `room:${roomId}` && boot.modules.presenter) { clearTimeout(sessTimer); sessTimer = setTimeout(renderSessions, 300); }
     if (evt.topic === `captions:${roomId}`) {
       if (evt.type === "final") { finals.push(evt.data.text); partial = ""; renderCaps(); }
       else if (evt.type === "partial") { partial = evt.data.text; renderCaps(); }
