@@ -57,9 +57,11 @@ The full API is at `/api/docs` on the server.
 
 ## Licences (for resellers)
 
-`tools/licence.py keygen` makes the vendor key pair once. Put the public key
-in `server/atsuit/vendor_pubkey.txt` before building images for customers.
-`tools/licence.py issue --licensee "Venue Ltd" --nodes 40 --sites 2 --days 365`
-prints a key the customer pastes into Admin → Licence. Licences are checked
+The vendor key pair already exists: its public half is in
+`server/atsuit/vendor_pubkey.txt` and ships in every image. The private half is
+never in the repo; keep it offline and backed up, because losing it means no
+new licences can be issued for existing installs. Pass it with `--key`.
+`tools/licence.py issue --key <private key> --licensee "Venue Ltd" --nodes 40 --sites 2 --days 365`
+(use 0 for unlimited) prints a key the customer pastes into Admin → Licence. Licences are checked
 offline. Without one, AT-SUIT runs in evaluation mode: every module, one site,
 five nodes.
