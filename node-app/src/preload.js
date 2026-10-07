@@ -19,4 +19,8 @@ contextBridge.exposeInMainWorld("atsuitApp", {
   setSettings: (s) => ipcRenderer.invoke("app:set-settings", s),
   notify: (n) => ipcRenderer.invoke("app:notify", n),
   reEnrol: () => ipcRenderer.invoke("app:re-enrol"),
+  // The click-through overlay: overlay({ on, url, position, size, display, opacity, room_id })
+  // changes any of them and resolves to the new state; overlayState() just reads it.
+  overlay: (cfg) => ipcRenderer.invoke("app:overlay", cfg),
+  overlayState: () => ipcRenderer.invoke("app:overlay-state"),
 });

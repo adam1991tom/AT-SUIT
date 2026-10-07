@@ -6,7 +6,9 @@ const fs = require("fs");
 const path = require("path");
 const { app, safeStorage } = require("electron");
 
-const DEFAULTS = { server: "", name: "", token_enc: "", token_plain: "", popups: false };
+// overlay: the last overlay settings ({ on, url, position, size, display,
+// opacity, room_id }); an overlay left on comes back when the app starts.
+const DEFAULTS = { server: "", name: "", token_enc: "", token_plain: "", popups: false, overlay: null };
 
 function file() {
   return path.join(app.getPath("userData"), "node.json");

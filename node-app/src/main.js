@@ -13,6 +13,8 @@
 //     the page, because native dialogs can play the system sound
 //   - pop-ups are off unless a tech turns them on for this laptop (the backup)
 //   - no tray balloons, no taskbar flashing, updates install only on quit
+//   - the overlay (the room timer over the slides) is click-through, never
+//     focusable and shown without activating, so it can't take the keyboard
 const path = require("path");
 const os = require("os");
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, net, screen, session, shell } = require("electron");
@@ -27,6 +29,8 @@ let setupWin = null;
 let tray = null;
 let quitting = false;
 const popups = [];
+let overlayWin = null;
+let overlayUrl = "";
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -54,10 +58,14 @@ function boot() {
     lockDownSession();
     makeTray();
     ipc();
+    watchDisplays();
     const token = config.getToken(conf);
     if (conf.server && token) {
       openMain();
       startUpdates();
+      // An overlay left on comes back where it was, without waiting for the page.
+      if (conf.overlay && conf.overlay.on) applyOverlay({}).catch(() => {});
+      setInterval(followRoom, 60 * 1000);
       return;
     }
     const pre = config.preset();
@@ -82,6 +90,11 @@ function lockDownSession() {
     cb(permission === "media" && fromServer(details.requestingUrl || wc.getURL()));
   });
   ses.setPermissionCheckHandler((wc, permission, requestingOrigin) => permission === "media" && fromServer(requestingOrigin));
+  // The overlay may show any page a tech chooses: it gets its own session
+  // with no permissions at all (no mic, no notifications).
+  const ov = session.fromPartition(OVERLAY_PARTITION);
+  ov.setPermissionRequestHandler((wc, permission, cb) => cb(false));
+  ov.setPermissionCheckHandler(() => false);
 }
 
 function silence(win) {
@@ -220,6 +233,196 @@ function restack() {
   });
 }
 
+// ------------------------------------------------------------- overlay --
+// AT OVERLAY, built in: a click-through window over everything (full-screen
+// slides included) showing the room timer or any page a tech picks. It can be
+// turned on and off here (tray), from the workspace, or remotely from another
+// laptop or Companion through the server (node command "overlay").
+const OVERLAY_PARTITION = "atsuit-overlay";
+const OVERLAY_POSITIONS = ["bottom-right", "bottom-left", "top-right", "top-left", "bottom-bar", "top-bar"];
+const OVERLAY_SIZES = { small: { w: 320, h: 110, bar: 56 }, medium: { w: 440, h: 150, bar: 80 }, large: { w: 600, h: 200, bar: 110 } };
+const OVERLAY_MARGIN = 16;
+const OVERLAY_DEFAULT = { on: false, url: "", position: "bottom-right", size: "medium", display: 0, opacity: 0.85, room_id: null };
+const httpUrl = (u) => /^https?:\/\/[^\s]{1,1000}$/i.test(u);
+
+function overlayConf(cfg, prev) {
+  const pick = (k) => (cfg[k] !== undefined && cfg[k] !== null ? cfg[k] : prev[k] !== undefined ? prev[k] : OVERLAY_DEFAULT[k]);
+  const num = (v, lo, hi, d) => (Number.isFinite(+v) ? Math.min(hi, Math.max(lo, +v)) : d);
+  const url = String(pick("url") || "").trim();
+  const room = parseInt(pick("room_id"), 10);
+  return {
+    on: !!pick("on"),
+    url: httpUrl(url) ? url : "",
+    position: OVERLAY_POSITIONS.includes(pick("position")) ? pick("position") : OVERLAY_DEFAULT.position,
+    size: OVERLAY_SIZES[pick("size")] ? pick("size") : OVERLAY_DEFAULT.size,
+    display: Math.round(num(pick("display"), 0, 8, 0)),
+    opacity: num(pick("opacity"), 0.2, 1, OVERLAY_DEFAULT.opacity),
+    room_id: room > 0 ? room : null,
+  };
+}
+
+function overlayTarget(c) {
+  if (c.url) return c.url;
+  return c.room_id && conf.server ? `${conf.server}/timer/${c.room_id}?view=overlay` : "";
+}
+
+// Display 0 is the main display, then the others from left to right.
+function displays() {
+  const primary = screen.getPrimaryDisplay();
+  const rest = screen.getAllDisplays().filter((d) => d.id !== primary.id).sort((a, b) => a.bounds.x - b.bounds.x || a.bounds.y - b.bounds.y);
+  return [primary, ...rest];
+}
+
+function overlayBounds(c) {
+  const all = displays();
+  const wa = (all[c.display] || all[0]).workArea;
+  const s = OVERLAY_SIZES[c.size];
+  const m = OVERLAY_MARGIN;
+  const w = Math.min(s.w, wa.width - 2 * m);
+  const h = Math.min(s.h, wa.height - 2 * m);
+  switch (c.position) {
+    case "bottom-bar": return { x: wa.x, y: wa.y + wa.height - s.bar, width: wa.width, height: s.bar };
+    case "top-bar": return { x: wa.x, y: wa.y, width: wa.width, height: s.bar };
+    case "top-left": return { x: wa.x + m, y: wa.y + m, width: w, height: h };
+    case "top-right": return { x: wa.x + wa.width - w - m, y: wa.y + m, width: w, height: h };
+    case "bottom-left": return { x: wa.x + m, y: wa.y + wa.height - h - m, width: w, height: h };
+    default: return { x: wa.x + wa.width - w - m, y: wa.y + wa.height - h - m, width: w, height: h };
+  }
+}
+
+async function nodeFetch(method, url, body) {
+  const token = config.getToken(conf);
+  if (!conf.server || !token) return null;
+  const req = net.fetch(`${conf.server}${url}`, {
+    method,
+    headers: { Authorization: `Node ${token}`, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  }).then((r) => (r.ok ? r.json() : null));
+  // Never hold up the overlay on a slow or missing server.
+  return Promise.race([req, new Promise((r) => setTimeout(() => r(null), 4000))]).catch(() => null);
+}
+
+async function currentRoom() {
+  const me = await nodeFetch("GET", "/api/nodes/me");
+  return (me && me.room && me.room.id) || null;
+}
+
+// cfg: any of { on, url, position, size, display, opacity, room_id }; the
+// rest keep their last values. url "" means this room's timer overlay.
+async function applyOverlay(cfg) {
+  if (cfg.url !== undefined && cfg.url !== null && String(cfg.url).trim() && !httpUrl(String(cfg.url).trim())) {
+    return { ok: false, error: "The overlay URL must start with http:// or https://", ...overlayState() };
+  }
+  const c = overlayConf(cfg, conf.overlay || {});
+  // The room timer follows the room this laptop is in today.
+  if (c.on && !c.url && !cfg.room_id) c.room_id = (await currentRoom()) || c.room_id;
+  let error = "";
+  const target = overlayTarget(c);
+  if (c.on && !target) { c.on = false; error = "Pick a room first, or give the overlay a URL"; }
+  conf.overlay = c;
+  config.save(conf);
+  makeTray();
+  if (c.on) openOverlay(c, target);
+  else closeOverlay();
+  reportOverlay(error);
+  return { ok: !error, error, ...overlayState() };
+}
+
+function openOverlay(c, target) {
+  const bounds = overlayBounds(c);
+  if (!overlayWin || overlayWin.isDestroyed()) {
+    const w = new BrowserWindow({
+      ...bounds,
+      title: "AT-SUIT Overlay",
+      frame: false,
+      transparent: true,
+      backgroundColor: "#00000000",
+      hasShadow: false,
+      resizable: false,
+      movable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      focusable: false, // never takes the keyboard from the slides
+      alwaysOnTop: true,
+      show: false,
+      webPreferences: {
+        partition: OVERLAY_PARTITION,
+        contextIsolation: true,
+        sandbox: true,
+        nodeIntegration: false,
+        backgroundThrottling: false,
+        spellcheck: false,
+      },
+    });
+    w.setAlwaysOnTop(true, "screen-saver"); // above full-screen PowerPoint
+    w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    w.setIgnoreMouseEvents(true); // clicks go to whatever is underneath
+    silence(w);
+    w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    w.on("page-title-updated", (e) => e.preventDefault()); // always "AT-SUIT Overlay"
+    w.webContents.on("render-process-gone", () => setTimeout(() => !w.isDestroyed() && w.reload(), 2000));
+    w.webContents.on("did-fail-load", (_e, code, _desc, url, isMain) => {
+      if (isMain && code !== -3) setTimeout(() => !w.isDestroyed() && overlayUrl && w.loadURL(overlayUrl).catch(() => {}), 5000);
+    });
+    w.once("ready-to-show", () => !w.isDestroyed() && w.showInactive());
+    w.on("closed", () => { if (overlayWin === w) { overlayWin = null; overlayUrl = ""; } });
+    overlayWin = w;
+  }
+  overlayWin.setBounds(bounds);
+  overlayWin.setOpacity(c.opacity);
+  if (overlayUrl !== target) {
+    overlayUrl = target;
+    overlayWin.loadURL(target).catch(() => {});
+  } else if (!overlayWin.isVisible()) {
+    overlayWin.showInactive();
+  }
+}
+
+function closeOverlay() {
+  if (overlayWin && !overlayWin.isDestroyed()) overlayWin.destroy();
+  overlayWin = null;
+  overlayUrl = "";
+}
+
+function overlayState() {
+  const c = overlayConf({}, conf.overlay || {});
+  const live = !!(overlayWin && !overlayWin.isDestroyed());
+  return {
+    ...c,
+    on: live,
+    target: live ? overlayUrl : "",
+    bounds: live ? overlayWin.getBounds() : null,
+    displays: displays().map((d, i) => ({ index: i, label: d.label || `Display ${i + 1}`, width: d.bounds.width, height: d.bounds.height, primary: i === 0 })),
+  };
+}
+
+function reportOverlay(error = "") {
+  const s = overlayState();
+  nodeFetch("PUT", "/api/nodes/me/overlay", {
+    on: s.on, url: s.url, target: s.target, position: s.position, size: s.size, display: s.display, opacity: s.opacity, room_id: s.room_id, error,
+  }).catch(() => {});
+}
+
+function watchDisplays() {
+  const again = () => {
+    if (!overlayWin || overlayWin.isDestroyed() || !conf.overlay) return;
+    overlayWin.setBounds(overlayBounds(overlayConf({}, conf.overlay)));
+  };
+  screen.on("display-added", again);
+  screen.on("display-removed", again);
+  screen.on("display-metrics-changed", again);
+}
+
+async function followRoom() {
+  // A new day or a new room: the default overlay moves to that room's timer.
+  const c = conf.overlay;
+  if (!c || !c.on || c.url || !overlayWin) return;
+  const room = await currentRoom();
+  if (room && room !== c.room_id) applyOverlay({ room_id: room }).catch(() => {});
+}
+
 // ----------------------------------------------------------------- ipc --
 function fromMain(e) {
   return mainWin && !mainWin.isDestroyed() && e.sender === mainWin.webContents && new URL(e.senderFrame.url).origin === origin();
@@ -237,6 +440,8 @@ function ipc() {
     return true;
   });
   ipcMain.handle("app:notify", (e, n) => (fromMain(e) ? showPopup(n || {}) : false));
+  ipcMain.handle("app:overlay", (e, cfg) => (fromMain(e) ? applyOverlay(cfg && typeof cfg === "object" ? cfg : {}) : { ok: false }));
+  ipcMain.handle("app:overlay-state", (e) => (fromMain(e) ? overlayState() : {}));
   ipcMain.handle("app:re-enrol", (e) => {
     if (!fromMain(e)) return false;
     // The server no longer knows this laptop (removed in Nodes): enrol again.
@@ -300,6 +505,13 @@ function makeTray() {
     // Set in the workspace when the tech starts: Main PC never pops up, Backup PC pops up silently.
     { label: conf.popups ? "Backup PC: silent pop-ups" : "Main PC: no pop-ups", enabled: false },
     {
+      label: "Overlay on/off",
+      type: "checkbox",
+      checked: !!(conf.overlay && conf.overlay.on),
+      enabled: !!conf.server,
+      click: (item) => applyOverlay({ on: item.checked }).catch(() => {}),
+    },
+    {
       label: "Start with Windows",
       type: "checkbox",
       checked: login,
@@ -329,4 +541,4 @@ function startUpdates() {
   setInterval(check, 4 * 60 * 60 * 1000);
 }
 
-module.exports = { showPopup };
+module.exports = { showPopup, applyOverlay };
