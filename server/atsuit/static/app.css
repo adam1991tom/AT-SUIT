@@ -108,3 +108,15 @@ th { color: var(--muted); font-weight: 500; font-size: .85rem; }
 .ws-sess { display: grid; grid-template-columns: 6.5rem 1fr; gap: .2rem .6rem; padding: .45rem 0; border-bottom: 1px solid var(--line); }
 .ws-sess.now { background: var(--panel2); border-radius: 6px; padding-left: .4rem; }
 .ws-sess .f { grid-column: 2; display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; font-size: .85rem; }
+
+/* admin */
+.kv th { width: 40%; font-size: .85rem; }
+.kv th, .kv td { padding: .3rem .4rem; overflow-wrap: anywhere; }
+.cmd { display: flex; gap: .5rem; align-items: center; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .6rem; margin: .4rem 0; }
+.cmd code { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: .85rem; }
+.enrol { padding: .4rem 0; border-top: 1px solid var(--line); }
+.enrol .code { font-size: 1.4rem; letter-spacing: .08em; }
+.tabs.sub button { font-size: .9rem; }
+#part h3 { margin-top: 1rem; }
+#part pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .6rem; }
+a.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }

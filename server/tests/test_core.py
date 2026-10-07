@@ -78,3 +78,65 @@ def test_full_suite_licences_cover_new_modules():
     assert licence._modules(["comms", "timers", "fleet", "captions", "overlays", "dashboard"]) == licence.ALL_MODULES
     assert licence._modules(["*"]) == licence.ALL_MODULES
     assert licence._modules(["timers", "comms"]) == ["comms", "timers"]
+
+
+def _tech(admin):
+    admin.post("/api/admin/accounts", json={"username": "tech1", "password": "password1", "role": "tech"})
+    admin.post("/api/auth/logout")
+    assert admin.post("/api/auth/login", json={"username": "tech1", "password": "password1"}).status_code == 200
+
+
+def test_licence_and_info_are_admin_only(admin):
+    assert admin.get("/api/bootstrap").json()["licence"]["edition"] == "evaluation"
+    _tech(admin)
+    b = admin.get("/api/bootstrap").json()
+    assert b["licence"] == {} and b["modules"]["timers"] is True
+    for path in ("/api/admin/licence", "/api/admin/info", "/api/admin/info?download=1", "/api/admin/settings",
+                 "/api/admin/downloads/atsuit_node.py"):
+        assert admin.get(path).status_code == 403, path
+
+
+def test_licence_details(admin, monkeypatch):
+    import base64, json, time
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    priv = Ed25519PrivateKey.generate()
+    pub = priv.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    monkeypatch.setenv("ATSUIT_VENDOR_PUBKEY", base64.urlsafe_b64encode(pub).decode().rstrip("="))
+    body = json.dumps({"licensee": "Venue Ltd", "edition": "pro", "max_nodes": 40, "max_sites": 2, "serial": "AT-0042",
+                       "issued": int(time.time()), "expires": int(time.time()) + 10 * 86400, "modules": ["*"]}).encode()
+    b64 = lambda b: base64.urlsafe_b64encode(b).decode().rstrip("=")
+    key = f"{b64(body)}.{b64(priv.sign(body))}"
+    assert admin.put("/api/admin/licence", json={"key": key}).status_code == 200
+    l = admin.get("/api/admin/licence").json()
+    assert l["valid"] and l["signature_valid"] and l["serial"] == "AT-0042" and l["edition"] == "pro"
+    assert l["days_left"] in (9, 10) and l["issued"] > 0 and l["raw"] == key
+    assert l["usage"] == {"sites": 1, "rooms": 3, "nodes": 0} and l["limits"]["nodes"] == 40
+    assert len(l["vendor_key_id"]) == 16 and l["vendor_key_source"] == "ATSUIT_VENDOR_PUBKEY"
+
+
+def test_admin_info_and_diagnostics_have_no_secrets(admin):
+    from atsuit import config
+    key = admin.post("/api/admin/api-keys", json={"name": "Companion"}).json()["key"]
+    code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
+    r = admin.post("/api/nodes/enrol", json={"code": code, "name": "ATLAP1", "kind": "tech"})
+    node_token = r.json()["token"]
+    session = admin.cookies.get("atsuit_session") or ""
+    admin.get("/api/admin/backup")
+    info = admin.get("/api/admin/info").json()
+    for k in ("product", "version", "build", "server", "storage", "apps", "nodes", "counts", "modules", "licence",
+              "captions", "websockets", "last_backup"):
+        assert k in info, k
+    assert info["server"]["count"] == 1 and info["nodes"]["by_kind"]["tech"]["total"] == 1
+    assert info["build"]["number"] and info["last_backup"]["actor"] == "admin"
+    r = admin.get("/api/admin/info?download=1")
+    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
+    text = r.text
+    secret_key = (config.cfg.data / "secret.key")
+    secrets = [key, node_token, code] + ([session] if session else [])
+    if secret_key.exists():
+        secrets.append(secret_key.read_bytes().hex()[:16])
+    for s in secrets:
+        assert s not in text
+    for word in ("password_hash", "token_hash", "key_hash", "licence_key\"", "\"raw\""):
+        assert word not in text, word

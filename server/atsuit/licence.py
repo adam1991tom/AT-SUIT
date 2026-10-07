@@ -8,6 +8,7 @@ runs in evaluation mode with the limits in EVALUATION.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import time
@@ -33,6 +34,8 @@ class Licence:
     modules: list[str] = field(default_factory=lambda: list(ALL_MODULES))
     valid: bool = False
     reason: str = "No licence installed"
+    serial: str = ""
+    issued: int = 0  # unix time, 0 = not recorded
 
     def allows(self, module: str) -> bool:
         return module in self.modules
@@ -48,11 +51,26 @@ def _b64d(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 
 
-def vendor_public_key() -> Ed25519PublicKey | None:
+def _vendor_raw() -> tuple[str, str]:
+    """The vendor public key and where it came from."""
     raw = os.getenv("ATSUIT_VENDOR_PUBKEY", "").strip()
-    if not raw:
-        f = Path(__file__).with_name("vendor_pubkey.txt")
-        raw = f.read_text().strip() if f.exists() else ""
+    if raw:
+        return raw, "ATSUIT_VENDOR_PUBKEY"
+    f = Path(__file__).with_name("vendor_pubkey.txt")
+    return (f.read_text().strip() if f.exists() else ""), "vendor_pubkey.txt"
+
+
+def vendor_key_id() -> str:
+    """A short fingerprint of the vendor public key, to tell builds apart."""
+    raw = _vendor_raw()[0]
+    try:
+        return hashlib.sha256(_b64d(raw)).hexdigest()[:16] if raw else ""
+    except ValueError:
+        return ""
+
+
+def vendor_public_key() -> Ed25519PublicKey | None:
+    raw = _vendor_raw()[0]
     if not raw:
         return None
     try:
@@ -91,10 +109,33 @@ def parse(key: str) -> Licence:
         modules=_modules(data.get("modules", ALL_MODULES)),
         valid=True,
         reason="",
+        serial=str(data.get("serial") or data.get("id") or hashlib.sha256(body).hexdigest()[:12].upper()),
+        issued=int(data.get("issued", 0) or 0),
     )
     if lic.expires and lic.expires < time.time():
         return Licence(reason=f"Licence for {lic.licensee} expired")
     return lic
+
+
+def details(key: str) -> dict:
+    """Everything about an installed key for Admin → Licence, including what
+    an expired licence said. Admins only: it holds the raw key."""
+    key = (key or "").strip()
+    raw, source = _vendor_raw()
+    out = {"installed": bool(key), "raw": key, "signature_valid": False, "payload": {},
+           "vendor_key_id": vendor_key_id(), "vendor_key_source": source if raw else ""}
+    pub = vendor_public_key()
+    if not key or pub is None:
+        return out
+    try:
+        body_b64, sig_b64 = key.split(".", 1)
+        body = _b64d(body_b64)
+        out["payload"] = json.loads(body)
+        pub.verify(_b64d(sig_b64), body)
+        out["signature_valid"] = True
+    except (ValueError, InvalidSignature):
+        pass
+    return out
 
 
 def current(c) -> Licence:

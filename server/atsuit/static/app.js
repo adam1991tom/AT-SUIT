@@ -56,7 +56,7 @@
     const [, name = "dashboard", sub] = location.hash.split("/");
     document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.getAttribute("href") === `#/${name}`));
     chat = null; view = null;
-    const banner = boot.licence.valid ? "" : `<div class="banner">Evaluation mode: ${esc(boot.licence.reason)}. Add a licence in Admin → Licence.</div>`;
+    const banner = boot.me.role !== "admin" || boot.licence.valid ? "" : `<div class="banner">Evaluation mode: ${esc(boot.licence.reason)}. Add a licence in Admin → Licence.</div>`;
     main.innerHTML = banner + '<div id="view"></div>';
     const el = document.getElementById("view");
     const presenter = (el, sub) => { view = PresenterPage.mount(el, sub, boot); };
@@ -272,11 +272,22 @@
   // -------------------------------------------------------------- admin --
   async function admin(el, sub = "general") {
     if (boot.me.role !== "admin") { el.innerHTML = '<p class="muted">Admins only.</p>'; return; }
-    const tabs = { general: "General", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", import: "Import", audit: "Audit & backup" };
+    if (sub === "import" || sub === "audit") sub = "data";
+    const tabs = { general: "General", info: "Info", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", data: "Import, backup & audit" };
     el.innerHTML = `<h1>Admin</h1><div class="tabs">${Object.entries(tabs).map(([k, v]) => `<button class="${k === sub ? "on" : ""}" onclick="location.hash='#/admin/${k}'">${v}</button>`).join("")}</div><div id="adm"></div>`;
     const a = el.querySelector("#adm");
-    ({ general: admGeneral, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, import: admImport, audit: admAudit }[sub] || admGeneral)(a);
+    ({ general: admGeneral, info: admInfo, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, data: admData }[sub] || admGeneral)(a);
   }
+
+  const copyText = async (text, what = "Copied") => {
+    try { await navigator.clipboard.writeText(text); }
+    catch (_) { const t = document.createElement("textarea"); t.value = text; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); }
+    toast(what, "good");
+  };
+  const bytes = (n) => n == null ? "–" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : n < 1073741824 ? `${(n / 1048576).toFixed(1)} MB` : `${(n / 1073741824).toFixed(1)} GB`;
+  const ago = (s) => s == null ? "–" : s < 3600 ? `${Math.floor(s / 60)} min` : s < 86400 ? `${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min` : `${Math.floor(s / 86400)} days ${Math.floor(s % 86400 / 3600)} h`;
+  const date = (t) => t ? new Date(t * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
+  const kv = (rows) => `<table class="kv">${rows.filter(Boolean).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${v}</td></tr>`).join("")}</table>`;
 
   async function admGeneral(a) {
     const s = await api("/api/admin/settings");
@@ -285,8 +296,7 @@
       <label>Product name</label><input name="product_name" value="${esc(b.product_name)}">
       <label>Organisation</label><input name="organisation" value="${esc(b.organisation)}">
       <label>Accent colour</label><input name="accent" type="color" value="${esc(b.accent)}" style="height:2.4rem">
-      <label>Logo URL</label><input name="logo_url" value="${esc(b.logo_url)}">
-      <label>Support contact</label><input name="support_contact" value="${esc(b.support_contact)}">
+      <p class="small muted">Version, build and server details are in <a href="#/admin/info">Info</a>.</p>
       <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form>
       <form class="panel" id="mods"><h2>Modules</h2>${Object.entries(s.modules).map(([m, on]) => `<label><input type="checkbox" name="${m}" ${on ? "checked" : ""} style="width:auto"> ${m}${s.licence.modules.includes(m) ? "" : ' <span class="pill warn">not in licence</span>'}</label>`).join("")}
       <h2 style="margin-top:1rem">Other</h2>
@@ -303,12 +313,55 @@
     };
   }
 
+  async function admInfo(a) {
+    const i = await api("/api/admin/info"), sv = i.server, st = i.storage, n = i.nodes, c = i.counts;
+    const kinds = { tech: "Tech laptops", screen: "Linux screens", caption: "Caption sources", kiosk: "Old kiosk agents" };
+    const on = (b) => b ? `<span class="pill good">${b.online} online</span> of ${b.total}` : '<span class="muted">none</span>';
+    const pill = (ok, yes, no) => `<span class="pill ${ok ? "good" : "warn"}">${ok ? yes : no}</span>`;
+    a.innerHTML = `<div class="row" style="margin-bottom:1rem"><a class="btn primary" href="/api/admin/info?download=1">Download diagnostics</a><button id="copyInfo">Copy for a support ticket</button><button id="refresh">Refresh</button>
+        <span class="muted small">No passwords, keys or tokens are included.</span></div>
+      <div class="grid">
+      <div class="panel"><h2>This app</h2>${kv([["Product", esc(i.product)], ["Organisation", esc(i.organisation) || '<span class="muted">not set</span>'], ["Version", `<b>${esc(i.version)}</b>`],
+        ["Build", esc(i.build.number)], ["Commit", `<code>${esc(i.build.commit)}</code>`], i.build.date && ["Built", esc(new Date(i.build.date).toLocaleString())], ["Database schema", i.schema],
+        ["Licence", `${pill(i.licence.valid, "Licensed", "Evaluation")} ${esc(i.licence.licensee)} · <a href="#/admin/licence">details</a>`]])}</div>
+      <div class="panel"><h2>Servers</h2><p class="small muted">${i.server.count} server: everything runs on this one.</p>${kv([["Hostname", `<b>${esc(sv.hostname)}</b>`], ["Addresses", sv.ips.map(esc).join(", ") || "–"],
+        ["Opened as", `<code>${esc(location.origin)}</code>`], sv.public_url && ["Public address", esc(sv.public_url)], ["Running in", sv.in_docker ? "Docker" : "Python (no container)"],
+        ["Up for", ago(sv.uptime_seconds)], sv.system_uptime_seconds != null && ["Machine up for", ago(sv.system_uptime_seconds)], ["Server time", `${esc(new Date(sv.time).toLocaleString())} (${esc(sv.timezone)})`],
+        ["Site time zones", Object.entries(sv.site_timezones).map(([k, v]) => `${esc(k)}: ${esc(v)}`).join("<br>")]])}</div>
+      <div class="panel"><h2>Nodes</h2>${kv([["All nodes", on(n)], ...Object.entries(kinds).map(([k, v]) => [v, on(n.by_kind[k])]), ["Main PCs", n.tech_main], ["Backup PCs", n.tech_backup],
+        ["Live connections", `${i.websockets} <span class="muted small">(browsers, laptops and screens)</span>`]])}</div>
+      <div class="panel"><h2>Apps and agents</h2>${kv([["Windows tech app", i.apps.windows_app ? esc(i.apps.windows_app) : '<span class="muted">not published</span>'], ["Screen agent", esc(i.apps.screen_agent || "–")],
+        ["Node agent", esc(i.apps.node_agent || "–")], ["Old kiosk agent", esc(i.apps.kiosk_agent || "not published")]])}<p class="small"><a href="#/admin/fleet">Node setup and downloads</a></p></div>
+      <div class="panel"><h2>Venue</h2>${kv([["Sites", c.sites], ["Rooms", c.rooms], ["Accounts", `${c.accounts} <span class="muted small">(${Object.entries(c.accounts_by_role).map(([k, v]) => `${v} ${esc(k)}`).join(", ")})</span>`],
+        ["Links", c.links], ["API keys", c.api_keys], ["Chat messages", c.messages], ["Help requests", `${c.help_requests} (${c.open_help_requests} open)`]])}</div>
+      <div class="panel"><h2>Modules</h2>${kv(Object.entries(i.modules).map(([k, v]) => [k, pill(v, "on", "off")]))}</div>
+      <div class="panel"><h2>Captions</h2>${kv([["Engine", `${pill(i.captions.state === "ready", esc(i.captions.state), esc(i.captions.state))}`], i.captions.detail && ["Detail", esc(i.captions.detail)], ["Model", `<span class="small">${esc(i.captions.model)}</span>`],
+        ["Rooms captioning", `${i.captions.active_rooms} of ${i.captions.max_rooms} max`]])}</div>
+      <div class="panel"><h2>Storage</h2>${kv([["Data folder", `<code>${esc(st.data_dir)}</code>`], ["Database", bytes(st.db_bytes)], ["Uploads", bytes(st.uploads_bytes)], ["Transcripts", bytes(st.transcripts_bytes)],
+        ["Presenter files", `${bytes(st.presenter_bytes)} <div class="small muted">${esc(st.presenter_dir)}</div>`], st.disk.total && ["Disk free", `${bytes(st.disk.free)} of ${bytes(st.disk.total)}`],
+        ["Last backup", i.last_backup ? `${when(i.last_backup.at)} by ${esc(i.last_backup.actor)}` : '<span class="pill warn">never</span>']])}</div>
+      <div class="panel"><h2>Software</h2>${kv([["Python", esc(sv.python)], ["FastAPI", esc(sv.fastapi)], ["Uvicorn", esc(sv.uvicorn)], ["SQLite", esc(sv.sqlite)], ["CPUs", sv.cpus], ["OS", `<span class="small">${esc(sv.os)}</span>`],
+        ["Your browser", `<span class="small">${esc(navigator.userAgent)}</span>`]])}</div>
+      </div>`;
+    a.querySelector("#refresh").onclick = () => admInfo(a);
+    a.querySelector("#copyInfo").onclick = () => copyText(`${i.product} ${i.version} (build ${i.build.number}, ${i.build.commit}) on ${sv.hostname}\nOpened as ${location.origin}\n\n${JSON.stringify(i, null, 2)}`, "Copied, paste it into the ticket");
+  }
+
   async function admLicence(a) {
-    const s = await api("/api/admin/settings"), l = s.licence;
-    a.innerHTML = `<div class="panel card"><h2>Licence</h2>
-      <p><span class="pill ${l.valid ? "good" : "warn"}">${l.valid ? "Licensed" : "Evaluation"}</span> ${esc(l.licensee)} ${l.reason ? `<span class="muted">· ${esc(l.reason)}</span>` : ""}</p>
-      <p class="muted small">Edition ${esc(l.edition)} · nodes ${l.max_nodes || "unlimited"} · sites ${l.max_sites || "unlimited"} · ${l.expires ? "expires " + new Date(l.expires * 1000).toLocaleDateString() : "no expiry"}<br>Modules: ${esc(l.modules.join(", "))}</p>
-      <label>Licence key</label><textarea id="key" rows="4"></textarea><div class="row" style="margin-top:.6rem"><button class="primary" id="save">Install licence</button></div></div>`;
+    const l = await api("/api/admin/licence");
+    const lim = (k) => { const used = l.usage[k], max = l.limits[k]; return `${used} used of ${max || "unlimited"}${max && used >= max ? ' <span class="pill warn">full</span>' : ""}`; };
+    const state = l.valid ? '<span class="pill good">Licensed</span>' : l.installed ? '<span class="pill bad">Not valid</span>' : '<span class="pill warn">Evaluation</span>';
+    const extra = Object.entries(l.payload).filter(([k]) => !["licensee", "edition", "expires", "issued", "max_nodes", "max_sites", "modules", "serial", "id"].includes(k));
+    a.innerHTML = `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))"><div class="panel"><h2>Licence</h2><p>${state} ${l.reason ? `<span class="muted">${esc(l.reason)}</span>` : ""}</p>
+      ${kv([["Licensed to", `<b>${esc(l.licensee)}</b>`], ["Edition", esc(l.edition)], ["Serial", l.serial ? `<code>${esc(l.serial)}</code>` : "–"], ["Issued", date(l.issued) || "–"],
+        ["Expires", l.expires ? `${date(l.expires)} <span class="pill ${l.days_left < 30 ? "warn" : ""}">${l.days_left} days left</span>` : "Never"],
+        ["Modules", l.modules.map((m) => `<span class="pill">${esc(m)}</span>`).join(" ")], ...extra.map(([k, v]) => [k, esc(typeof v === "object" ? JSON.stringify(v) : String(v))])])}</div>
+      <div class="panel"><h2>Limits</h2>${kv([["Sites", lim("sites")], ["Nodes", lim("nodes")], ["Rooms", `${l.usage.rooms} (no limit)`]])}
+      <h2 style="margin-top:1rem">Check</h2>${kv([["Signature", l.installed ? (l.signature_valid ? '<span class="pill good">valid</span>' : '<span class="pill bad">not valid</span>') : "no key installed"],
+        ["Vendor key", `<code>${esc(l.vendor_key_id || "none")}</code> <span class="muted small">${esc(l.vendor_key_source)}</span>`], ["Stored in", `<span class="small">${esc(l.stored_in)}</span>`]])}</div></div>
+      <div class="panel" style="margin-top:1rem"><h2>Licence key</h2>${l.raw ? `<textarea rows="3" readonly id="raw">${esc(l.raw)}</textarea><div class="row" style="margin-top:.4rem"><button class="small" id="copyKey">Copy key</button></div>` : '<p class="muted small">No key installed. AT-SUIT runs in evaluation mode: every module, one site, five nodes.</p>'}
+      <label style="margin-top:1rem">Install a new key</label><textarea id="key" rows="3" placeholder="Paste the key from your supplier"></textarea><div class="row" style="margin-top:.6rem"><button class="primary" id="save">Install licence</button></div></div>`;
+    a.querySelector("#copyKey") && (a.querySelector("#copyKey").onclick = () => copyText(l.raw, "Key copied"));
     a.querySelector("#save").onclick = () => guard(() => put("/api/admin/licence", { key: a.querySelector("#key").value })).then(() => location.reload());
   }
 
@@ -373,35 +426,70 @@
     });
   }
 
-  async function admFleet(a) {
-    const sites = await api("/api/fleet/enrolment");
-    const origin = location.origin, winApp = await api("/api/nodes/app");
-    const dl = winApp.ready ? `<a class="btn primary" href="/api/nodes/app/${encodeURIComponent(winApp.file)}">Download AT-SUIT Node ${esc(winApp.version)} for Windows</a>` : '<span class="pill warn">No Windows app published yet</span>';
-    a.innerHTML = `<div class="grid"><div class="panel"><h2>Add a tech laptop</h2>
-      <p>${dl}</p>
-      <ol class="small"><li>Install AT-SUIT Node on the laptop.</li><li>Enter this server's address (<code>${esc(origin)}</code>), the enrolment code below and a laptop name. This is a one-off; the laptop stays enrolled.</li>
-        <li>Each day a tech signs in and picks the room they're in. The choice resets every morning.</li>
-        <li>On the backup laptop only, tick <b>This laptop → Show pop-ups</b>. Pop-ups are silent and sit on top of everything.</li></ol>
-      <p class="small muted">For a silent roll-out, put <code>{"server": "${esc(origin)}", "enrol_code": "CODE"}</code> in <code>C:\\ProgramData\\AT-SUIT\\node.json</code> and install with <code>/S</code>. A browser at <code>${esc(origin)}/node</code> still works too.</p>
-      <p class="small"><b>Linux screens</b> (laptops and all-in-ones that only show a timer or view): run this once on the screen, as the desktop user:<br><code>curl -fsSL ${esc(origin)}/screen-agent/install.sh | bash -s -- --server ${esc(origin)} --code CODE --name HD-STAGE-1 --allow-power</code><br><span class="muted">Then route it in Timers → Screens. With HDMI plugged in, it shows only on HDMI.</span></p>
-      <p class="small muted">For captions without a browser, run the node agent: <code>python atsuit_node.py --server ${esc(origin)} --code CODE --name ATLAP3 --room CC --mic</code></p>
-      ${sites.map((s) => `<p><b>${esc(s.name)}</b>: <code style="font-size:1.2rem">${esc(s.enrol_code)}</code> <button class="small" data-new="${s.id}">New code</button></p>`).join("")}
-      <label>Windows app release (the .exe, .blockmap and latest.yml from the GitHub release; laptops update when the app next closes)</label><div class="row"><input type="file" id="appFiles" class="grow" multiple accept=".exe,.blockmap,.yml"><button class="small" id="upApp">Publish app</button></div>
-      <label>Node agent update (laptops pull it on their next check-in)</label><div class="row"><input type="file" id="agentFile" class="grow"><button class="small" id="upAgent">Publish agent</button></div></div>
-      <div class="panel"><h2>Older kiosk agents</h2><p class="small muted">Kiosks running the Device Suite agent can report here without reinstalling: point their server address at <code>${esc(origin)}</code>. Reboot, shut down and update for them go over SSH, so upload the fleet key.</p>
-      <label>Fleet SSH private key</label><input type="file" id="key"><button class="small" id="upKey" style="margin-top:.4rem">Upload key</button>
-      <label>Kiosk agent release (script)</label><div class="row"><input type="file" id="rel" class="grow"><input id="ver" placeholder="version, e.g. 2.0.4" style="width:9rem"></div><button class="small" id="upRel" style="margin-top:.4rem">Publish release</button></div></div>`;
-    a.querySelectorAll("[data-new]").forEach((b) => b.onclick = () => confirm("Make a new code? The old one stops working for new laptops.") && guard(() => post(`/api/admin/sites/${b.dataset.new}/enrol-code`)).then(() => admFleet(a)));
-    a.querySelector("#upApp").onclick = () => {
+  async function admFleet(a, part = "windows") {
+    const origin = location.origin;
+    let sites;
+    try { sites = await api("/api/fleet/enrolment"); }
+    catch (_) { a.innerHTML = '<div class="panel card"><p class="muted">The fleet module is turned off. Turn it on in <a href="#/admin/general">General</a> to add laptops and screens.</p></div>'; return; }
+    const [winApp, info] = await Promise.all([api("/api/nodes/app").catch(() => ({})), api("/api/admin/info")]);
+    const code = sites[0]?.enrol_code || "CODE";
+    const parts = { windows: "Windows tech app", screens: "Linux screens", ...(boot.modules.presenter ? { sync: "Room sync (presentation laptops)" } : {}), older: "Older agents" };
+    if (!parts[part]) part = "windows";
+    const cmd = (text) => `<div class="cmd"><code>${esc(text)}</code><button class="small" data-copy="${esc(text)}">Copy</button></div>`;
+    const dl = (href, label, primary) => `<a class="btn${primary ? " primary" : ""}" href="${esc(href)}" download>${label}</a>`;
+    const nodeJson = JSON.stringify({ server: origin, enrol_code: code }, null, 2);
+    const sections = {
+      windows: `<h2>AT-SUIT Node for Windows</h2><p class="small muted">The tech workspace app for the laptops in each room: timer, cue list, chat, help calls and pop-ups.</p>
+        <div class="row" style="margin:.6rem 0">${winApp.ready ? dl(`/api/nodes/app/${encodeURIComponent(winApp.file)}`, `Download AT-SUIT Node ${esc(winApp.version)} (.exe)`, true) : '<span class="pill warn">No Windows app published yet</span> <span class="small muted">Upload one below.</span>'}</div>
+        <h3>Install</h3><ol class="small"><li>Download and run the installer on the laptop. It isn't code-signed yet, so Windows asks once: <b>More info → Run anyway</b>.</li>
+          <li>Enter this server's address <code>${esc(origin)}</code>, the enrolment code above and a laptop name. This is a one-off; the laptop stays enrolled.</li>
+          <li>Each day a tech types their name, picks the room and chooses <b>Main PC</b> or <b>Backup PC</b>. It resets every morning.</li>
+          <li>Pop-ups only show on the backup PC. They're silent and sit on top of everything.</li></ol>
+        <h3>Silent install (IT)</h3><p class="small muted">Put this in <code>C:\\ProgramData\\AT-SUIT\\node.json</code>, then run the installer with <code>/S</code>. The app enrols under the PC's name on first start.</p>
+        <pre class="small">${esc(nodeJson)}</pre><div class="row"><button class="small" id="dlJson">Download node.json</button><button class="small" data-copy="${esc(nodeJson)}">Copy</button></div>
+        <h3>Publish a new version</h3><p class="small muted">The .exe, .blockmap and latest.yml from the GitHub release. Laptops update the next time the app closes, never during a show.</p>
+        <div class="row"><input type="file" id="appFiles" class="grow" multiple accept=".exe,.blockmap,.yml"><button class="small" id="upApp">Publish app</button></div>
+        <p class="small muted">A browser at <code>${esc(origin)}/node</code> works too, without installing anything.</p>`,
+      screens: `<h2>Linux screens</h2><p class="small muted">Laptops and all-in-ones that only show a timer, captions or a view. Agent ${esc(info.apps.screen_agent || "–")}. Screens update themselves.</p>
+        <h3>Install</h3><p class="small">Run this once on the screen, as the user logged in to the desktop (X11, automatic login on). Change the name for each screen.</p>
+        ${cmd(`curl -fsSL ${origin}/screen-agent/install.sh | bash -s -- --server ${origin} --code ${code} --name HD-STAGE-1 --allow-power`)}
+        <p class="small muted">Leave out <code>--allow-power</code> if the console shouldn't be able to reboot it. With HDMI plugged in, it shows only on HDMI. Then pick what it shows in <a href="#/timers">Timers → Screens</a>.</p>
+        <h3>Downloads</h3><div class="row">${dl("/screen-agent/install.sh", "install.sh")}${dl("/screen-agent/atsuit_screen.py", "Screen agent (atsuit_screen.py)")}</div>
+        <p class="small muted">No agent? Any browser can be a screen: open <code>${esc(origin)}/screen</code> and enter a name and the enrolment code.</p>`,
+      sync: `<h2>Room sync for presentation laptops</h2><p class="small muted">Keeps a folder on the room's presentation laptop with every session's approved slides and show files. Needs Python 3.8 or later, nothing else.</p>
+        <div class="row" style="margin:.6rem 0">${dl("/api/presenter/room-sync/atsuit_room_sync.py", "Download atsuit_room_sync.py", true)}</div>
+        <h3>Set up</h3><ol class="small"><li>Make the room's sync code in <a href="#/presenter">Presenters → Settings</a>. It's not the enrolment code.</li><li>On the laptop run:</li></ol>
+        ${cmd(`python atsuit_room_sync.py --server ${origin} --code ROOM-CODE`)}
+        <p class="small muted">The first run saves the settings, so after that <code>python atsuit_room_sync.py</code> is enough. Put it in the laptop's startup.</p>`,
+      older: `<h2>Node agent (Python)</h2><p class="small muted">Sends captions from a laptop without a browser, or runs a kiosk. Version ${esc(info.apps.node_agent || "–")}. Agents update themselves on their next check-in.</p>
+        <div class="row" style="margin:.6rem 0">${dl("/api/admin/downloads/atsuit_node.py", "Download atsuit_node.py")}</div>
+        ${cmd(`python atsuit_node.py --server ${origin} --code ${code} --name ATLAP3 --room CC --mic`)}
+        <label>Publish a newer agent</label><div class="row"><input type="file" id="agentFile" class="grow" accept=".py"><button class="small" id="upAgent">Publish agent</button></div>
+        <h2 style="margin-top:1.4rem">Device Suite kiosk agent</h2><p class="small muted">Kiosks running the old Device Suite agent report here without reinstalling: point their server address at <code>${esc(origin)}</code>. ${info.settings.legacy_fleet_api ? "" : '<span class="pill warn">Turned off in General</span>'} Reboot, shut down and update go over SSH, so upload the fleet key.</p>
+        <div class="row" style="margin:.6rem 0">${info.apps.kiosk_agent ? dl("/api/admin/downloads/kiosk-agent", `Download kiosk agent ${esc(info.apps.kiosk_agent)}`) : '<span class="muted small">No kiosk agent release published.</span>'}</div>
+        <label>Publish a kiosk agent release (script)</label><div class="row"><input type="file" id="rel" class="grow"><input id="ver" placeholder="version, e.g. 2.0.4" style="width:9rem"><button class="small" id="upRel">Publish</button></div>
+        <label>Fleet SSH private key</label><div class="row"><input type="file" id="key" class="grow"><button class="small" id="upKey">Upload key</button></div>`,
+    };
+    a.innerHTML = `<div class="panel" style="margin-bottom:1rem"><div class="row" style="justify-content:space-between;flex-wrap:wrap"><h2 style="margin:0">Enrolment</h2><span class="small muted">Server address <code>${esc(origin)}</code> <button class="small" data-copy="${esc(origin)}">Copy</button></span></div>
+        <p class="small muted">Laptops and screens join with the site's code. A new code stops the old one working for new devices; ones already enrolled carry on.</p>
+        ${sites.map((s) => `<div class="row enrol"><b class="grow">${esc(s.name)}</b><code class="code">${esc(s.enrol_code)}</code><button class="small" data-copy="${esc(s.enrol_code)}">Copy</button><button class="small" data-new="${s.id}">New code</button></div>`).join("")}</div>
+      <div class="tabs sub">${Object.entries(parts).map(([k, v]) => `<button class="${k === part ? "on" : ""}" data-part="${k}">${v}</button>`).join("")}</div>
+      <div class="panel" id="part">${sections[part]}</div>`;
+    a.querySelectorAll("[data-part]").forEach((b) => b.onclick = () => admFleet(a, b.dataset.part));
+    a.querySelectorAll("[data-copy]").forEach((b) => b.onclick = () => copyText(b.dataset.copy));
+    a.querySelectorAll("[data-new]").forEach((b) => b.onclick = () => confirm("Make a new code? The old one stops working for new laptops and screens.") && guard(() => post(`/api/admin/sites/${b.dataset.new}/enrol-code`)).then(() => admFleet(a, part)));
+    const on = (id, fn) => { const e = a.querySelector(id); e && (e.onclick = fn); };
+    on("#dlJson", () => { const u = URL.createObjectURL(new Blob([nodeJson], { type: "application/json" })), l = document.createElement("a"); l.href = u; l.download = "node.json"; l.click(); setTimeout(() => URL.revokeObjectURL(u), 1000); });
+    on("#upApp", () => {
       const files = [...a.querySelector("#appFiles").files];
       if (!files.length) return;
       const fd = new FormData();
       files.forEach((f) => fd.append("files", f));
-      guard(() => api("/api/fleet/app", { method: "POST", form: fd })).then((r) => { toast(`AT-SUIT Node ${r.version} published`, "good"); admFleet(a); });
-    };
-    a.querySelector("#upAgent").onclick = () => { const f = a.querySelector("#agentFile").files[0]; f && guard(() => upload("/api/fleet/agent", f)).then((r) => toast(`Agent ${r.version} published`, "good")); };
-    a.querySelector("#upKey").onclick = () => { const f = a.querySelector("#key").files[0]; f && guard(() => upload("/api/fleet/ssh-key", f)).then(() => toast("Key saved", "good")); };
-    a.querySelector("#upRel").onclick = () => { const f = a.querySelector("#rel").files[0], v = a.querySelector("#ver").value.trim(); f && v && guard(() => upload(`/api/fleet/client-release?version=${encodeURIComponent(v)}`, f)).then(() => toast("Published", "good")); };
+      guard(() => api("/api/fleet/app", { method: "POST", form: fd })).then((r) => { toast(`AT-SUIT Node ${r.version} published`, "good"); admFleet(a, part); });
+    });
+    on("#upAgent", () => { const f = a.querySelector("#agentFile").files[0]; f && guard(() => upload("/api/fleet/agent", f)).then((r) => { toast(`Agent ${r.version} published`, "good"); admFleet(a, part); }); });
+    on("#upKey", () => { const f = a.querySelector("#key").files[0]; f && guard(() => upload("/api/fleet/ssh-key", f)).then(() => toast("Key saved", "good")); });
+    on("#upRel", () => { const f = a.querySelector("#rel").files[0], v = a.querySelector("#ver").value.trim(); f && v && guard(() => upload(`/api/fleet/client-release?version=${encodeURIComponent(v)}`, f)).then(() => { toast("Published", "good"); admFleet(a, part); }); });
   }
 
   async function admOverlays(a) {
@@ -428,14 +516,25 @@
     f.onsubmit = async (e) => { e.preventDefault(); const r = await guard(() => post("/api/admin/api-keys", { name: f.name.value })); await admKeys(a); a.querySelector("#newkey").innerHTML = `Copy this key now, it won't be shown again:<br><code>${esc(r.key)}</code>`; };
   }
 
-  async function admImport(a) {
+  async function admData(a) {
     const items = [
       ["roomcomms", "RoomComms chat", "A zip of the RoomComms data folder (roomcomms.db and .encryption_key). Accounts keep their passwords."],
       ["rooms-txt", "Device Suite rooms.txt", "Room kiosk links (Ontime views, Companion buttons). Lines that aren't ROOM|URL|LABEL; are skipped."],
       ["device-state", "Device Suite state.json", "Known kiosks with their addresses."],
       ["homarr", "Homarr links", "The TSV export of the Homarr USER CONTROL board."],
     ];
-    a.innerHTML = `<div class="grid">${items.map(([k, t, d]) => `<div class="panel" data-k="${k}"><h2>${t}</h2><p class="small muted">${d}</p><input type="file"><button class="small primary" style="margin-top:.5rem">Import</button><pre class="small muted" style="white-space:pre-wrap"></pre></div>`).join("")}</div>`;
+    const log = await api("/api/admin/audit");
+    const last = log.find((l) => l.action === "backup.download");
+    a.innerHTML = `<div class="panel"><h2>Backup</h2><p class="small muted">Database, uploads and the encryption key in one zip. Keep it somewhere safe; it can read every message.</p>
+        <div class="row"><a class="btn primary" href="/api/admin/backup" id="bk">Download backup</a><span class="small muted">${last ? `Last backup ${when(last.at)} by ${esc(last.actor)}` : "No backup downloaded yet."}</span></div></div>
+      <h2 style="margin-top:1.2rem">Import</h2><p class="small muted">Bring in data from the tools AT-SUIT replaces.</p>
+      <div class="grid">${items.map(([k, t, d]) => `<div class="panel" data-k="${k}"><h3>${t}</h3><p class="small muted">${d}</p><input type="file"><button class="small primary" style="margin-top:.5rem">Import</button><pre class="small muted" style="white-space:pre-wrap"></pre></div>`).join("")}</div>
+      <div class="panel" style="margin-top:1.2rem"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Audit log</h2><input id="flt" placeholder="Filter" style="width:14rem"></div>
+        <table style="margin-top:.6rem"><tr><th>When</th><th>Who</th><th>What</th><th>Detail</th></tr><tbody id="log"></tbody></table></div>`;
+    const draw = (q = "") => { a.querySelector("#log").innerHTML = log.filter((l) => !q || `${l.actor} ${l.action} ${l.detail}`.toLowerCase().includes(q)).map((l) => `<tr><td class="small">${when(l.at)}</td><td>${esc(l.actor)}</td><td>${esc(l.action)}</td><td class="small muted">${esc(l.detail)}</td></tr>`).join("") || '<tr><td colspan="4" class="muted">Nothing yet.</td></tr>'; };
+    draw();
+    a.querySelector("#flt").oninput = (e) => draw(e.target.value.trim().toLowerCase());
+    a.querySelector("#bk").onclick = () => setTimeout(() => admData(a), 3000);
     a.querySelectorAll("[data-k]").forEach((p) => p.querySelector("button").onclick = async () => {
       const f = p.querySelector("input").files[0]; if (!f) return;
       const r = await guard(() => upload(`/api/admin/import/${p.dataset.k}`, f));
@@ -444,10 +543,4 @@
     });
   }
 
-  async function admAudit(a) {
-    const [log, diag] = await Promise.all([api("/api/admin/audit"), api("/api/admin/diagnostics")]);
-    a.innerHTML = `<div class="grid"><div class="panel"><h2>Backup</h2><p class="small muted">Database, uploads and the encryption key in one zip. Keep it somewhere safe; it can read every message.</p><a class="btn primary" href="/api/admin/backup">Download backup</a></div>
-      <div class="panel"><h2>Diagnostics</h2><pre class="small" style="white-space:pre-wrap">${esc(JSON.stringify(diag, null, 2))}</pre></div></div>
-      <div class="panel" style="margin-top:1rem"><h2>Audit log</h2><table><tr><th>When</th><th>Who</th><th>What</th><th>Detail</th></tr>${log.map((l) => `<tr><td class="small">${when(l.at)}</td><td>${esc(l.actor)}</td><td>${esc(l.action)}</td><td class="small muted">${esc(l.detail)}</td></tr>`).join("")}</table></div>`;
-  }
 })();
