@@ -3,13 +3,22 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import platform
 import re
 import secrets
+import shutil
+import socket
 import sqlite3
+import subprocess
+import sys
+import time
 import zipfile
+from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .. import VERSION, config, db, licence
@@ -38,6 +47,7 @@ DEFAULT_BRANDING = {
     "support_contact": "",
 }
 DEFAULT_MODULES = {m: True for m in licence.ALL_MODULES}
+STARTED = time.time()
 
 
 def slugify(name: str) -> str:
@@ -228,7 +238,9 @@ def bootstrap(p: Principal = Depends(require_user)):
             "me": {"kind": p.kind, "id": p.id, "name": p.name, "role": p.role, "site_id": p.site_id, "room_id": p.room_id},
             "branding": {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {})},
             "modules": modules_enabled(c),
-            "licence": {"licensee": lic.licensee, "edition": lic.edition, "valid": lic.valid, "reason": lic.reason},
+            # Licence details are for admins; everyone else only needs the modules.
+            "licence": {"licensee": lic.licensee, "edition": lic.edition, "valid": lic.valid, "reason": lic.reason}
+            if p.role == "admin" else {},
             "sites": sites,
             "rooms": rooms,
         }
@@ -269,6 +281,37 @@ def put_settings(body: SettingsIn, p: Principal = Depends(require_admin)):
             db.set_setting(c, "message_retention_days", max(0, body.message_retention_days))
         db.audit(c, p.name, "settings.update", ",".join(k for k, v in body.model_dump().items() if v is not None))
     return {"ok": True}
+
+
+def usage(c) -> dict:
+    return {t: c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in ("sites", "rooms", "nodes")}
+
+
+@router.get("/api/admin/licence")
+def get_licence(p: Principal = Depends(require_admin)):
+    with db.ro() as c:
+        key = db.get_setting(c, "licence_key", "")
+        lic = licence.current(c)
+        used = usage(c)
+    d = licence.details(key)
+    pl = d["payload"] if isinstance(d["payload"], dict) else {}
+    expires = lic.expires or int(pl.get("expires", 0) or 0)
+    return {
+        **lic.public(),
+        "expires": expires,
+        "issued": lic.issued or int(pl.get("issued", 0) or 0),
+        "licensee": lic.licensee if lic.valid or not pl else str(pl.get("licensee", "")),
+        "days_left": max(0, int((expires - time.time()) // 86400)) if expires else None,
+        "usage": used,
+        "limits": {"sites": lic.max_sites, "nodes": lic.max_nodes, "rooms": 0},
+        "installed": d["installed"],
+        "signature_valid": d["signature_valid"],
+        "vendor_key_id": d["vendor_key_id"],
+        "vendor_key_source": d["vendor_key_source"],
+        "stored_in": f"Settings table (licence_key) in {config.cfg.db_path}",
+        "payload": pl,
+        "raw": d["raw"],
+    }
 
 
 class LicenceIn(BaseModel):
@@ -531,3 +574,184 @@ def diagnostics(p: Principal = Depends(require_admin)):
         "licence": json.loads(json.dumps(lic.public())),
         "captions": captions.engine_status(),
     }
+
+
+# -------------------------------------------------------------- admin info --
+def build_info() -> dict:
+    """Set at image build time (Dockerfile BUILD_* args); a dev checkout reads git."""
+    commit = os.getenv("ATSUIT_COMMIT", "")
+    if not commit:
+        try:
+            commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=Path(__file__).parent,
+                                    capture_output=True, text=True, timeout=2).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            commit = ""
+    return {"number": os.getenv("ATSUIT_BUILD", "") or "dev", "commit": commit or "dev",
+            "date": os.getenv("ATSUIT_BUILD_DATE", "")}
+
+
+def _ips() -> list[str]:
+    ips = set()
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None):
+            ips.add(info[4][0])
+    except OSError:
+        pass
+    try:  # the address used for outbound traffic; nothing is sent
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            ips.add(s.getsockname()[0])
+    except OSError:
+        pass
+    return sorted(ip for ip in ips if not ip.startswith(("127.", "::1")))
+
+
+def _dir_size(path: Path) -> int | None:
+    if not path.is_dir():
+        return None
+    total = 0
+    for root, _, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(root, f))
+            except OSError:
+                pass
+    return total
+
+
+def _version(pkg: str) -> str:
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version(pkg)
+    except PackageNotFoundError:
+        return ""
+
+
+def server_info() -> dict:
+    """Everything about this install for Admin → Info and support tickets.
+    Never includes tokens, keys, password hashes or the licence key."""
+    from . import captions, fleet
+
+    with db.ro() as c:
+        now = time.time()
+        nodes = c.execute("SELECT kind, legacy, mode, last_seen FROM nodes").fetchall()
+        node_counts: dict = {}
+        for n in nodes:
+            kind = "screen" if n["kind"] == "kiosk" and not n["legacy"] else n["kind"]
+            b = node_counts.setdefault(kind, {"total": 0, "online": 0})
+            b["total"] += 1
+            b["online"] += int(bool(n["last_seen"] and now - n["last_seen"] < fleet.ONLINE_SECONDS))
+        modes = {m: sum(1 for n in nodes if n["kind"] == "tech" and n["mode"] == m) for m in ("main", "backup")}
+        counts = {t: c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                  for t in ("sites", "rooms", "accounts", "nodes", "messages", "links", "help_requests", "api_keys")}
+        roles = dict(c.execute("SELECT role, COUNT(*) FROM accounts GROUP BY role").fetchall())
+        open_help = c.execute("SELECT COUNT(*) FROM help_requests WHERE status!='resolved'").fetchone()[0]
+        last_backup = c.execute("SELECT at, actor FROM audit_log WHERE action='backup.download' ORDER BY id DESC LIMIT 1").fetchone()
+        schema = c.execute("SELECT version FROM schema_version").fetchone()[0]
+        sites = db.rows(c.execute("SELECT name, timezone FROM sites ORDER BY name"))
+        lic = licence.current(c)
+        mods = modules_enabled(c)
+        branding = {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {})}
+        legacy = bool(db.get_setting(c, "legacy_fleet_api", True))
+        retention = db.get_setting(c, "message_retention_days", 0)
+    data = config.cfg.data
+    dbf = config.cfg.db_path
+    db_size = sum(f.stat().st_size for f in (dbf, Path(f"{dbf}-wal")) if f.exists())
+    try:
+        disk = shutil.disk_usage(data)
+        disk_out = {"total": disk.total, "free": disk.free}
+    except OSError:
+        disk_out = {}
+    presenter_dir = Path(os.getenv("ATSUIT_PRESENTER_FILES") or data / "presenter-files")
+    client = fleet.client_dir() / "release.json"
+    try:
+        sys_uptime = int(float(Path("/proc/uptime").read_text().split()[0]))
+    except (OSError, ValueError, IndexError):
+        sys_uptime = None
+    local = datetime.now().astimezone()
+    return {
+        "product": branding["product_name"] or "AT-SUIT",
+        "organisation": branding["organisation"],
+        "version": VERSION,
+        "build": build_info(),
+        "schema": schema,
+        "server": {
+            "role": "This server (AT-SUIT runs as one server; there are no others to manage)",
+            "count": 1,
+            "hostname": socket.gethostname(),
+            "ips": _ips(),
+            "public_url": config.cfg.public_url,
+            "port": config.cfg.port,
+            "os": platform.platform(),
+            "python": sys.version.split()[0],
+            "fastapi": _version("fastapi"),
+            "uvicorn": _version("uvicorn"),
+            "sqlite": sqlite3.sqlite_version,
+            "cpus": os.cpu_count(),
+            "in_docker": Path("/.dockerenv").exists(),
+            "started": datetime.fromtimestamp(STARTED, timezone.utc).isoformat(),
+            "uptime_seconds": int(time.time() - STARTED),
+            "system_uptime_seconds": sys_uptime,
+            "time": local.isoformat(),
+            "timezone": os.getenv("TZ") or local.tzname(),
+            "site_timezones": {s["name"]: s["timezone"] for s in sites},
+        },
+        "storage": {
+            "data_dir": str(data),
+            "db_bytes": db_size,
+            "uploads_bytes": _dir_size(config.cfg.uploads),
+            "transcripts_bytes": _dir_size(config.cfg.transcripts),
+            "presenter_dir": str(presenter_dir),
+            "presenter_bytes": _dir_size(presenter_dir),
+            "disk": disk_out,
+        },
+        "apps": {
+            "windows_app": fleet.app_release().get("version"),
+            "node_agent": fleet.agent_release().get("version"),
+            "screen_agent": fleet.screen_release().get("version"),
+            "kiosk_agent": json.loads(client.read_text()).get("version") if client.is_file() else None,
+        },
+        "nodes": {"total": len(nodes), "online": sum(b["online"] for b in node_counts.values()),
+                  "by_kind": node_counts, "tech_main": modes["main"], "tech_backup": modes["backup"]},
+        "counts": {**counts, "open_help_requests": open_help, "accounts_by_role": roles},
+        "modules": mods,
+        "licence": {"licensee": lic.licensee, "edition": lic.edition, "valid": lic.valid, "reason": lic.reason,
+                    "expires": lic.expires, "max_nodes": lic.max_nodes, "max_sites": lic.max_sites, "serial": lic.serial},
+        "captions": captions.engine_status(),
+        "websockets": hub.count(),
+        "settings": {"legacy_fleet_api": legacy, "message_retention_days": retention, "asr_enabled": config.cfg.asr_enabled,
+                     "asr_max_rooms": config.cfg.asr_max_rooms, "session_hours": config.cfg.session_hours},
+        "last_backup": dict(last_backup) if last_backup else None,
+    }
+
+
+@router.get("/api/admin/info")
+def admin_info(download: bool = False, p: Principal = Depends(require_admin)):
+    out = server_info()
+    if not download:
+        return out
+    out["generated"] = datetime.now(timezone.utc).isoformat()
+    name = f"atsuit-diagnostics-{datetime.now().strftime('%Y%m%d-%H%M')}.json"
+    return JSONResponse(out, headers={"Content-Disposition": f"attachment; filename={name}"})
+
+
+@router.get("/api/admin/downloads/{name}")
+def admin_download(name: str, p: Principal = Depends(require_admin)):
+    """The agents an admin copies onto machines by hand."""
+    from . import fleet
+
+    if name == "atsuit_node.py":
+        f = fleet.agent_file()
+    elif name in ("atsuit_screen.py", "install.sh"):
+        f = fleet.screen_file(name)
+    elif name == "kiosk-agent":
+        rel = fleet.client_dir() / "release.json"
+        fname = json.loads(rel.read_text()).get("filename") if rel.is_file() else None
+        f = fleet.client_dir() / fname if fname and "/" not in fname else None
+        name = fname or name
+    else:
+        raise HTTPException(404)
+    if not f or not f.is_file():
+        raise HTTPException(404, "Not on this server")
+    return FileResponse(f, media_type="application/octet-stream", filename=name)

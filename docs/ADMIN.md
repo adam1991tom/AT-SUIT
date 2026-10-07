@@ -12,9 +12,15 @@ Everything here is done in the browser. Nothing needs a file edited.
    enrolment code.
 4. **Admin → Links**: the dashboard. Room links (Companion buttons, Ontime
    views, kiosk pages) show up in that room's tech workspace. Admin-board
-   links only show to admins. Admin → Import brings in the old Homarr board
-   and Device Suite `rooms.txt`.
-5. **Admin → Node setup**: the enrolment code and the Windows app. Install
+   links only show to admins. Admin → Import, backup & audit brings in the
+   old Homarr board and Device Suite `rooms.txt`.
+5. **Admin → Node setup**: the enrolment code (with Copy and New code) at
+   the top, then one tab per kind of machine, each with its download:
+   *Windows tech app* (installer, install steps, `node.json` for IT, publish
+   a new version), *Linux screens* (the one-line install command,
+   `install.sh` and the agent), *Room sync* for presentation laptops (when
+   Presenters is on) and *Older agents* (the Python node agent and the
+   Device Suite kiosk agent). Install
    **AT-SUIT Node** on each tech laptop and enter the server address
    (`http://SERVER:PORT`), the code and the laptop's name. That is a one-off;
    the laptop stays enrolled. Each day the tech types their name, picks the
@@ -50,9 +56,22 @@ Everything here is done in the browser. Nothing needs a file edited.
    LiveOverlay with its room, address (`http://IP:8765`) and the API token
    from its tray menu → Remote Control. Techs then show, hide and switch
    that room's overlays from their workspace.
-10. **Admin → General**: product name, colour, logo, which modules are on,
-   chat retention, and whether old kiosk agents are accepted.
-11. **Admin → API keys**: a key for Companion.
+10. **Admin → General**: product name, organisation, colour, which modules
+   are on, chat retention, and whether old kiosk agents are accepted.
+11. **Admin → Info**: everything about this install in one place: version,
+   build number and commit, this server (name, addresses, uptime, time
+   zone), nodes online by kind and main/backup PCs, apps published, rooms,
+   accounts, modules, captions engine, storage and disk space, and the last
+   backup. **Download diagnostics** saves it as JSON for a support ticket,
+   or **Copy** it; neither includes passwords, keys or tokens.
+12. **Admin → Licence** (admins only): who it's licensed to, edition,
+   serial, issue and expiry dates with days left, modules, sites and nodes
+   used against the limits, whether the signature checks out, the vendor
+   key and the key itself to copy. Techs never see licence details.
+13. **Admin → Import, backup & audit**: download a backup (database,
+   uploads and encryption key), import from the old tools, and the audit
+   log of who changed what.
+14. **Admin → API keys**: a key for Companion.
 
 ## Remote screens
 

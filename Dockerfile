@@ -5,7 +5,12 @@ FROM python:3.12-slim
 
 ARG WITH_ASR=1
 ARG VERSION=dev
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 ATSUIT_DATA=/data ATSUIT_PORT=8080
+# Build number, git commit and date, shown in Admin → Info.
+ARG BUILD=dev
+ARG COMMIT=dev
+ARG BUILD_DATE=
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 ATSUIT_DATA=/data ATSUIT_PORT=8080 \
+    ATSUIT_BUILD=${BUILD} ATSUIT_COMMIT=${COMMIT} ATSUIT_BUILD_DATE=${BUILD_DATE}
 
 RUN apt-get update && apt-get install -y --no-install-recommends openssh-client bzip2 ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
@@ -21,7 +26,7 @@ COPY node-agent/atsuit_node.py ./atsuit/agent/atsuit_node.py
 COPY screen-agent/atsuit_screen.py screen-agent/install.sh ./atsuit/agent/screen/
 COPY room-sync/atsuit_room_sync.py ./atsuit/agent/atsuit_room_sync.py
 RUN mkdir -p /data && chown -R atsuit:atsuit /data /app
-LABEL org.opencontainers.image.title="AT-SUIT" org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.title="AT-SUIT" org.opencontainers.image.version="${VERSION}" org.opencontainers.image.revision="${COMMIT}"
 
 USER atsuit
 VOLUME ["/data"]

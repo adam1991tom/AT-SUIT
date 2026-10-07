@@ -42,7 +42,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: docker build --build-arg VERSION=$(cat VERSION) -t atsuit:ci .
+        run: |
+          docker build --build-arg VERSION=$(cat VERSION) --build-arg BUILD=${{ github.run_number }} \
+            --build-arg COMMIT=${GITHUB_SHA::7} --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) -t atsuit:ci .
       - name: Smoke test
         run: |
           docker run -d --name atsuit -p 8080:8080 -e ATSUIT_ASR=0 atsuit:ci
