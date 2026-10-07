@@ -115,7 +115,23 @@ The message covers the timer on the stage screens until it is hidden.
 | Show the last message again | `/api/timers/3/message/show` | |
 | Hide message | `/api/timers/3/message/hide` | |
 
-### Overlay laptops
+### AT Overlay on a tech laptop
+
+The AT-SUIT Node app can float the room timer over a tech laptop's screen
+(clicks go through it). The node number is in Nodes on the console.
+
+| Button | PUT | Body |
+|---|---|---|
+| Overlay on, laptop 7 | `/api/fleet/nodes/7/overlay` | `{"on": true}` |
+| Overlay off, laptop 7 | `/api/fleet/nodes/7/overlay` | `{"on": false}` |
+| Overlay as a bottom bar | `/api/fleet/nodes/7/overlay` | `{"on": true, "position": "bottom-bar", "size": "medium"}` |
+| Overlay showing a web page | `/api/fleet/nodes/7/overlay` | `{"on": true, "url": "https://..."}` |
+
+Positions: `bottom-right`, `bottom-left`, `top-right`, `top-left`,
+`bottom-bar`, `top-bar`. Sizes: `small`, `medium`, `large`. An empty `url`
+means the room timer.
+
+### Overlay laptops (AT LiveOverlay)
 
 Overlay laptops are numbered in Admin → Overlay laptops (`targets/1` is the first).
 
@@ -234,6 +250,9 @@ admin signed in.
 | PUT | `/api/fleet/nodes/{node_id}/screen` | `room_id`, `view` | Route a screen from the dashboard: which room and which view it shows |
 | GET | `/api/fleet/nodes` |  | Tech laptops and screens, online or not |
 | POST | `/api/fleet/nodes/{node_id}/command` | `kind`, `payload` | Send a node a command: set_url, reload, message, identify, restart_browser (reboot, shutdown and update are for admins) |
+| GET | `/api/rooms/{room_id}/overlays` |  | The tech laptops in this room today, and each one's overlay |
+| GET | `/api/fleet/nodes/{node_id}/overlay` |  | One tech laptop's AT Overlay: what was asked for and what it shows now |
+| PUT | `/api/fleet/nodes/{node_id}/overlay` | `on`, `url`, `position`, `size`, `display`, `opacity` | Turn a tech laptop's overlay on or off, or move it. The laptop's app picks up a node command of kind "overlay" with the full settings |
 
 ### Chat and help requests
 

@@ -1,3 +1,5 @@
+![AT-SUIT](branding/social/readme-banner.png)
+
 # AT-SUIT
 
 One server app for running live events: crew chat, room timers, live
@@ -42,7 +44,7 @@ backups and updates, and [docs/ADMIN.md](docs/ADMIN.md) for day-to-day setup.
 |---|---|---|
 | `/` | admins, techs | console: dashboard, chat, help, timer preview and screens, presenters, captions, nodes, admin |
 | `/node` | techs on their laptop | the tech workspace |
-| `/timer/<room>` | stage screens | full-screen countdown, no sign-in (`?view=minimal`, `clock`, `backstage`) |
+| `/timer/<room>` | stage screens | full-screen countdown, no sign-in (`?view=minimal`, `clock`, `backstage`, `hcc`, `bdng`, `overlay`, `built:<name>`) |
 | `/screen` | Linux screens | display-only screen: shows the room and view picked on it or routed from the console |
 | `/room/<room>/external/<view>/` | screens, OBS | custom Ontime-style views uploaded in Timers → Views |
 | `/present/<link>` | presenters | their own page: upload slides, see review notes, check in. No account; each presenter has their own link |
@@ -58,6 +60,7 @@ server/tests/         pytest suite (set ATSUIT_TEST_MODELS to include the real s
 node-app/             AT-SUIT Node, the Windows tech workspace app (Electron; npm test runs it against a live server)
 node-agent/           optional Python agent for laptops: heartbeat, commands, mic streaming
 screen-agent/         Linux screen agent and install.sh: kiosk Chromium, HDMI rule, self-update
+branding/             logo, icons, brand guide and make_brand.py
 tools/licence.py      vendor tool to make keys and issue licences
 deploy/Caddyfile      https front end (compose profile "tls")
 docs/DESIGN.md        architecture, module map, migration and build order

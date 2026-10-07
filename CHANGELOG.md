@@ -4,6 +4,17 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.5.0
+
+- **AT-SUIT logo and brand.** The app, the Windows app, its tray icon, the favicons and the sign-in pages use the new AT-SUIT logo, and the default accent is the brand orange. `branding/` has the logo files, app icons, social images, the brand guide (HTML and PDF) and `make_brand.py`, which rebuilds them all.
+- **Tech workspace redesign.** The room timer fills the screen. Captions, sessions, screens, overlays and links open as windows you can move, resize and close; the layout is remembered. Chat is a small dock in the corner, and the red **Help** button at the top drops down with the message and the room's open calls.
+- **Notifications** for chat, help calls, the timer (warning, danger, overtime), new presenter files, captions stopping and the connection dropping: a bell list and a note in the window, and silent pop-ups on the backup PC. The main PC still shows nothing.
+- **Captions** in their own window, with a live overview next to the timer. **Linux screens** in the room can be switched from the workspace to any view or any web page.
+- **Timers.** Built-in **HCC** and **BDNG** views; every view follows HCC's warning, danger, blink, message and overtime behaviour. A **Clock** button shows the time of day on every screen. **Blink** and **Blackout** are buttons. A **view builder** in Timers → Views. An **overlay** view for the AT Overlay window.
+- **AT Overlay built in.** AT-SUIT Node can float the room timer (or any web page) over the laptop's screen in a see-through, click-through window. Turn it on, move it or change it from any tech laptop in the room, e.g. from the backup PC onto the main PC.
+- **Companion.** Presets for 3 to 60 minutes, blink, clock, blackout and stage message endpoints, and [docs/COMPANION.md](docs/COMPANION.md) with ready-made buttons and every endpoint an API key can call.
+- **Admin.** Node setup is split by machine (Windows tech app, Linux screens, room sync, older agents) with download links. A new **Info** tab (version, build, nodes, server, storage) with diagnostics to download or copy. The **Licence** tab shows every detail and only admins see anything about the licence. Import, backup and audit are one tab. Logo URL and support contact are gone from General.
+
 ## 0.4.1
 
 - **Tech laptops: name, room, main or backup.** No more username and password on AT-SUIT Node: the tech types their name, picks the room and says whether this is the **Main PC** (no pop-ups or notifications at all) or the **Backup PC** (silent pop-ups on top of everything). Chat and help calls carry their name. It resets each morning or on Sign out; Nodes in the console shows who is on each laptop and which it is.
