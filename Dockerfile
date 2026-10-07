@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 COPY server/atsuit ./atsuit
 COPY node-agent/atsuit_node.py ./atsuit/agent/atsuit_node.py
+COPY screen-agent/atsuit_screen.py screen-agent/install.sh ./atsuit/agent/screen/
 RUN mkdir -p /data && chown -R atsuit:atsuit /data /app
 LABEL org.opencontainers.image.title="AT-SUIT" org.opencontainers.image.version="${VERSION}"
 

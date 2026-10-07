@@ -32,12 +32,54 @@ Everything here is done in the browser. Nothing needs a file edited.
    "Send my mic" in their workspace, or runs the node agent with `--mic`.
    Put `/captions/<room>` on the audience screen or `/captions/<room>/overlay`
    in OBS or vMix as a browser source.
-7. **Timers**: each room has one. Put `/timer/<room>` on the stage screen.
-8. **Overlays**: add each laptop running AT LiveOverlay with its address
-   (`http://IP:8765`) and the API token from its tray menu → Remote Control.
-9. **Admin → General**: product name, colour, logo, which modules are on,
+7. **Timers**: each room has one, with a cue list (the running order).
+   Techs build and run it from their workspace: add cues, drag them into
+   order with ↑ ↓, GO starts the next cue. Each cue's *end action* says
+   what happens at zero: keep going into overtime, stop, load the next cue,
+   or play the next. An Ontime project file can be imported into a room.
+   The console's **Timers** page is a live preview of every room, with no
+   controls, plus the list of screens.
+   **Custom views** (the HTML views made for Ontime): Timers → Views → upload
+   the view's folder as a .zip with `index.html` at the top (or one .html
+   file). It shows at `/external/<view>/?room=<room id>` with the room's live
+   timer, and appears in every screen's view list.
+8. **Screens** (Linux laptops and all-in-ones): see *Remote screens* below.
+9. **Overlays**: in Admin → Overlay laptops, add each laptop running AT
+   LiveOverlay with its room, address (`http://IP:8765`) and the API token
+   from its tray menu → Remote Control. Techs then show, hide and switch
+   that room's overlays from their workspace.
+10. **Admin → General**: product name, colour, logo, which modules are on,
    chat retention, and whether old kiosk agents are accepted.
-10. **Admin → API keys**: a key for Companion.
+11. **Admin → API keys**: a key for Companion.
+
+## Remote screens
+
+A screen is a Linux laptop or all-in-one that only shows things: a room's
+timer, the backstage running order, captions, a custom view or a web page.
+
+**Install** (once, as the user logged in to the desktop, with an X11
+session and automatic login on):
+
+```
+curl -fsSL http://SERVER:PORT/screen-agent/install.sh | bash -s -- \
+     --server http://SERVER:PORT --code ENROLMENT-CODE --name HD-STAGE-1 --allow-power
+```
+
+It installs Chromium, adds the screen under that name and starts it full
+screen at every login. Leave out `--allow-power` if the dashboard shouldn't
+be able to reboot it. Any browser can also be a screen: open
+`http://SERVER:PORT/screen` and enter a name and the enrolment code.
+
+**HDMI rule**: when an HDMI (or DisplayPort, DVI, VGA) display is plugged
+in, the picture goes only to that display and the built-in screen goes
+dark. Unplug it and the built-in screen comes back.
+
+**Choosing what it shows**: on the screen, tap the top-left corner 5 times
+(or press P) and pick the room and view. From the console, Timers →
+Screens: pick the room and what it shows, or *Web page…* for any address.
+The same table shows each screen's address, which display it is using, its
+agent version and whether it needs an update, and when it was last seen,
+with Identify, Restart (the browser), Update and Reboot buttons.
 
 ## Updating laptops
 
@@ -57,6 +99,10 @@ Laptops running the node agent update themselves: when the server has a newer
 agent (a new AT-SUIT release, or one uploaded in Admin → Node setup), each
 agent downloads it on its next heartbeat, checks it and restarts. Start an
 agent with `--no-self-update` to pin it.
+
+**Screen agent (Linux).** Same: screens update themselves from the server
+on their next check-in after an AT-SUIT update. The Update button in
+Timers → Screens makes one check now.
 
 ## Companion
 

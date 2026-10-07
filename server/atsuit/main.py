@@ -40,7 +40,8 @@ async def lifespan(app: FastAPI):
     db.migrate()
     asr.engine = asr.Engine()
     captions.rooms.clear()
-    tasks = [asyncio.create_task(housekeeping()), asyncio.create_task(captions.load_engine())]
+    tasks = [asyncio.create_task(housekeeping()), asyncio.create_task(captions.load_engine()),
+             asyncio.create_task(timers.end_actions())]
     yield
     for t in tasks:
         t.cancel()
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
         app.include_router(module.router)
     app.include_router(fleet.legacy)
     app.include_router(captions.ws_router)
+    app.include_router(timers.public)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
     @app.websocket("/ws")
@@ -93,6 +95,10 @@ def create_app() -> FastAPI:
     @app.get("/node", include_in_schema=False)
     def node_page():
         return page("node.html")
+
+    @app.get("/screen", include_in_schema=False)
+    def screen_page():
+        return page("screen.html")
 
     @app.get("/timer/{room_id}", include_in_schema=False)
     def timer_page(room_id: int):

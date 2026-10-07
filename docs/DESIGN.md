@@ -116,7 +116,7 @@ licence can limit which modules are available.
 |---|---|---|---|
 | `core` | RoomComms/Presenter setup + accounts, AT Ops login | sites, rooms, accounts and roles (admin, tech, viewer), settings, branding, licence, API keys, audit log | login |
 | `comms` | AT-RoomComms 0.9.2/1.0.0, RoomComms Windows client | channels per room and per site, DMs, help requests, attachments, read receipts | chat UI, notifications |
-| `timers` | Ontime x20 (phase 3), Ontime views on kiosks | per-room countdown state, messages to stage, presets | timer controls; kiosks show `/timer/<room>` |
+| `timers` | Ontime x20, Ontime custom views on kiosks | per-room timer and cue list (end actions run on the server), messages to stage, custom views with an Ontime-compatible feed (`/ontime/<room>/ws`) | cue list and controls in the workspace; screens show `/timer/<room>` or a custom view |
 | `fleet` | Device Suite, Fleet Dashboard, AT Ops fleet, device-agent-updater | node registry, online state, kiosk URL queue, commands, client release manifest, the old `/heartbeat` `/agent/poll` `/agent/ack` API | heartbeat, applies kiosk URL, runs allowed commands |
 | `captions` | AT-LiveCaption | ASR engine and model, vocabulary, transcripts, caption fan-out to audience/overlay pages | streams mic audio |
 | `overlays` | Companion → LiveOverlay direct calls | registry of LiveOverlay endpoints and tokens, show/hide/reload/set URL/scene | runs AT-LiveOverlay (unchanged Windows app) |
@@ -177,6 +177,8 @@ Message bodies and overlay tokens are encrypted at rest with a Fernet key in
 | Audio | `WS /ws/audio/<room_id>?token=` binary frames of 16 kHz mono int16 | node token or tech session |
 | Live updates | `WS /ws?topics=…` | session, node token, or public topics only |
 | Agent updates | `GET /api/nodes/agent`, `/api/nodes/agent/file` (also offered in every heartbeat reply) | node token |
+| Screens | `PUT /api/nodes/me/screen {room_id, view}` (picked on the screen), `PUT /api/fleet/nodes/<id>/screen` (routed); heartbeat reply has `screen_view` and `screen_agent`; `GET /api/nodes/commands?kinds=` splits page and agent commands; `/screen-agent/install.sh` | node token; tech to route |
+| Ontime feed | `WS /ontime/<room>/ws`, `GET /ontime/<room>/data/runtime` (Ontime v4 runtime shape); `/external/<view>/` serves uploaded views with a shim that points them there | none (read-only, like Ontime) |
 | Old kiosk agents | `POST /heartbeat`, `GET /agent/poll/<host>`, `POST /agent/ack`, `/client-update`, `/client-bootstrap` | none (as today), can be switched off |
 | Companion / automation | `/api/v1/timers/<room>/start` etc. | API key header `X-API-Key` |
 
@@ -188,6 +190,20 @@ picks one after signing in and it lapses at 05:00 site time
 without activation, off unless switched on for that laptop, and the app mutes
 all its audio and refuses web notifications and native dialogs, so it can
 never make a sound on a laptop that is on the projector.
+
+**Screens are kiosk nodes.** A Linux laptop or all-in-one runs the screen
+agent, which applies the HDMI rule with xrandr (an external output gets the
+picture on its own, else the built-in panel), opens `/screen` in Chromium
+kiosk mode and restarts it if it dies. The page shows what the node's
+`room_id` and `screen_view` say and handles set_url, reload, identify and
+message; the agent handles restart_browser, update and (if allowed) reboot
+and shutdown. Both heartbeat; the server merges their reports.
+
+**Custom Ontime views run unchanged.** They connect to `ws://host/ws` and
+read Ontime's `runtime-data` messages. AT-SUIT serves each uploaded view
+with a small script that points that socket at `/ontime/<room>/ws`, which
+sends the same message shapes (clock, timer, eventNow/eventNext, message,
+rundown) built from the room's timer and cue list.
 
 **Nodes pull their own updates.** Every heartbeat reply names the current
 node agent version and checksum; an older agent downloads it, checks the

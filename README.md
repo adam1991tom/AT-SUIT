@@ -39,9 +39,11 @@ backups and updates, and [docs/ADMIN.md](docs/ADMIN.md) for day-to-day setup.
 
 | Page | Who | What |
 |---|---|---|
-| `/` | admins, techs | console: dashboard, chat, help, timers, captions, overlays, nodes, admin |
+| `/` | admins, techs | console: dashboard, chat, help, timer preview and screens, captions, nodes, admin |
 | `/node` | techs on their laptop | the tech workspace |
-| `/timer/<room>` | stage screens | full-screen countdown, no sign-in |
+| `/timer/<room>` | stage screens | full-screen countdown, no sign-in (`?view=minimal`, `clock`, `backstage`) |
+| `/screen` | Linux screens | display-only screen: shows the room and view picked on it or routed from the console |
+| `/external/<view>/?room=<room>` | screens, OBS | custom Ontime-style views uploaded in Timers → Views |
 | `/captions/<room>` | audience screens | captions, no sign-in |
 | `/captions/<room>/overlay` | OBS / vMix | transparent caption overlay |
 | `/api/docs` | integrators | REST API (Companion, automation) |
@@ -53,6 +55,7 @@ server/atsuit/        FastAPI app (modules/, static/ web UI, asr.py speech engin
 server/tests/         pytest suite (set ATSUIT_TEST_MODELS to include the real speech model)
 node-app/             AT-SUIT Node, the Windows tech workspace app (Electron; npm test runs it against a live server)
 node-agent/           optional Python agent for laptops: heartbeat, commands, mic streaming
+screen-agent/         Linux screen agent and install.sh: kiosk Chromium, HDMI rule, self-update
 tools/licence.py      vendor tool to make keys and issue licences
 deploy/Caddyfile      https front end (compose profile "tls")
 docs/DESIGN.md        architecture, module map, migration and build order

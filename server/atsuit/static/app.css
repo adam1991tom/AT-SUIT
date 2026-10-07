@@ -81,13 +81,21 @@ th { color: var(--muted); font-weight: 500; font-size: .85rem; }
 .steps span.on { background: var(--accent); }
 
 /* node workspace */
-.ws-grid { display: grid; gap: 1rem; grid-template-columns: minmax(300px, 1.1fr) minmax(300px, 1fr); grid-template-areas: "timer chat" "captions chat" "links help"; }
+.ws-grid { display: grid; gap: 1rem; grid-template-columns: minmax(300px, 1.1fr) minmax(300px, 1fr); grid-template-areas: "timer chat" "captions chat" "overlays chat" "links help"; }
 .ws-grid .timer { grid-area: timer; } .ws-grid .chatbox { grid-area: chat; display: flex; flex-direction: column; min-height: 520px; }
-.ws-grid .captions { grid-area: captions; } .ws-grid .links { grid-area: links; } .ws-grid .helpbox { grid-area: help; }
-@media (max-width: 900px) { .ws-grid { grid-template-columns: 1fr; grid-template-areas: "timer" "chat" "captions" "links" "help"; } }
+.ws-grid .captions { grid-area: captions; } .ws-grid .overlays { grid-area: overlays; } .ov + .ov { border-top: 1px solid var(--line); margin-top: .6rem; padding-top: .6rem; } .ws-grid .links { grid-area: links; } .ws-grid .helpbox { grid-area: help; }
+@media (max-width: 900px) { .ws-grid { grid-template-columns: 1fr; grid-template-areas: "timer" "chat" "captions" "overlays" "links" "help"; } }
 .cap-live { min-height: 5.5rem; font-size: 1.15rem; }
 .cap-live .partial { color: var(--muted); }
 .meter { height: 6px; background: var(--line); border-radius: 6px; overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--good); width: 0; transition: width .2s; }
 .tabs { display: flex; gap: .3rem; flex-wrap: wrap; margin-bottom: .5rem; }
 .tabs button.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+
+/* cue list (tech workspace) */
+.cues { margin-top: .5rem; max-height: 340px; overflow: auto; }
+.cue { display: grid; grid-template-columns: 3rem 1fr auto auto; gap: .6rem; align-items: center; padding: .4rem .5rem; border-left: 4px solid transparent; border-bottom: 1px solid var(--line); }
+.cue.now { background: var(--panel2); font-weight: 600; }
+.cue.skip { opacity: .45; } .cue.skip .t { text-decoration: line-through; }
+.cue .c { color: var(--muted); } .cue .d { text-align: right; font-variant-numeric: tabular-nums; } .cue .b { display: flex; gap: .2rem; }
+.cueform { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .6rem; }

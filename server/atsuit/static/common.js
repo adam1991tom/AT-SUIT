@@ -65,9 +65,23 @@ const AT = (() => {
   }
 
   // Keeps a timer state ticking locally, corrected for server clock offset.
+  // Remaining ms of a timer state, counted locally from when this copy arrived.
   function timerClock(state) {
-    const offset = Date.now() / 1000 - state.server_time;
-    return () => state.running ? state.remaining_ms - ((Date.now() / 1000 - offset) - state.server_time) * 1000 : state.remaining_ms;
+    if (!state._rx) state._rx = Date.now();
+    return () => (state.running ? state.remaining_ms - (Date.now() - state._rx) : state.remaining_ms);
+  }
+
+  // What a timer shows: count-down, count-up (elapsed), the time of day, or nothing.
+  function timerDisplay(state) {
+    const left = timerClock(state)();
+    const type = state.timer_type || "count-down";
+    let text = fmtTime(left);
+    if (type === "count-up") text = fmtTime(Math.max(0, state.duration_ms + (state.added_ms || 0) - left)).replace(/^\+/, "");
+    else if (type === "clock") text = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    else if (type === "none") text = "";
+    const loaded = state.playback !== "stop";
+    const cls = !loaded || type === "clock" || type === "none" ? "" : left < 0 ? "over" : left <= state.danger_ms ? "danger" : left <= state.warn_ms ? "warn" : "";
+    return { left, text: loaded || type === "clock" ? text : "--:--", cls };
   }
 
   function when(iso) {
@@ -87,5 +101,5 @@ const AT = (() => {
 
   function h(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 
-  return { esc, api, post, put, del, upload, socket, toast, guard, fmtTime, timerClock, when, branding, h };
+  return { esc, api, post, put, del, upload, socket, toast, guard, fmtTime, timerClock, timerDisplay, when, branding, h };
 })();

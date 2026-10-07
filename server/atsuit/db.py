@@ -74,6 +74,25 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE nodes ADD COLUMN room_day TEXT NOT NULL DEFAULT '';
     """,
+    # 3: Ontime-style cue lists, custom timer views, screen routing
+    """
+    CREATE TABLE cues(id INTEGER PRIMARY KEY AUTOINCREMENT, room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+        sort INTEGER NOT NULL DEFAULT 0, cue TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '', duration_ms INTEGER NOT NULL DEFAULT 0, time_start TEXT NOT NULL DEFAULT '',
+        timer_type TEXT NOT NULL DEFAULT 'count-down', end_action TEXT NOT NULL DEFAULT 'none',
+        skip INTEGER NOT NULL DEFAULT 0, colour TEXT NOT NULL DEFAULT '', warn_ms INTEGER, danger_ms INTEGER,
+        custom_json TEXT NOT NULL DEFAULT '{}');
+    CREATE INDEX cues_room ON cues(room_id, sort);
+    ALTER TABLE timers ADD COLUMN cue_id INTEGER;
+    ALTER TABLE timers ADD COLUMN timer_type TEXT NOT NULL DEFAULT 'count-down';
+    ALTER TABLE timers ADD COLUMN end_action TEXT NOT NULL DEFAULT 'none';
+    ALTER TABLE timers ADD COLUMN first_started_at REAL;
+    ALTER TABLE timers ADD COLUMN added_ms INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE timers ADD COLUMN message_blink INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE timers ADD COLUMN blackout INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE nodes ADD COLUMN screen_view TEXT NOT NULL DEFAULT '';
+    CREATE TABLE timer_views(slug TEXT PRIMARY KEY, name TEXT NOT NULL, created_at TEXT NOT NULL);
+    """,
 ]
 
 

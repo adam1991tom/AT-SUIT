@@ -29,7 +29,7 @@ legacy = APIRouter()
 
 ONLINE_SECONDS = 45
 NODE_KINDS = ("tech", "kiosk", "caption")
-COMMANDS = ("set_url", "reload", "message", "reboot", "shutdown", "update", "identify")
+COMMANDS = ("set_url", "reload", "message", "reboot", "shutdown", "update", "identify", "restart_browser")
 SSH_COMMANDS = {
     "reboot": "sudo reboot",
     "shutdown": "sudo shutdown now",
@@ -53,15 +53,31 @@ def agent_file() -> Path | None:
     return None
 
 
-def agent_release() -> dict:
+def agent_release(f: Path | None = None) -> dict:
     import hashlib
 
-    f = agent_file()
+    f = f or agent_file()
     if not f:
         return {"version": None}
     data = f.read_bytes()
     m = re.search(rb'^VERSION = "([^"]+)"', data, re.M)
     return {"version": m.group(1).decode() if m else None, "sha256": hashlib.sha256(data).hexdigest()}
+
+
+def screen_file(name: str = "atsuit_screen.py") -> Path | None:
+    """The Linux screen agent (or its install.sh): an uploaded one in the data
+    volume wins, then the copy bundled in the image, then the repo (dev)."""
+    here = Path(__file__).resolve()
+    for f in (config.cfg.data / "screen-agent" / name, here.parents[1] / "agent" / "screen" / name,
+              here.parents[3] / "screen-agent" / name):
+        if f.is_file():
+            return f
+    return None
+
+
+def screen_release() -> dict:
+    f = screen_file()
+    return agent_release(f) if f else {"version": None}
 
 
 def client_dir() -> Path:
@@ -165,14 +181,29 @@ class HeartbeatIn(BaseModel):
 async def heartbeat(body: HeartbeatIn, request: Request, p: Principal = Depends(require_node)):
     ip = body.ip or (request.client.host if request.client else "")
     with db.tx() as c:
+        old = c.execute("SELECT version, mac, info_json FROM nodes WHERE id=?", (p.id,)).fetchone()
+        # A Linux screen reports twice: its agent (displays, MAC, agent version)
+        # and the /screen page (what is showing). Merge, so neither wipes the other.
+        try:
+            info = json.loads(old["info_json"] or "{}")
+        except ValueError:
+            info = {}
+        info.update(body.info)
+        version = body.version or old["version"] or str(body.info.get("page") or "")
         c.execute(
-            "UPDATE nodes SET ip=?, mac=?, version=?, current_url=?, info_json=?, last_seen=? WHERE id=?",
-            (ip[:64], body.mac[:64], body.version[:32], body.current_url[:1000], json.dumps(body.info)[:8000],
+            "UPDATE nodes SET ip=?, mac=?, version=?, current_url=COALESCE(NULLIF(?,''),current_url), info_json=?, last_seen=? "
+            "WHERE id=?",
+            (ip[:64], (body.mac or old["mac"] or "")[:64], version[:32], body.current_url[:1000], json.dumps(info)[:8000],
              time.time(), p.id))
         pending = c.execute("SELECT COUNT(*) FROM node_commands WHERE node_id=? AND status='queued'", (p.id,)).fetchone()[0]
-        room_id = current_room_id(c, c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone())
+        n = c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone()
+        room_id = current_room_id(c, n)
     await hub.publish("fleet", "node.heartbeat", {"id": p.id})
-    return {"ok": True, "pending_commands": pending, "room_id": room_id, "agent": agent_release()}
+    out = {"ok": True, "pending_commands": pending, "room_id": room_id, "screen_view": n["screen_view"],
+           "agent": agent_release()}
+    if n["kind"] == "kiosk":
+        out["screen_agent"] = screen_release()
+    return out
 
 
 @router.get("/api/nodes/agent")
@@ -186,6 +217,31 @@ def agent_download(p: Principal = Depends(require_node)):
     if not f:
         raise HTTPException(404, "No node agent on this server")
     return FileResponse(f, media_type="text/x-python", filename="atsuit_node.py")
+
+
+@router.get("/api/nodes/screen-agent/file")
+def screen_agent_download(p: Principal = Depends(require_node)):
+    f = screen_file()
+    if not f:
+        raise HTTPException(404, "No screen agent on this server")
+    return FileResponse(f, media_type="text/x-python", filename="atsuit_screen.py")
+
+
+@router.get("/api/fleet/screen-agent")
+def screen_agent_info(p: Principal = Depends(require_tech)):
+    return screen_release()
+
+
+@router.get("/screen-agent/{filename}")
+def screen_agent_public(filename: str):
+    """Public: a new Linux screen fetches install.sh and the agent from here
+    before it is enrolled (curl -fsSL http://server/screen-agent/install.sh)."""
+    if filename not in ("install.sh", "atsuit_screen.py"):
+        raise HTTPException(404)
+    f = screen_file(filename)
+    if not f:
+        raise HTTPException(404, "Not on this server")
+    return FileResponse(f, media_type="text/plain; charset=utf-8", headers={"Cache-Control": "no-cache"})
 
 
 @router.post("/api/fleet/agent")
@@ -276,8 +332,62 @@ def node_me(p: Principal = Depends(require_node)):
         room = c.execute("SELECT id,name,short_name FROM rooms WHERE id=?", (rid,)).fetchone() if rid else None
         rooms = db.rows(c.execute("SELECT id,name,short_name FROM rooms WHERE enabled=1 AND (site_id=? OR ? IS NULL) "
                                   "ORDER BY sort,name", (n["site_id"], n["site_id"])))
+        from .timers import list_views
+
         return {"node": node_out(n, c), "room": dict(room) if room else None, "rooms": rooms,
-                "day": work_day(c, n["site_id"])}
+                "day": work_day(c, n["site_id"]), "views": list_views(c) + [{"id": "captions", "name": "Captions", "builtin": True}]}
+
+
+# ------------------------------------------------------- remote screens --
+def check_view(c, view: str) -> str:
+    """What a screen shows: a built-in timer view, captions, a custom view
+    (view:<slug>) or any web page (url:https://...). Empty means 'not chosen'."""
+    from .timers import BUILTIN_VIEWS
+
+    view = (view or "").strip()
+    if view in ("", "captions") or view in BUILTIN_VIEWS:
+        return view
+    if view.startswith("view:") and c.execute("SELECT 1 FROM timer_views WHERE slug=?", (view[5:],)).fetchone():
+        return view
+    if re.match(r"^url:https?://\S{1,1000}$", view):
+        return view
+    raise HTTPException(400, "Unknown screen view")
+
+
+class ScreenPick(BaseModel):
+    room_id: int | None = None
+    view: str = ""
+
+
+def _set_screen(c, n, body: ScreenPick) -> None:
+    if body.room_id is not None:
+        room = c.execute("SELECT * FROM rooms WHERE id=?", (body.room_id,)).fetchone()
+        if not room or (n["site_id"] and room["site_id"] != n["site_id"]):
+            raise HTTPException(404, "Room not found")
+    c.execute("UPDATE nodes SET room_id=?, room_day=?, screen_view=? WHERE id=?",
+              (body.room_id, work_day(c, n["site_id"]), check_view(c, body.view), n["id"]))
+
+
+@router.put("/api/nodes/me/screen")
+async def node_pick_screen(body: ScreenPick, p: Principal = Depends(require_node)):
+    """A remote screen chooses its room and view from the screen itself."""
+    with db.tx() as c:
+        _set_screen(c, c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone(), body)
+    await hub.publish("fleet", "node.changed", {"id": p.id})
+    return {"ok": True}
+
+
+@router.put("/api/fleet/nodes/{node_id}/screen")
+async def route_screen(node_id: int, body: ScreenPick, p: Principal = Depends(require_tech)):
+    """Route a screen from the dashboard: which room and which view it shows."""
+    with db.tx() as c:
+        n = c.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
+        if not n or not site_ok(p, n["site_id"]):
+            raise HTTPException(404, "Node not found")
+        _set_screen(c, n, body)
+        db.audit(c, p.name, "node.screen", f"{n['name']}: room {body.room_id} {body.view}")
+    await hub.publish("fleet", "node.changed", {"id": node_id})
+    return {"ok": True}
 
 
 class RoomPick(BaseModel):
@@ -299,9 +409,14 @@ async def node_pick_room(body: RoomPick, p: Principal = Depends(require_node)):
 
 
 @router.get("/api/nodes/commands")
-def poll_commands(p: Principal = Depends(require_node)):
+def poll_commands(p: Principal = Depends(require_node), kinds: str = ""):
+    """Queued commands; `kinds` limits them (a screen's page and its agent
+    each take their own)."""
     with db.ro() as c:
         cmds = db.rows(c.execute("SELECT id,kind,payload_json,created_at FROM node_commands WHERE node_id=? AND status='queued' ORDER BY id", (p.id,)))
+    if kinds:
+        wanted = set(kinds.split(","))
+        cmds = [x for x in cmds if x["kind"] in wanted]
     for cmd in cmds:
         cmd["payload"] = json.loads(cmd.pop("payload_json"))
     return cmds

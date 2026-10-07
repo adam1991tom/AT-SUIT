@@ -65,17 +65,7 @@
     <div class="row"><button id="popTest" class="small">Test a pop-up</button><span class="muted small" id="appVer"></span></div>
   </div>
   <div class="wrap ws-grid">
-    <section class="panel timer">
-      <div class="row" style="justify-content:space-between"><h3>Room timer</h3><a class="small" id="timerLink" target="_blank">Stage screen ↗</a></div>
-      <div class="clock bigclock" id="clock">--:--</div>
-      <div class="muted" id="ttitle"></div>
-      <div class="row" style="margin-top:.6rem">
-        <button class="primary" data-t="toggle">Start / pause</button><button data-t="reset">Reset</button>
-        <button data-add="-60000">−1m</button><button data-add="60000">+1m</button>
-        <input id="dur" placeholder="mm:ss" style="width:6rem"><button data-t="set">Set</button>
-      </div>
-      <div class="row" style="margin-top:.5rem"><input id="stagemsg" class="grow" placeholder="Message to the stage"><button id="msgShow">Show</button><button id="msgHide">Hide</button></div>
-    </section>
+    <section class="panel timer" id="timerBox"></section>
 
     <section class="panel chatbox"><h3>Chat</h3><div class="chat-mount" id="chat"></div></section>
 
@@ -89,6 +79,8 @@
       </div>
       <p class="muted small" id="micNote"></p>
     </section>
+
+    <section class="panel overlays hidden" id="ovBox"><h3>Overlays in this room</h3><div id="ovList"></div></section>
 
     <section class="panel links"><h3>Room links</h3><div class="tiles" id="links"></div></section>
 
@@ -105,14 +97,15 @@
 
 <script src="/static/common.js"></script>
 <script src="/static/chat.js"></script>
+<script src="/static/cuelist.js"></script>
 <script>
 (async () => {
-  const { esc, api, post, guard, toast, fmtTime, timerClock } = AT;
+  const { esc, api, post, guard, toast } = AT;
   const $ = (id) => document.getElementById(id);
   // Inside the AT-SUIT Node Windows app the app owns enrolment and pop-ups.
   const APP = window.atsuitApp || null;
   const VERSION = APP ? `app-${await APP.version()}` : "web-0.1.0";
-  let nodeToken = null, node = null, boot = null, roomId = null, sock = null, chat = null, timer = null;
+  let nodeToken = null, node = null, boot = null, roomId = null, sock = null, chat = null;
   if (APP) nodeToken = await APP.nodeToken();
   else try { nodeToken = localStorage.getItem("atsuit_node_token"); } catch (_) {}
   const nodeHdr = () => (nodeToken ? { Authorization: `Node ${nodeToken}` } : {});
@@ -253,26 +246,36 @@
   const topics = [...boot.sites.map((s) => `site:${s.id}`), ...boot.rooms.map((r) => `room:${r.id}`), `dm:${boot.me.id}`, `timer:${roomId}`, `captions:${roomId}`];
   sock = AT.socket(topics, onEvent, (up) => { $("conn").textContent = up ? "live" : "reconnecting"; $("conn").className = "pill " + (up ? "good" : "bad"); });
 
-  // timer
-  $("timerLink").href = `/timer/${roomId}`;
-  if (boot.modules.timers) {
-    timer = await api(`/api/timers/${roomId}`);
-    setInterval(() => {
-      const left = timerClock(timer)(), c = $("clock");
-      c.textContent = fmtTime(left);
-      c.className = "clock bigclock " + (left < 0 ? "over" : left < timer.danger_ms ? "danger" : left < timer.warn_ms ? "warn" : "");
-      $("ttitle").textContent = (timer.title || "") + (timer.message_visible ? `  ·  On stage: ${timer.message}` : "");
-    }, 200);
-    const parse = (s) => { const p = s.trim().split(":").map(Number); return p.some(isNaN) ? null : (p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p.length === 2 ? p[0] * 60 + p[1] : p[0] * 60) * 1000; };
-    document.querySelectorAll("[data-t]").forEach((b) => b.onclick = () => {
-      const body = {};
-      if (b.dataset.t === "set") { const d = parse($("dur").value); if (d === null) return toast("Use mm:ss, like 20:00", "bad"); body.duration_ms = d; }
-      guard(() => post(`/api/timers/${roomId}/${b.dataset.t}`, body));
+  // timer and cue list
+  let cuelist = null;
+  if (boot.modules.timers) cuelist = CueList.mount($("timerBox"), roomId);
+
+  // this room's AT LiveOverlay laptops
+  async function renderOverlays() {
+    let targets = [];
+    try { targets = (await api("/api/overlays/targets")).filter((t) => t.room_id === roomId); } catch (_) { return; }
+    $("ovBox").classList.toggle("hidden", !targets.length);
+    $("ovList").innerHTML = targets.map((t) => `<div class="ov" data-t="${t.id}"><div class="row" style="justify-content:space-between"><b>${esc(t.name)}</b><span class="pill" data-st>…</span></div>
+      <div class="row" style="margin-top:.4rem">Overlay <select data-n style="width:auto"><option value="all">All</option></select>
+        <button class="small primary" data-a="show">Show</button><button class="small" data-a="hide">Hide</button><button class="small" data-a="reload">Reload</button></div>
+      <div class="row" style="margin-top:.4rem"><select data-scene class="grow"></select><button class="small" data-load>Load scene</button></div></div>`).join("");
+    $("ovList").querySelectorAll("[data-t]").forEach(async (card) => {
+      const id = card.dataset.t;
+      card.querySelectorAll("[data-a]").forEach((b) => b.onclick = () => guard(() => post(`/api/overlays/targets/${id}/action`, { overlay: card.querySelector("[data-n]").value, action: b.dataset.a })).then(() => toast("Done", "good")));
+      card.querySelector("[data-load]").onclick = () => guard(() => post(`/api/overlays/targets/${id}/scenes/load`, { name: card.querySelector("[data-scene]").value })).then(() => toast("Scene loaded", "good"));
+      const st = card.querySelector("[data-st]");
+      try {
+        const s = await api(`/api/overlays/targets/${id}/status`);
+        const ovs = s.overlays || [];
+        st.textContent = `online · ${ovs.length} overlay${ovs.length === 1 ? "" : "s"}`; st.className = "pill good";
+        card.querySelector("[data-n]").innerHTML = '<option value="all">All</option>' + ovs.map((o, i) => { const n = o.id ?? o.number ?? i + 1; return `<option value="${esc(n)}">${esc(o.name || "Overlay " + n)}</option>`; }).join("");
+        const sc = await api(`/api/overlays/targets/${id}/scenes`);
+        const names = Array.isArray(sc) ? sc : sc.scenes || [];
+        card.querySelector("[data-scene]").innerHTML = names.map((n) => `<option>${esc(typeof n === "string" ? n : n.name)}</option>`).join("");
+      } catch (_) { st.textContent = "offline"; st.className = "pill bad"; }
     });
-    document.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/add`, { delta_ms: +b.dataset.add })));
-    $("msgShow").onclick = () => guard(() => post(`/api/timers/${roomId}/message`, { message: $("stagemsg").value, message_visible: true }));
-    $("msgHide").onclick = () => guard(() => post(`/api/timers/${roomId}/message`, { message_visible: false }));
   }
+  if (boot.modules.overlays) renderOverlays();
 
   // chat: open on this room's channel
   if (boot.modules.comms) {
@@ -318,7 +321,7 @@
       if (mine || m.priority === "urgent") notify(evt.topic.startsWith("dm:") ? `${m.sender_name} (direct)` : m.sender_name, m.body || "Sent a file", m.priority === "urgent" ? "urgent" : "chat");
     }
     if (evt.type === "help.new") notify(`Help needed in ${evt.data.room_name}`, evt.data.description || evt.data.category, "urgent");
-    if (evt.topic === `timer:${roomId}` && evt.type === "timer") timer = evt.data;
+    cuelist && cuelist.onEvent(evt);
     if (evt.topic === `captions:${roomId}`) {
       if (evt.type === "final") { finals.push(evt.data.text); partial = ""; renderCaps(); }
       else if (evt.type === "partial") { partial = evt.data.text; renderCaps(); }

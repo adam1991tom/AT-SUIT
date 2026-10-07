@@ -1,6 +1,6 @@
-// Console: dashboard, chat, help, timers, captions, overlays, nodes, admin.
+// Console: dashboard, chat, help, timers, captions, nodes, admin.
 (async () => {
-  const { esc, api, post, put, del, upload, guard, toast, when, fmtTime, timerClock } = AT;
+  const { esc, api, post, put, del, upload, guard, toast, when } = AT;
   const main = document.getElementById("main");
   let boot, sock, chat = null, view = null, helpOpen = 0;
 
@@ -59,7 +59,7 @@
     const banner = boot.licence.valid ? "" : `<div class="banner">Evaluation mode: ${esc(boot.licence.reason)}. Add a licence in Admin → Licence.</div>`;
     main.innerHTML = banner + '<div id="view"></div>';
     const el = document.getElementById("view");
-    const views = { dashboard, chat: chatView, help, timers, captions, overlays, fleet, admin };
+    const views = { dashboard, chat: chatView, help, timers, captions, fleet, admin };
     (views[name] || dashboard)(el, sub);
   }
 
@@ -106,41 +106,93 @@
 
   // ------------------------------------------------------------- timers --
   async function timers(el) {
+    // Preview only: techs run timers and cue lists from their workspace. This
+    // page watches every room and routes the remote screens.
     const states = {};
-    el.innerHTML = `<h1>Timers</h1><p class="muted">Stage screens: open <code>/timer/&lt;room&gt;</code> on any screen, no sign-in needed. Companion can drive these with an API key.</p><div class="grid" id="tg"></div>`;
+    const views = await api("/api/timers-views");
+    const viewOpts = (sel) => [...views, { id: "captions", name: "Captions" }].map((v) => `<option value="${esc(v.id)}" ${v.id === sel ? "selected" : ""}>${esc(v.name)}</option>`).join("");
+    el.innerHTML = `<h1>Timers</h1><p class="muted">Live preview of every room. Techs run the timer and cue list from their workspace; Companion can drive them with an API key.</p>
+      <div class="grid" id="tg"></div>
+      <div class="row" style="justify-content:space-between;margin-top:1.4rem"><h2>Screens</h2><span class="muted small">Pick what each remote screen shows. A screen can also choose for itself: tap its top-left corner 5 times.</span></div>
+      <div class="panel" id="screens"></div>
+      <h2 style="margin-top:1.4rem">Views</h2><div class="panel" id="views"></div>`;
     const grid = el.querySelector("#tg");
     for (const r of boot.rooms) {
       states[r.id] = await api(`/api/timers/${r.id}`);
       grid.insertAdjacentHTML("beforeend", `<div class="panel" data-room="${r.id}">
-        <div class="row" style="justify-content:space-between"><h2>${esc(r.name)}</h2><a class="small" href="/timer/${r.id}" target="_blank">Screen ↗</a></div>
-        <div class="clock" style="font-size:2.6rem">--:--</div><div class="muted small title"></div>
-        <div class="row" style="margin-top:.5rem"><input class="grow" placeholder="mm:ss" data-dur style="width:6rem"><button data-a="set">Set</button></div>
-        <div class="row" style="margin-top:.4rem"><button class="primary" data-a="toggle">Start / pause</button><button data-a="reset">Reset</button><button data-add="-60000">−1m</button><button data-add="60000">+1m</button></div>
-        <div class="row" style="margin-top:.4rem"><input class="grow" placeholder="Message to stage" data-msg><button data-a="message">Show</button><button data-hide>Hide</button></div></div>`);
+        <div class="row" style="justify-content:space-between"><h2>${esc(r.name)}</h2><span class="small"><a href="/timer/${r.id}" target="_blank">Stage ↗</a> · <a href="/timer/${r.id}?view=backstage" target="_blank">Backstage ↗</a></span></div>
+        <div class="clock" style="font-size:2.6rem">--:--</div><div class="small now" style="font-weight:600"></div><div class="muted small next"></div></div>`);
     }
-    const parse = (s) => { const p = s.trim().split(":").map(Number); return p.some(isNaN) ? null : (p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p.length === 2 ? p[0] * 60 + p[1] : p[0] * 60) * 1000; };
-    grid.querySelectorAll("[data-room]").forEach((card) => {
-      const id = +card.dataset.room;
-      card.querySelectorAll("[data-a]").forEach((b) => b.onclick = () => {
-        const a = b.dataset.a, body = {};
-        if (a === "set") { const d = parse(card.querySelector("[data-dur]").value); if (d === null) return toast("Use mm:ss, like 20:00", "bad"); body.duration_ms = d; }
-        if (a === "message") { body.message = card.querySelector("[data-msg]").value; body.message_visible = true; }
-        guard(() => post(`/api/timers/${id}/${a}`, body));
-      });
-      card.querySelector("[data-hide]").onclick = () => guard(() => post(`/api/timers/${id}/message`, { message_visible: false }));
-      card.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${id}/add`, { delta_ms: +b.dataset.add })));
-    });
     const tick = setInterval(() => {
       if (!document.body.contains(grid)) return clearInterval(tick);
       for (const [id, s] of Object.entries(states)) {
         const card = grid.querySelector(`[data-room="${id}"]`); if (!card) continue;
-        const left = timerClock(s)(), c = card.querySelector(".clock");
-        c.textContent = fmtTime(left);
-        c.className = "clock " + (left < 0 ? "over" : left < s.danger_ms ? "danger" : left < s.warn_ms ? "warn" : "");
-        card.querySelector(".title").textContent = (s.title || "") + (s.message_visible ? `  ·  Stage message: ${s.message}` : "");
+        const d = AT.timerDisplay(s), c = card.querySelector(".clock");
+        c.textContent = d.text; c.className = "clock " + d.cls;
+        card.querySelector(".now").textContent = (s.cue?.cue ? s.cue.cue + " · " : "") + (s.title || "") + (s.playback === "pause" ? " (paused)" : "");
+        card.querySelector(".next").textContent = (s.next ? `Next: ${s.next.title}` : "") + (s.message_visible ? `  ·  On stage: ${s.message}` : "");
       }
     }, 200);
-    view = { onEvent: (e) => { if (e.type === "timer") states[e.data.room_id] = e.data; } };
+
+    async function renderScreens() {
+      const box = el.querySelector("#screens");
+      if (!box) return;
+      const [all, rel] = await Promise.all([api("/api/fleet/nodes"), api("/api/fleet/screen-agent").catch(() => ({}))]);
+      const screens = all.filter((n) => n.kind === "kiosk"), isAdmin = boot.me.role === "admin";
+      const agentVer = (n) => n.info?.agent || "";
+      const status = (n) => {
+        const v = agentVer(n);
+        if (!v) return `<span class="muted">${n.legacy ? esc(n.version) || "old agent" : "browser only"}</span>`;
+        return rel.version && v !== rel.version ? `${esc(v)} <span class="pill warn">update to ${esc(rel.version)}</span>` : `${esc(v)} <span class="pill good">up to date</span>`;
+      };
+      const output = (n) => (n.info?.showing_on || []).map((o) => /^(eDP|LVDS|DSI)/i.test(o) ? "built-in screen" : esc(o)).join(", ");
+      box.innerHTML = `<table><tr><th></th><th>Screen</th><th>Address</th><th>Room</th><th>Shows</th><th>Agent</th><th>Last seen</th><th></th></tr>
+        ${screens.map((n) => `<tr data-n="${n.id}"><td><span class="dot ${n.online ? "on" : "off"}"></span></td><td><b>${esc(n.name)}</b>${n.legacy ? ' <span class="pill">old agent</span>' : ""}<div class="muted small" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(n.current_url)}">${esc(n.current_url)}</div>${output(n) ? `<div class="muted small">On ${output(n)}</div>` : ""}</td>
+          <td class="small">${esc(n.ip)}</td>
+          <td><select data-room style="width:auto">${roomOptions(n.room_id, "Choose…")}</select></td>
+          <td>${n.legacy ? '<span class="muted small">use Set screen in Nodes</span>' : `<select data-view style="width:auto"><option value="">Choose…</option>${viewOpts(n.screen_view)}<option value="__url" ${(n.screen_view || "").startsWith("url:") ? "selected" : ""}>Web page…</option></select>`}</td>
+          <td class="small">${status(n)}</td>
+          <td class="small">${n.last_seen ? when(new Date(n.last_seen * 1000).toISOString()) : "never"}</td>
+          <td class="row" style="flex-wrap:nowrap"><button class="small" data-ident>Identify</button>${agentVer(n) ? `<button class="small" data-cmd="restart_browser" title="Restart the browser on this screen">Restart</button><button class="small" data-cmd="update" title="Update the screen agent now">Update</button>` : `<button class="small" data-cmd="reload">Reload</button>`}${isAdmin ? '<button class="small" data-cmd="reboot">Reboot</button>' : ""}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No screens yet. Install the screen agent on a Linux laptop or all-in-one (Admin → Node setup).</td></tr>'}</table>`;
+      box.querySelectorAll("[data-n]").forEach((row) => {
+        const id = +row.dataset.n, n = screens.find((x) => x.id === id);
+        const save = () => {
+          const room = row.querySelector("[data-room]").value, v = row.querySelector("[data-view]");
+          if (!v) return guard(() => put(`/api/fleet/nodes/${id}`, { room_id: room ? +room : null }));
+          let view = v.value;
+          if (view === "__url") {
+            const url = prompt(`Web page for ${n.name} (http:// or https://)`, (n.screen_view || "").startsWith("url:") ? n.screen_view.slice(4) : "https://");
+            if (!url || !/^https?:\/\//.test(url.trim())) return renderScreens();
+            view = "url:" + url.trim();
+          }
+          if (view && (room || view.startsWith("url:"))) guard(() => put(`/api/fleet/nodes/${id}/screen`, { room_id: room ? +room : null, view })).then(() => toast("Screen updated", "good"));
+        };
+        row.querySelector("[data-room]").onchange = save;
+        row.querySelector("[data-view]") && (row.querySelector("[data-view]").onchange = save);
+        row.querySelectorAll("[data-cmd]").forEach((b) => b.onclick = () => (b.dataset.cmd !== "reboot" || confirm(`Reboot ${n.name}?`)) && guard(() => post(`/api/fleet/nodes/${id}/command`, { kind: b.dataset.cmd })).then(() => toast("Sent", "good")));
+        row.querySelector("[data-ident]").onclick = () => guard(() => post(`/api/fleet/nodes/${id}/command`, { kind: "identify" })).then(() => toast("The screen shows its name for 10 seconds", "good"));
+      });
+    }
+
+    function renderViews() {
+      const box = el.querySelector("#views");
+      const custom = views.filter((v) => !v.builtin);
+      box.innerHTML = `<p class="small muted">Built in: ${views.filter((v) => v.builtin).map((v) => esc(v.name)).join(", ")}. Custom views made for Ontime work as they are: upload the view's folder as a .zip (with index.html), or a single .html file.</p>
+        <table>${custom.map((v) => `<tr><td><b>${esc(v.name)}</b></td><td class="small">${boot.rooms.slice(0, 4).map((r) => `<a target="_blank" href="/external/${esc(v.slug)}/?room=${r.id}">${esc(r.name)} ↗</a>`).join(" · ")}</td>
+          <td>${boot.me.role === "admin" ? `<button class="small danger" data-delview="${esc(v.slug)}">Remove</button>` : ""}</td></tr>`).join("") || '<tr><td class="muted small">No custom views yet.</td></tr>'}</table>
+        ${boot.me.role === "admin" ? `<form class="row" id="upView" style="margin-top:.6rem"><input name="name" placeholder="View name, e.g. Lower third timer" required class="grow"><input type="file" name="file" accept=".zip,.html,.htm" required style="width:auto"><button class="primary">Upload view</button></form>` : ""}`;
+      box.querySelectorAll("[data-delview]").forEach((b) => b.onclick = () => guard(() => del(`/api/timers-views/${b.dataset.delview}`)).then(() => timers(el)));
+      const f = box.querySelector("#upView");
+      if (f) f.onsubmit = (e) => { e.preventDefault(); guard(() => upload(`/api/timers-views?name=${encodeURIComponent(f.name.value)}`, f.file.files[0])).then(() => { toast("View added", "good"); timers(el); }); };
+    }
+
+    renderScreens();
+    renderViews();
+    let pending = null;
+    view = { onEvent: (e) => {
+      if (e.type === "timer") states[e.data.room_id] = e.data;
+      if (e.topic === "fleet" && !pending) pending = setTimeout(() => { pending = null; renderScreens(); }, 1500);
+    } };
   }
 
   // ----------------------------------------------------------- captions --
@@ -176,42 +228,6 @@
       el.querySelector("#tx").innerHTML = tx.length ? `<table><tr><th>Room</th><th>Started</th><th>Ended</th><th></th></tr>${tx.map((t) => `<tr><td>${esc(t.room)}</td><td>${when(t.started_at)}</td><td>${when(t.ended_at)}</td><td><a href="/api/captions/transcripts/${t.id}">Download</a></td></tr>`).join("")}</table>` : '<p class="muted">None saved yet.</p>';
     };
     view = { onEvent: (e) => { if (e.type === "status" || e.type === "captions.engine") render(); } };
-    render();
-  }
-
-  // ----------------------------------------------------------- overlays --
-  async function overlays(el) {
-    const render = async () => {
-      const targets = await api("/api/overlays/targets");
-      el.innerHTML = `<h1>Overlays</h1><p class="muted">Each laptop running AT LiveOverlay shows its address and API token under Remote Control in its tray menu.</p>
-        ${boot.me.role === "admin" ? `<form class="panel row" id="addT" style="margin-bottom:1rem"><input name="name" placeholder="Name, e.g. CC Lectern" required style="width:12rem">
-          <input name="base_url" placeholder="http://10.100.70.88:8765" required class="grow"><input name="token" placeholder="API token" style="width:14rem">
-          <select name="room_id" style="width:10rem">${roomOptions(null)}</select><button class="primary">Add</button></form>` : ""}
-        <div class="grid">${targets.map((t) => `<div class="panel" data-t="${t.id}"><div class="row" style="justify-content:space-between"><h2>${esc(t.name)}</h2><span class="pill" data-st>…</span></div>
-          <div class="muted small">${esc(t.base_url)} ${t.room ? "· " + esc(t.room) : ""}</div>
-          <div class="row" style="margin-top:.5rem">Overlay <input data-n value="all" style="width:4rem"></div>
-          <div class="row" style="margin-top:.4rem">${["show", "hide", "reload", "lock", "unlock"].map((a) => `<button class="small" data-a="${a}">${a}</button>`).join("")}</div>
-          <div class="row" style="margin-top:.4rem"><input class="grow" data-url placeholder="New URL for this overlay"><button class="small" data-a="seturl">Set URL</button></div>
-          <div class="row" style="margin-top:.4rem"><select data-scene class="grow"></select><button class="small" data-load>Load scene</button>${boot.me.role === "admin" ? '<button class="small danger" data-del>Remove</button>' : ""}</div></div>`).join("") || '<p class="muted">No overlay laptops added yet.</p>'}</div>`;
-      const f = el.querySelector("#addT");
-      if (f) f.onsubmit = (e) => { e.preventDefault(); const b = Object.fromEntries(new FormData(f)); b.room_id = b.room_id ? +b.room_id : null; guard(() => post("/api/overlays/targets", b)).then(render); };
-      el.querySelectorAll("[data-t]").forEach(async (card) => {
-        const id = card.dataset.t;
-        card.querySelectorAll("[data-a]").forEach((b) => b.onclick = () => guard(() => post(`/api/overlays/targets/${id}/action`, {
-          overlay: card.querySelector("[data-n]").value.trim() || "all", action: b.dataset.a, url: b.dataset.a === "seturl" ? card.querySelector("[data-url]").value : undefined,
-        })).then(() => toast("Sent", "good")));
-        card.querySelector("[data-load]").onclick = () => guard(() => post(`/api/overlays/targets/${id}/scenes/load`, { name: card.querySelector("[data-scene]").value }));
-        card.querySelector("[data-del]") && (card.querySelector("[data-del]").onclick = () => confirm("Remove this overlay laptop?") && guard(() => del(`/api/overlays/targets/${id}`)).then(render));
-        const st = card.querySelector("[data-st]");
-        try {
-          const s = await api(`/api/overlays/targets/${id}/status`);
-          st.textContent = `online · ${(s.overlays || []).length} overlays`; st.className = "pill good";
-          const sc = await api(`/api/overlays/targets/${id}/scenes`);
-          const names = Array.isArray(sc) ? sc : sc.scenes || [];
-          card.querySelector("[data-scene]").innerHTML = names.map((n) => `<option>${esc(typeof n === "string" ? n : n.name)}</option>`).join("");
-        } catch (e) { st.textContent = "offline"; st.className = "pill bad"; }
-      });
-    };
     render();
   }
 
@@ -255,10 +271,10 @@
   // -------------------------------------------------------------- admin --
   async function admin(el, sub = "general") {
     if (boot.me.role !== "admin") { el.innerHTML = '<p class="muted">Admins only.</p>'; return; }
-    const tabs = { general: "General", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", keys: "API keys", import: "Import", audit: "Audit & backup" };
+    const tabs = { general: "General", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", import: "Import", audit: "Audit & backup" };
     el.innerHTML = `<h1>Admin</h1><div class="tabs">${Object.entries(tabs).map(([k, v]) => `<button class="${k === sub ? "on" : ""}" onclick="location.hash='#/admin/${k}'">${v}</button>`).join("")}</div><div id="adm"></div>`;
     const a = el.querySelector("#adm");
-    ({ general: admGeneral, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, keys: admKeys, import: admImport, audit: admAudit }[sub] || admGeneral)(a);
+    ({ general: admGeneral, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, import: admImport, audit: admAudit }[sub] || admGeneral)(a);
   }
 
   async function admGeneral(a) {
@@ -366,6 +382,7 @@
         <li>Each day a tech signs in and picks the room they're in. The choice resets every morning.</li>
         <li>On the backup laptop only, tick <b>This laptop → Show pop-ups</b>. Pop-ups are silent and sit on top of everything.</li></ol>
       <p class="small muted">For a silent roll-out, put <code>{"server": "${esc(origin)}", "enrol_code": "CODE"}</code> in <code>C:\\ProgramData\\AT-SUIT\\node.json</code> and install with <code>/S</code>. A browser at <code>${esc(origin)}/node</code> still works too.</p>
+      <p class="small"><b>Linux screens</b> (laptops and all-in-ones that only show a timer or view): run this once on the screen, as the desktop user:<br><code>curl -fsSL ${esc(origin)}/screen-agent/install.sh | bash -s -- --server ${esc(origin)} --code CODE --name HD-STAGE-1 --allow-power</code><br><span class="muted">Then route it in Timers → Screens. With HDMI plugged in, it shows only on HDMI.</span></p>
       <p class="small muted">For captions without a browser, run the node agent: <code>python atsuit_node.py --server ${esc(origin)} --code CODE --name ATLAP3 --room CC --mic</code></p>
       ${sites.map((s) => `<p><b>${esc(s.name)}</b>: <code style="font-size:1.2rem">${esc(s.enrol_code)}</code> <button class="small" data-new="${s.id}">New code</button></p>`).join("")}
       <label>Windows app release (the .exe, .blockmap and latest.yml from the GitHub release; laptops update when the app next closes)</label><div class="row"><input type="file" id="appFiles" class="grow" multiple accept=".exe,.blockmap,.yml"><button class="small" id="upApp">Publish app</button></div>
@@ -384,6 +401,20 @@
     a.querySelector("#upAgent").onclick = () => { const f = a.querySelector("#agentFile").files[0]; f && guard(() => upload("/api/fleet/agent", f)).then((r) => toast(`Agent ${r.version} published`, "good")); };
     a.querySelector("#upKey").onclick = () => { const f = a.querySelector("#key").files[0]; f && guard(() => upload("/api/fleet/ssh-key", f)).then(() => toast("Key saved", "good")); };
     a.querySelector("#upRel").onclick = () => { const f = a.querySelector("#rel").files[0], v = a.querySelector("#ver").value.trim(); f && v && guard(() => upload(`/api/fleet/client-release?version=${encodeURIComponent(v)}`, f)).then(() => toast("Published", "good")); };
+  }
+
+  async function admOverlays(a) {
+    // Setup only: techs control a room's overlays from their workspace.
+    const targets = await api("/api/overlays/targets");
+    a.innerHTML = `<div class="panel card" style="max-width:900px"><h2>Overlay laptops</h2>
+      <p class="small muted">Each laptop running AT LiveOverlay shows its address and API token under Remote Control in its tray menu. Give it a room and the techs in that room get its controls in their workspace.</p>
+      <table>${targets.map((t) => `<tr><td><b>${esc(t.name)}</b></td><td class="small">${esc(t.base_url)}</td><td>${esc(t.room || "No room")}</td><td><button class="small danger" data-del="${t.id}">Remove</button></td></tr>`).join("") || '<tr><td class="muted">None yet.</td></tr>'}</table>
+      <form class="row" id="addT" style="margin-top:.6rem;flex-wrap:wrap"><input name="name" placeholder="Name, e.g. CC Lectern" required style="width:12rem">
+        <input name="base_url" placeholder="http://10.100.70.88:8765" required class="grow"><input name="token" placeholder="API token" style="width:14rem">
+        <select name="room_id" style="width:10rem">${roomOptions(null)}</select><button class="primary">Add</button></form></div>`;
+    const f = a.querySelector("#addT");
+    f.onsubmit = (e) => { e.preventDefault(); const b = Object.fromEntries(new FormData(f)); b.room_id = b.room_id ? +b.room_id : null; guard(() => post("/api/overlays/targets", b)).then(() => admOverlays(a)); };
+    a.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => guard(() => del(`/api/overlays/targets/${b.dataset.del}`)).then(() => admOverlays(a)));
   }
 
   async function admKeys(a) {

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AT-SUIT screen</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
+  body.hidecursor { cursor: none; }
+  #frame { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
+  #pick { position: fixed; inset: 0; background: var(--bg); overflow: auto; padding: 4vh 4vw; z-index: 5; cursor: default; }
+  #pick h1 { font-size: 2.2rem; margin: 0 0 .3rem; }
+  #pick .tiles button { font-size: 1.4rem; padding: 1.2rem; min-height: 5rem; }
+  #pick .tiles button.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+  #ident { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--accent); color: #fff; z-index: 9; font-weight: 800; }
+  #ident b { font-size: 14vw; } #ident span { font-size: 3vw; }
+  #corner { position: fixed; left: 0; top: 0; width: 80px; height: 80px; z-index: 6; }
+  #status { position: fixed; right: 1vw; bottom: 1vh; z-index: 7; font-size: 1rem; }
+</style>
+</head>
+<body class="hidecursor">
+<iframe id="frame" class="hidden" allow="autoplay; fullscreen"></iframe>
+<div id="corner" title="Tap 5 times to change what this screen shows"></div>
+
+<div id="enrol" class="center hidden" style="position:fixed;inset:0;background:var(--bg);z-index:8;cursor:default">
+  <form class="panel card" id="enrolForm">
+    <h1>Add this screen to AT-SUIT</h1>
+    <p class="muted">You only do this once. An admin finds the enrolment code in Admin → Node setup.</p>
+    <label>Screen name</label><input name="name" required placeholder="e.g. HD-STAGE-1">
+    <label>Enrolment code</label><input name="code" required placeholder="ABCD-1234-EF56" style="text-transform:uppercase">
+    <p id="enrolErr" class="muted" style="color:#fecaca"></p>
+    <div class="row" style="justify-content:flex-end"><button class="primary">Add screen</button></div>
+  </form>
+</div>
+
+<div id="pick" class="hidden">
+  <h1 id="pickTitle">What should this screen show?</h1>
+  <p class="muted" id="pickSub"></p>
+  <h3>Room</h3><div class="tiles" id="pickRooms"></div>
+  <h3 style="margin-top:1.4rem">View</h3><div class="tiles" id="pickViews"></div>
+  <div class="row" style="margin-top:1.6rem"><button class="primary" id="pickGo" style="font-size:1.3rem;padding:1rem 2rem">Show it</button><button id="pickCancel" class="hidden">Cancel</button></div>
+</div>
+<div id="ident" class="hidden"><b></b><span></span></div>
+<span id="status" class="pill bad hidden">offline</span>
+
+<script src="/static/common.js"></script>
+<script>
+// A display-only screen (Linux laptop or all-in-one). It shows one room's
+// timer view, captions, a custom view or a web page; the tech picks that on
+// the screen itself, or it is routed from the dashboard (Timers → Screens).
+(async () => {
+  const { esc, api, toast } = AT;
+  const $ = (id) => document.getElementById(id);
+  const VERSION = "screen-web-0.2.0";
+  const KINDS = "set_url,reload,identify,message";
+  let token = null, me = null, shown = "", pickRoom = null, pickView = null;
+  const hash = new URLSearchParams(location.hash.slice(1));
+  try {
+    if (hash.get("token")) { localStorage.setItem("atsuit_screen_token", hash.get("token")); history.replaceState(null, "", location.pathname + location.search); }
+    token = localStorage.getItem("atsuit_screen_token");
+  } catch (_) {}
+  const hdr = () => ({ Authorization: `Node ${token}` });
+
+  function urlFor(roomId, view) {
+    if (!view || !roomId && !view.startsWith("url:")) return "";
+    if (view.startsWith("url:")) return view.slice(4);
+    if (view.startsWith("view:")) return `/external/${encodeURIComponent(view.slice(5))}/?room=${roomId}`;
+    if (view === "captions") return `/captions/${roomId}`;
+    return `/timer/${roomId}?view=${encodeURIComponent(view)}`;
+  }
+
+  async function loadMe() {
+    try { me = await api("/api/nodes/me", { headers: hdr() }); return true; }
+    catch (e) {
+      if (e.status === 401) { try { localStorage.removeItem("atsuit_screen_token"); } catch (_) {} token = null; showEnrol(); }
+      return false;
+    }
+  }
+
+  function showEnrol() {
+    $("enrol").classList.remove("hidden");
+    const f = $("enrolForm");
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        const r = await AT.post("/api/nodes/enrol", { name: f.name.value, code: f.code.value.trim().toUpperCase(), kind: "kiosk" });
+        localStorage.setItem("atsuit_screen_token", r.token);
+        location.reload();
+      } catch (ex) { $("enrolErr").textContent = ex.message; }
+    };
+  }
+
+  function show(roomId, view) {
+    const url = urlFor(roomId, view);
+    if (!url) return openPicker(false);
+    $("pick").classList.add("hidden");
+    document.body.classList.add("hidecursor");
+    if (url !== shown) { shown = url; $("frame").src = url; }
+    $("frame").classList.remove("hidden");
+  }
+
+  function openPicker(cancellable) {
+    pickRoom = me.node.room_id; pickView = me.node.screen_view || "stage";
+    $("pickSub").textContent = `${me.node.name}. You can also change this from the AT-SUIT dashboard (Timers → Screens).`;
+    $("pickCancel").classList.toggle("hidden", !cancellable);
+    const draw = () => {
+      $("pickRooms").innerHTML = me.rooms.map((r) => `<button data-r="${r.id}" class="${r.id === pickRoom ? "on" : ""}">${esc(r.name)}</button>`).join("") || '<p class="muted">No rooms yet.</p>';
+      $("pickViews").innerHTML = me.views.map((v) => `<button data-v="${esc(v.id)}" class="${v.id === pickView ? "on" : ""}">${esc(v.name)}</button>`).join("");
+      $("pickRooms").querySelectorAll("[data-r]").forEach((b) => b.onclick = () => { pickRoom = +b.dataset.r; draw(); });
+      $("pickViews").querySelectorAll("[data-v]").forEach((b) => b.onclick = () => { pickView = b.dataset.v; draw(); });
+    };
+    draw();
+    $("pick").classList.remove("hidden");
+    document.body.classList.remove("hidecursor");
+  }
+  $("pickGo").onclick = async () => {
+    if (!pickRoom) return toast("Pick a room", "bad");
+    try { await api("/api/nodes/me/screen", { method: "PUT", headers: hdr(), body: { room_id: pickRoom, view: pickView } }); }
+    catch (e) { return toast(e.message, "bad"); }
+    await loadMe();
+    show(me.node.room_id, me.node.screen_view);
+  };
+  $("pickCancel").onclick = () => show(me.node.room_id, me.node.screen_view);
+
+  // Change the view from the screen: tap the top-left corner 5 times, or press P.
+  let taps = [];
+  $("corner").onclick = () => {
+    const now = Date.now();
+    taps = [...taps.filter((t) => now - t < 3000), now];
+    if (taps.length >= 5) { taps = []; openPicker(true); }
+  };
+  document.addEventListener("keydown", (e) => { if (e.key === "p" || e.key === "P") openPicker(true); });
+
+  async function heartbeat() {
+    try {
+      const r = await api("/api/nodes/heartbeat", { method: "POST", headers: hdr(), body: {
+        // version stays empty: the Linux screen agent reports the version when it runs here
+        version: "", current_url: shown ? new URL(shown, location.href).href : "",
+        info: { page: VERSION, screen: `${screen.width}x${screen.height}`, user_agent: navigator.userAgent, view: me.node.screen_view } } });
+      $("status").classList.add("hidden");
+      if ((r.room_id || null) !== (me.node.room_id || null) || (r.screen_view || "") !== (me.node.screen_view || "")) {
+        await loadMe();
+        show(me.node.room_id, me.node.screen_view); // routed from the dashboard
+      }
+    } catch (e) {
+      if (e.status === 401) return location.reload();
+      $("status").classList.remove("hidden");
+    }
+  }
+
+  async function commands() {
+    let cmds = [];
+    try { cmds = await api(`/api/nodes/commands?kinds=${KINDS}`, { headers: hdr() }); } catch (_) { return; }
+    for (const c of cmds) {
+      if (c.kind === "set_url" && /^https?:\/\//.test(c.payload.url || "")) {
+        await api("/api/nodes/me/screen", { method: "PUT", headers: hdr(), body: { room_id: me.node.room_id, view: `url:${c.payload.url}` } }).catch(() => {});
+        await loadMe(); show(me.node.room_id, me.node.screen_view);
+      } else if (c.kind === "reload") setTimeout(() => location.reload(), 300);
+      else if (c.kind === "identify") {
+        $("ident").querySelector("b").textContent = me.node.name;
+        $("ident").querySelector("span").textContent = me.room ? me.room.name : "";
+        $("ident").classList.remove("hidden");
+        setTimeout(() => $("ident").classList.add("hidden"), 10000);
+      } else if (c.kind === "message") toast(c.payload.text || "Message from AT-SUIT");
+      await api(`/api/nodes/commands/${c.id}/ack`, { method: "POST", headers: hdr(), body: { ok: true } }).catch(() => {});
+    }
+  }
+
+  if (!token) return showEnrol();
+  if (!(await loadMe())) return;
+  show(me.node.room_id, me.node.screen_view);
+  heartbeat(); setInterval(heartbeat, 5000);
+  commands(); setInterval(commands, 3000);
+})();
+</script>
+</body>
+</html>

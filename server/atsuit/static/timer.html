@@ -6,33 +6,85 @@
 <link rel="stylesheet" href="/static/app.css">
 <style>
   body { background: #000; overflow: hidden; cursor: none; }
-  .stage { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 3vh 4vw; }
+  .stage { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 3vh 4vw; box-sizing: border-box; }
   #title { font-size: 4vw; color: #cbd5e1; min-height: 5vw; }
-  #clock { font-size: 26vw; line-height: 1; }
+  #clock { font-size: 26vw; line-height: 1; font-variant-numeric: tabular-nums; }
+  #next { font-size: 2.4vw; color: #64748b; margin-top: 2vh; min-height: 3vw; }
   #msg { font-size: 6vw; font-weight: 700; color: #fff; background: #b91c1c; padding: 1vh 3vw; border-radius: 1vw; margin-top: 3vh; }
+  #msg.blink { animation: blink 1s steps(2, start) infinite; }
+  @keyframes blink { to { visibility: hidden; } }
   #room { position: fixed; left: 2vw; bottom: 2vh; color: #475569; font-size: 1.6vw; }
   #off { position: fixed; right: 2vw; bottom: 2vh; color: #ef4444; font-size: 1.4vw; }
+  #black { position: fixed; inset: 0; background: #000; z-index: 10; }
+  /* minimal: just the numbers */
+  body.minimal #title, body.minimal #next, body.minimal #room { display: none; }
+  body.minimal #clock { font-size: 32vw; }
+  /* clock: time of day */
+  body.clockview #next, body.clockview #msg { display: none; }
+  /* backstage: timer on the left, running order on the right */
+  body.backstage .stage { flex-direction: row; align-items: stretch; gap: 3vw; text-align: left; }
+  body.backstage .main { flex: 1.3; display: flex; flex-direction: column; justify-content: center; }
+  body.backstage #clock { font-size: 13vw; }
+  body.backstage #title { font-size: 3vw; }
+  body.backstage #next { font-size: 2vw; }
+  body.backstage #msg { font-size: 3vw; align-self: flex-start; }
+  #list { display: none; flex: 1; overflow: hidden; font-size: 1.6vw; color: #cbd5e1; }
+  body.backstage #list { display: block; }
+  #list .q { display: flex; gap: 1vw; padding: .6vh .8vw; border-left: .5vw solid transparent; border-bottom: 1px solid #1e293b; }
+  #list .q.now { background: #1e293b; color: #fff; font-weight: 700; }
+  #list .q.skip { opacity: .35; text-decoration: line-through; }
+  #list .q .cue { width: 4vw; color: #64748b; }
+  #list .q .t { flex: 1; }
+  #list .q .d { color: #94a3b8; font-variant-numeric: tabular-nums; }
 </style>
 </head>
 <body>
-<div class="stage"><div id="title"></div><div id="clock" class="clock">--:--</div><div id="msg" class="hidden"></div></div>
-<div id="room"></div><div id="off" class="hidden">reconnecting…</div>
+<div class="stage">
+  <div class="main" style="display:contents">
+    <div id="title"></div><div id="clock" class="clock">--:--</div><div id="next"></div><div id="msg" class="hidden"></div>
+  </div>
+  <div id="list"></div>
+</div>
+<div id="room"></div><div id="off" class="hidden">reconnecting…</div><div id="black" class="hidden"></div>
 <script src="/static/common.js"></script>
 <script>
 (async () => {
+  // Built-in views: /timer/<room>?view=stage|minimal|clock|backstage
   const roomId = location.pathname.split("/")[2];
-  let s = await AT.api(`/api/timers/${roomId}`);
+  const view = new URLSearchParams(location.search).get("view") || "stage";
+  document.body.classList.add({ minimal: "minimal", clock: "clockview", backstage: "backstage" }[view] || "stage");
+  if (view === "backstage") document.querySelector(".main").style.display = "";
   const $ = (id) => document.getElementById(id);
+  let s = await AT.api(`/api/timers/${roomId}`), cues = [];
   $("room").textContent = s.room;
+  const dur = (ms) => AT.fmtTime(ms).replace(/^\+/, "");
+  const renderList = () => {
+    $("list").innerHTML = cues.map((q) => `<div class="q ${q.id === s.cue?.id ? "now" : ""} ${q.skip ? "skip" : ""}" style="border-left-color:${AT.esc(q.colour || "transparent")}">` +
+      `<span class="cue">${AT.esc(q.cue)}</span><span class="t">${AT.esc(q.title)}</span><span class="d">${q.time_start ? AT.esc(q.time_start) + " · " : ""}${dur(q.duration_ms)}</span></div>`).join("");
+    $("list").querySelector(".now")?.scrollIntoView({ block: "center" });
+  };
+  if (view === "backstage") { cues = await AT.api(`/api/timers/${roomId}/cues`); renderList(); }
   const draw = () => {
-    const left = AT.timerClock(s)();
-    $("clock").textContent = AT.fmtTime(left);
-    $("clock").className = "clock " + (left < 0 ? "over" : left < s.danger_ms ? "danger" : left < s.warn_ms ? "warn" : "");
+    if (view === "clock") {
+      $("clock").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      $("title").textContent = s.room;
+      return;
+    }
+    const d = AT.timerDisplay(s);
+    $("clock").textContent = d.text;
+    $("clock").className = "clock " + d.cls;
     $("title").textContent = s.title || "";
-    $("msg").textContent = s.message; $("msg").classList.toggle("hidden", !s.message_visible || !s.message);
+    $("next").textContent = s.next ? `Next: ${s.next.title}` : "";
+    $("msg").textContent = s.message;
+    $("msg").classList.toggle("hidden", !s.message_visible || !s.message);
+    $("msg").classList.toggle("blink", !!s.message_blink);
+    $("black").classList.toggle("hidden", !s.blackout);
   };
   setInterval(draw, 100);
-  AT.socket([`timer:${roomId}`], (e) => { if (e.type === "timer") s = e.data; }, (up) => {
+  AT.socket([`timer:${roomId}`], (e) => {
+    if (e.type === "timer") { s = e.data; if (view === "backstage") renderList(); }
+    if (e.type === "cues" && view === "backstage") { cues = e.data.cues; renderList(); }
+  }, (up) => {
     $("off").classList.toggle("hidden", up);
     if (up) AT.api(`/api/timers/${roomId}`).then((x) => (s = x));
   });
