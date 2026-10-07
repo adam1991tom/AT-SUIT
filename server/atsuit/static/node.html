@@ -163,7 +163,7 @@
     <div id="scrList"></div>
   </section>
 
-  <section class="win" data-win="overlays" data-title="Overlays" data-w="460"><div id="ovList"></div></section>
+  <section class="win" data-win="overlays" data-title="Overlays" data-w="480"><div id="atOv"></div><div id="ovList"></div></section>
 
   <section class="win" data-win="links" data-title="Links" data-w="420"><div class="tiles" id="links"></div></section>
 
@@ -219,13 +219,18 @@
     let cmds = [];
     try { cmds = await api("/api/nodes/commands", { headers: nodeHdr() }); } catch (_) { return; }
     for (const c of cmds) {
-      let ok = true;
+      let ok = true, detail = "";
       if (c.kind === "set_url") showKiosk(c.payload.url);
       else if (c.kind === "reload") setTimeout(() => location.reload(), 500);
       else if (c.kind === "message") toast(c.payload.text || "Message from the server");
       else if (c.kind === "identify") { $("ident").textContent = node?.node?.name || "THIS ONE"; $("ident").classList.remove("hidden"); setTimeout(() => $("ident").classList.add("hidden"), 6000); }
+      else if (c.kind === "overlay") {
+        // The AT Overlay window over this laptop's screen (sent from any laptop in the room).
+        if (APP && APP.overlay) { const r = await APP.overlay(c.payload).catch((e) => ({ ok: false, error: String(e) })); ok = !!r.ok; detail = r.error || ""; }
+        else { ok = false; detail = "Only the AT-SUIT Node app has an overlay"; }
+      }
       else ok = false; // reboot/shutdown/update need the node agent
-      await api(`/api/nodes/commands/${c.id}/ack`, { method: "POST", headers: nodeHdr(), body: { ok, detail: ok ? "" : "Browser nodes can't do that; run the node agent" } }).catch(() => {});
+      await api(`/api/nodes/commands/${c.id}/ack`, { method: "POST", headers: nodeHdr(), body: { ok, detail: detail || (ok ? "" : "Browser nodes can't do that; run the node agent") } }).catch(() => {});
     }
   }
   function techLaptop() { return node?.node?.kind === "tech"; }
@@ -400,11 +405,56 @@
     }, 500);
   }
 
+  // AT Overlay: the room timer in a click-through window on any tech laptop
+  // in this room. From here a tech can turn it on or off on their own laptop
+  // or on the other one (e.g. from the backup PC onto the main PC's screen).
+  const OV_POS = [["bottom-right", "Bottom right"], ["bottom-left", "Bottom left"], ["top-right", "Top right"], ["top-left", "Top left"], ["bottom-bar", "Bar along the bottom"], ["top-bar", "Bar along the top"]];
+  const OV_SIZE = [["small", "Small"], ["medium", "Medium"], ["large", "Large"]];
+  let atOvCount = 0, lvOvCount = 0;
+  const ovAvail = () => wins.overlays.available(atOvCount + lvOvCount > 0);
+  async function renderAtOverlay() {
+    let rows = [];
+    try { rows = await api(`/api/rooms/${roomId}/overlays`); } catch (_) { rows = []; }
+    atOvCount = rows.length; ovAvail();
+    const meId = node?.node?.id;
+    const opts = (list, v) => list.map(([k, t]) => `<option value="${k}"${k === v ? " selected" : ""}>${t}</option>`).join("");
+    const mine = rows.find((r) => r.id === meId);
+    const displays = mine && APP && APP.overlayState ? ((await APP.overlayState().catch(() => null))?.displays || []) : [];
+    $("atOv").innerHTML = !rows.length ? "" : `<p class="muted small" style="margin:0 0 .5rem">AT Overlay puts the room timer over a laptop's screen. Clicks go through it to whatever is underneath.</p>` +
+      rows.map((r) => {
+        const w = r.want || {}, st = r.state, on = st ? !!st.on : !!w.on;
+        const pill = !r.online ? '<span class="pill">offline</span>' : !r.app ? '<span class="pill">no app</span>' : st?.error ? `<span class="pill bad" title="${esc(st.error)}">problem</span>` : on ? '<span class="pill good">on</span>' : '<span class="pill">off</span>';
+        const who = `${esc(r.operator || r.name)}${r.id === meId ? " (this laptop)" : ""}`;
+        const disp = r.id === meId && displays.length > 1 ? `<select data-o="display" style="width:auto">${displays.map((d) => `<option value="${d.index}"${d.index === (w.display || 0) ? " selected" : ""}>${esc(d.label || "Display " + (d.index + 1))}</option>`).join("")}</select>` : "";
+        return `<div class="ov" data-ov="${r.id}"><div class="row" style="justify-content:space-between"><b>${who}</b><span class="row" style="gap:.3rem">${r.mode ? `<span class="pill">${r.mode === "main" ? "Main" : "Backup"}</span>` : ""}${pill}</span></div>
+          <div class="row" style="margin-top:.4rem;flex-wrap:wrap"><button class="small ${on ? "" : "primary"}" data-on="1">Turn on</button><button class="small" data-on="0">Turn off</button>
+            <select data-o="position" style="width:auto">${opts(OV_POS, w.position)}</select><select data-o="size" style="width:auto">${opts(OV_SIZE, w.size)}</select>${disp}</div>
+          <div class="row" style="margin-top:.4rem"><input data-o="url" class="grow" placeholder="Room timer (or paste a web address)" value="${esc(w.url || "")}"><button class="small" data-apply>Apply</button></div></div>`;
+      }).join("") + (lvOvCount ? '<hr style="border:0;border-top:1px solid var(--line);margin:.8rem 0">' : "");
+    $("atOv").querySelectorAll("[data-ov]").forEach((card) => {
+      const id = +card.dataset.ov;
+      const body = (extra) => {
+        const b = { position: card.querySelector('[data-o="position"]').value, size: card.querySelector('[data-o="size"]').value, url: card.querySelector('[data-o="url"]').value.trim(), ...extra };
+        const d = card.querySelector('[data-o="display"]'); if (d) b.display = +d.value;
+        return b;
+      };
+      const send = (extra) => guard(async () => {
+        await api(`/api/fleet/nodes/${id}/overlay`, { method: "PUT", body: body(extra) });
+        if (id === meId && APP && APP.overlay) await APP.overlay(body(extra)); // this laptop: straight away
+        toast(extra.on === false ? "Overlay off" : "Overlay sent", "good");
+      }).then(() => setTimeout(renderAtOverlay, 1500), () => {});
+      card.querySelectorAll("[data-on]").forEach((b) => (b.onclick = () => send({ on: b.dataset.on === "1" })));
+      card.querySelector("[data-apply]").onclick = () => send({});
+    });
+  }
+  let atOvTimer = null;
+  if (boot.modules.fleet) { renderAtOverlay(); setInterval(renderAtOverlay, 30000); }
+
   // this room's AT LiveOverlay laptops
   async function renderOverlays() {
     let targets = [];
     try { targets = (await api("/api/overlays/targets")).filter((t) => t.room_id === roomId); } catch (_) { return; }
-    wins.overlays.available(targets.length > 0);
+    lvOvCount = targets.length; ovAvail();
     $("ovList").innerHTML = targets.map((t) => `<div class="ov" data-t="${t.id}"><div class="row" style="justify-content:space-between"><b>${esc(t.name)}</b><span class="pill" data-st>…</span></div>
       <div class="row" style="margin-top:.4rem">Overlay <select data-n style="width:auto"><option value="all">All</option></select>
         <button class="small primary" data-a="show">Show</button><button class="small" data-a="hide">Hide</button><button class="small" data-a="reload">Reload</button></div>
@@ -586,6 +636,7 @@
     }
     cuelist && cuelist.onEvent(evt);
     if (evt.topic === `timer:${roomId}` && evt.type === "timer") tstate = evt.data;
+    if ((evt.type === "overlay.changed" || evt.type === "node.changed") && evt.topic === `room:${roomId}`) { clearTimeout(atOvTimer); atOvTimer = setTimeout(renderAtOverlay, 400); }
     if (evt.type === "presenter.changed" && evt.topic === `room:${roomId}` && boot.modules.presenter) { clearTimeout(sessTimer); sessTimer = setTimeout(renderSessions, 300); }
     if (evt.topic === `captions:${roomId}`) {
       if (evt.type === "final") { finals.push(evt.data.text); partial = ""; renderCaps(); }
