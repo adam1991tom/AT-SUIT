@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tech workspace</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  .top { display: flex; gap: .8rem; align-items: center; padding: .7rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .wrap { padding: 1rem; }
+  #kiosk { position: fixed; inset: 0; border: 0; width: 100%; height: 100%; background: #000; }
+  #ident { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12vw; font-weight: 800; background: var(--accent); color: #fff; z-index: 50; }
+  .bigclock { font-size: clamp(3rem, 9vw, 6rem); line-height: 1; }
+  .helpbtn { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 700; font-size: 1.05rem; padding: .8rem 1.2rem; }
+  .chatbox .chat-mount { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .chatbox .msgs .list { max-height: 48vh; }
+</style>
+</head>
+<body>
+<div id="enrol" class="center hidden">
+  <form class="panel card" id="enrolForm">
+    <h1>Set up this laptop</h1>
+    <p class="muted">An admin can find the enrolment code in Admin → Node setup.</p>
+    <label>Laptop name</label><input name="name" required placeholder="e.g. ATLAP3">
+    <label>Enrolment code</label><input name="code" required placeholder="ABCD-1234-EF56" style="text-transform:uppercase">
+    <label>This laptop is a</label><select name="kind"><option value="tech">Tech workspace</option><option value="kiosk">Kiosk screen</option><option value="caption">Caption source only</option></select>
+    <p id="enrolErr" class="muted" style="color:#fecaca"></p>
+    <div class="row" style="justify-content:space-between"><a href="#" id="skip">Skip, just sign in</a><button class="primary">Set up</button></div>
+  </form>
+</div>
+
+<div id="login" class="center hidden">
+  <form class="panel card" id="loginForm">
+    <h1><span id="nodeName"></span> · sign in</h1>
+    <label>Username</label><input name="username" autocomplete="username" required>
+    <label>Password</label><input name="password" type="password" autocomplete="current-password" required>
+    <p id="loginErr" class="muted" style="color:#fecaca"></p>
+    <div class="row" style="justify-content:flex-end"><button class="primary">Sign in</button></div>
+  </form>
+</div>
+
+<div id="ws" class="hidden">
+  <div class="top">
+    <b data-product>AT-SUIT</b>
+    <span class="muted" id="who"></span>
+    <select id="room" style="width:auto"></select>
+    <span class="grow"></span>
+    <span class="pill" id="conn">connecting</span>
+    <a class="btn" href="/">Console</a>
+    <button id="out">Sign out</button>
+  </div>
+  <div class="wrap ws-grid">
+    <section class="panel timer">
+      <div class="row" style="justify-content:space-between"><h3>Room timer</h3><a class="small" id="timerLink" target="_blank">Stage screen ↗</a></div>
+      <div class="clock bigclock" id="clock">--:--</div>
+      <div class="muted" id="ttitle"></div>
+      <div class="row" style="margin-top:.6rem">
+        <button class="primary" data-t="toggle">Start / pause</button><button data-t="reset">Reset</button>
+        <button data-add="-60000">−1m</button><button data-add="60000">+1m</button>
+        <input id="dur" placeholder="mm:ss" style="width:6rem"><button data-t="set">Set</button>
+      </div>
+      <div class="row" style="margin-top:.5rem"><input id="stagemsg" class="grow" placeholder="Message to the stage"><button id="msgShow">Show</button><button id="msgHide">Hide</button></div>
+    </section>
+
+    <section class="panel chatbox"><h3>Chat</h3><div class="chat-mount" id="chat"></div></section>
+
+    <section class="panel captions">
+      <div class="row" style="justify-content:space-between"><h3>Captions</h3><span class="pill" id="capState">off</span></div>
+      <div class="cap-live" id="capText"><span class="muted">Captions for this room appear here.</span></div>
+      <div class="meter"><i id="meter"></i></div>
+      <div class="row" style="margin-top:.6rem">
+        <select id="mic" class="grow"></select>
+        <button class="primary" id="micBtn">Send my mic</button>
+      </div>
+      <p class="muted small" id="micNote"></p>
+    </section>
+
+    <section class="panel links"><h3>Room links</h3><div class="tiles" id="links"></div></section>
+
+    <section class="panel helpbox">
+      <h3>Help</h3>
+      <div class="row"><select id="helpCat" style="width:auto"><option>Audio</option><option>Video</option><option>Presenter</option><option>Lighting</option><option>Network</option><option>Other</option></select>
+        <input id="helpText" class="grow" placeholder="What's wrong?"><button class="helpbtn" id="helpBtn">Call for help</button></div>
+      <div id="helpList" class="small" style="margin-top:.6rem"></div>
+    </section>
+  </div>
+</div>
+<iframe id="kiosk" class="hidden" allow="autoplay; fullscreen"></iframe>
+<div id="ident" class="hidden"></div>
+
+<script src="/static/common.js"></script>
+<script src="/static/chat.js"></script>
+<script>
+(async () => {
+  const { esc, api, post, guard, toast, fmtTime, timerClock } = AT;
+  const $ = (id) => document.getElementById(id);
+  const VERSION = "web-0.1.0";
+  let nodeToken = null, node = null, boot = null, roomId = null, sock = null, chat = null, timer = null;
+  try { nodeToken = localStorage.getItem("atsuit_node_token"); } catch (_) {}
+  const nodeHdr = () => (nodeToken ? { Authorization: `Node ${nodeToken}` } : {});
+  await AT.branding();
+
+  // ---------------------------------------------------------------- node --
+  async function nodeMe() {
+    if (!nodeToken) return null;
+    try { return await api("/api/nodes/me", { headers: nodeHdr() }); }
+    catch (e) { if (e.status === 401) { try { localStorage.removeItem("atsuit_node_token"); } catch (_) {} nodeToken = null; } return null; }
+  }
+  async function heartbeat() {
+    if (!nodeToken) return;
+    try {
+      await api("/api/nodes/heartbeat", { method: "POST", headers: nodeHdr(), body: { version: VERSION, current_url: $("kiosk").src || location.href,
+        info: { user_agent: navigator.userAgent, screen: `${screen.width}x${screen.height}`, signed_in: boot?.me?.name || "", room_id: roomId } } });
+    } catch (_) {}
+  }
+  async function pollCommands() {
+    if (!nodeToken) return;
+    let cmds = [];
+    try { cmds = await api("/api/nodes/commands", { headers: nodeHdr() }); } catch (_) { return; }
+    for (const c of cmds) {
+      let ok = true;
+      if (c.kind === "set_url") showKiosk(c.payload.url);
+      else if (c.kind === "reload") setTimeout(() => location.reload(), 500);
+      else if (c.kind === "message") toast(c.payload.text || "Message from the server");
+      else if (c.kind === "identify") { $("ident").textContent = node?.node?.name || "THIS ONE"; $("ident").classList.remove("hidden"); setTimeout(() => $("ident").classList.add("hidden"), 6000); }
+      else ok = false; // reboot/shutdown/update need the node agent
+      await api(`/api/nodes/commands/${c.id}/ack`, { method: "POST", headers: nodeHdr(), body: { ok, detail: ok ? "" : "Browser nodes can't do that; run the node agent" } }).catch(() => {});
+    }
+  }
+  function showKiosk(url) {
+    try { localStorage.setItem("atsuit_kiosk_url", url); } catch (_) {}
+    if (node?.node?.kind !== "kiosk") { window.open(url, "_blank"); return; }
+    $("kiosk").src = url; $("kiosk").classList.remove("hidden");
+  }
+
+  node = await nodeMe();
+  if (!node && !sessionStorage.getItem("atsuit_skip_enrol")) {
+    try { await api("/api/auth/me"); } catch (_) {}
+    $("enrol").classList.remove("hidden");
+    $("skip").onclick = (e) => { e.preventDefault(); sessionStorage.setItem("atsuit_skip_enrol", "1"); location.reload(); };
+    const f = $("enrolForm");
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        const r = await post("/api/nodes/enrol", { name: f.name.value, code: f.code.value.trim().toUpperCase(), kind: f.kind.value });
+        localStorage.setItem("atsuit_node_token", r.token);
+        location.reload();
+      } catch (ex) { $("enrolErr").textContent = ex.message; }
+    };
+    return;
+  }
+  if (node) {
+    heartbeat(); setInterval(heartbeat, 10000); setInterval(pollCommands, 3000); pollCommands();
+    if (node.node.kind === "kiosk") {
+      let url = node.node.current_url; try { url = localStorage.getItem("atsuit_kiosk_url") || url; } catch (_) {}
+      if (url) showKiosk(url);
+      else document.body.insertAdjacentHTML("beforeend", `<div class="center"><div class="panel card"><h1>${esc(node.node.name)}</h1><p class="muted">Waiting for a screen. Pick one for this kiosk in Nodes on the console.</p></div></div>`);
+      return;
+    }
+  }
+
+  // --------------------------------------------------------------- login --
+  try { boot = await api("/api/bootstrap"); if (boot.me.kind !== "account") boot = null; } catch (_) { boot = null; }
+  if (!boot) {
+    $("login").classList.remove("hidden");
+    $("nodeName").textContent = node ? node.node.name : "Tech workspace";
+    const f = $("loginForm");
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      try { await post("/api/auth/login", { username: f.username.value, password: f.password.value }); location.reload(); }
+      catch (ex) { $("loginErr").textContent = ex.message; }
+    };
+    return;
+  }
+
+  // ----------------------------------------------------------- workspace --
+  $("ws").classList.remove("hidden");
+  $("who").textContent = `${boot.me.name}${node ? " on " + node.node.name : ""}`;
+  $("out").onclick = async () => { await post("/api/auth/logout"); location.reload(); };
+  ["timer", "chatbox", "captions", "links", "helpbox"].forEach((c) => {
+    const mod = { timer: "timers", chatbox: "comms", captions: "captions", links: "dashboard", helpbox: "comms" }[c];
+    if (!boot.modules[mod]) document.querySelector(`.${c}`).classList.add("hidden");
+  });
+  let saved = null; try { saved = +localStorage.getItem("atsuit_room") || null; } catch (_) {}
+  roomId = (node?.room?.id) || saved || boot.rooms[0]?.id;
+  $("room").innerHTML = boot.rooms.map((r) => `<option value="${r.id}" ${r.id === roomId ? "selected" : ""}>${esc(r.name)}</option>`).join("");
+  $("room").onchange = () => { try { localStorage.setItem("atsuit_room", $("room").value); } catch (_) {} location.reload(); };
+
+  const topics = [...boot.sites.map((s) => `site:${s.id}`), ...boot.rooms.map((r) => `room:${r.id}`), `dm:${boot.me.id}`, `timer:${roomId}`, `captions:${roomId}`];
+  sock = AT.socket(topics, onEvent, (up) => { $("conn").textContent = up ? "live" : "reconnecting"; $("conn").className = "pill " + (up ? "good" : "bad"); });
+
+  // timer
+  $("timerLink").href = `/timer/${roomId}`;
+  if (boot.modules.timers) {
+    timer = await api(`/api/timers/${roomId}`);
+    setInterval(() => {
+      const left = timerClock(timer)(), c = $("clock");
+      c.textContent = fmtTime(left);
+      c.className = "clock bigclock " + (left < 0 ? "over" : left < timer.danger_ms ? "danger" : left < timer.warn_ms ? "warn" : "");
+      $("ttitle").textContent = (timer.title || "") + (timer.message_visible ? `  ·  On stage: ${timer.message}` : "");
+    }, 200);
+    const parse = (s) => { const p = s.trim().split(":").map(Number); return p.some(isNaN) ? null : (p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p.length === 2 ? p[0] * 60 + p[1] : p[0] * 60) * 1000; };
+    document.querySelectorAll("[data-t]").forEach((b) => b.onclick = () => {
+      const body = {};
+      if (b.dataset.t === "set") { const d = parse($("dur").value); if (d === null) return toast("Use mm:ss, like 20:00", "bad"); body.duration_ms = d; }
+      guard(() => post(`/api/timers/${roomId}/${b.dataset.t}`, body));
+    });
+    document.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/add`, { delta_ms: +b.dataset.add })));
+    $("msgShow").onclick = () => guard(() => post(`/api/timers/${roomId}/message`, { message: $("stagemsg").value, message_visible: true }));
+    $("msgHide").onclick = () => guard(() => post(`/api/timers/${roomId}/message`, { message_visible: false }));
+  }
+
+  // chat: open on this room's channel
+  if (boot.modules.comms) {
+    const chans = await api("/api/comms/channels");
+    chat = Chat.mount($("chat"), { me: boot.me, compact: true, prefer: chans.find((c) => c.room_id === roomId)?.id });
+  }
+
+  // links
+  if (boot.modules.dashboard) {
+    const links = (await api(`/api/dashboard/links?room_id=${roomId}`)).filter((l) => l.room_id === roomId || l.kind === "tool");
+    $("links").innerHTML = links.map((l) => `<a class="tile" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("") || '<p class="muted small">No links for this room yet.</p>';
+  }
+
+  // help
+  async function renderHelp() {
+    const rows = (await api("/api/comms/help")).filter((h) => h.status !== "resolved").slice(0, 6);
+    $("helpList").innerHTML = rows.map((h) => `<div class="row" style="margin:.2rem 0"><span class="pill ${h.status === "open" ? "bad" : "warn"}">${esc(h.status)}</span> <b>${esc(h.room_name)}</b> ${esc(h.category)}: ${esc(h.description)} <span class="muted">${esc(h.assigned_to)}</span>` +
+      `${h.status === "open" ? `<button class="small" data-h="${h.id}" data-s="acknowledged">On my way</button>` : ""}<button class="small" data-h="${h.id}" data-s="resolved">Resolved</button></div>`).join("") || '<span class="muted">No open requests.</span>';
+    $("helpList").querySelectorAll("[data-h]").forEach((b) => b.onclick = () => guard(() => AT.put(`/api/comms/help/${b.dataset.h}`, { status: b.dataset.s })));
+  }
+  if (boot.modules.comms) {
+    renderHelp();
+    $("helpBtn").onclick = () => guard(() => post("/api/comms/help", { room_id: roomId, category: $("helpCat").value, description: $("helpText").value, priority: "urgent" })).then(() => { $("helpText").value = ""; toast("Help is on the way", "good"); });
+  }
+
+  // captions
+  const finals = [];
+  let partial = "";
+  function renderCaps() {
+    $("capText").innerHTML = finals.slice(-3).map((t) => `<div>${esc(t)}</div>`).join("") + (partial ? `<div class="partial">${esc(partial)}</div>` : "") || '<span class="muted">Captions for this room appear here.</span>';
+  }
+  if (boot.modules.captions) {
+    const r = await api(`/api/captions/${roomId}/recent`);
+    finals.push(...r.finals); partial = r.partial; renderCaps();
+    $("capState").textContent = r.live ? "live" : "off"; $("capState").className = "pill " + (r.live ? "good" : "");
+    setupMic();
+  }
+
+  function onEvent(evt) {
+    chat && chat.onEvent(evt);
+    if (evt.topic === `timer:${roomId}` && evt.type === "timer") timer = evt.data;
+    if (evt.topic === `captions:${roomId}`) {
+      if (evt.type === "final") { finals.push(evt.data.text); partial = ""; renderCaps(); }
+      else if (evt.type === "partial") { partial = evt.data.text; renderCaps(); }
+      else if (evt.type === "clear") { finals.length = 0; partial = ""; renderCaps(); }
+      else if (evt.type === "level") $("meter").style.width = Math.max(0, Math.min(100, (evt.data.db + 60) / 60 * 100)) + "%";
+      else if (evt.type === "status") { $("capState").textContent = evt.data.live ? `live · ${evt.data.source}` : "off"; $("capState").className = "pill " + (evt.data.live ? "good" : ""); }
+    }
+    if (evt.type === "help.new") { toast(`Help needed in ${evt.data.room_name}: ${evt.data.description || evt.data.category}`, "bad"); renderHelp(); }
+    if (evt.type === "help.updated") renderHelp();
+  }
+
+  // ------------------------------------------------------------- mic in --
+  async function setupMic() {
+    const btn = $("micBtn"), note = $("micNote"), sel = $("mic");
+    if (!window.isSecureContext || !navigator.mediaDevices) {
+      btn.disabled = true; sel.classList.add("hidden");
+      note.textContent = "Browsers only allow the microphone over https. Open this page through the server's https address, or run the node agent for captions.";
+      return;
+    }
+    async function listMics() {
+      const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+      sel.innerHTML = devs.map((d, i) => `<option value="${esc(d.deviceId)}">${esc(d.label || "Microphone " + (i + 1))}</option>`).join("");
+      try { const m = localStorage.getItem("atsuit_mic"); if (m) sel.value = m; } catch (_) {}
+    }
+    await listMics();
+    let ctx = null, stream = null, ws = null;
+    async function startMic() {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: sel.value ? { exact: sel.value } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      try { localStorage.setItem("atsuit_mic", sel.value); } catch (_) {}
+      await listMics();
+      ctx = new AudioContext();
+      const worklet = `class P extends AudioWorkletProcessor{constructor(){super();this.r=sampleRate/16000;this.acc=0;this.buf=[]}
+        process(i){const ch=i[0]&&i[0][0];if(!ch)return true;for(let n=0;n<ch.length;n++){this.acc+=1;if(this.acc>=this.r){this.acc-=this.r;let s=Math.max(-1,Math.min(1,ch[n]));this.buf.push(s<0?s*32768:s*32767)}}
+        if(this.buf.length>=1600){this.port.postMessage(Int16Array.from(this.buf).buffer,[]);this.buf=[]}return true}}registerProcessor('p',P)`;
+      await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([worklet], { type: "application/javascript" })));
+      const src = ctx.createMediaStreamSource(stream), proc = new AudioWorkletNode(ctx, "p");
+      src.connect(proc);
+      const q = nodeToken ? `?node_token=${encodeURIComponent(nodeToken)}` : "";
+      ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/audio/${roomId}${q}`);
+      ws.binaryType = "arraybuffer";
+      ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === "error") { toast(m.message, "bad"); stopMic(); } if (m.type === "replaced") { toast(`${m.by} took over the captions mic`); stopMic(); } };
+      ws.onclose = () => stopMic();
+      proc.port.onmessage = (e) => ws.readyState === 1 && ws.send(e.data);
+      btn.textContent = "Stop my mic"; btn.classList.remove("primary"); btn.classList.add("danger");
+      note.textContent = "Your microphone is captioning this room.";
+    }
+    function stopMic() {
+      if (ws && ws.readyState <= 1) ws.close();
+      stream && stream.getTracks().forEach((t) => t.stop());
+      ctx && ctx.close().catch(() => {});
+      ws = stream = ctx = null;
+      btn.textContent = "Send my mic"; btn.classList.add("primary"); btn.classList.remove("danger");
+      note.textContent = "";
+    }
+    btn.onclick = () => (ws ? stopMic() : startMic().catch((e) => { toast(e.message, "bad"); stopMic(); }));
+  }
+})();
+</script>
+</body>
+</html>

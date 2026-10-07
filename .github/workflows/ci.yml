@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -r server/requirements.txt -r server/requirements-asr.txt -r server/requirements-dev.txt
+      - name: Cache speech model
+        id: model
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: sherpa-zipformer-en-2023-06-21
+      - name: Download speech model
+        if: steps.model.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p models && cd models
+          curl -fsSL -o m.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2
+          tar xjf m.tar.bz2 --wildcards '*/tokens.txt' '*int8.onnx' '*/test_wavs/0.wav' && rm m.tar.bz2
+      - name: Test
+        working-directory: server
+        env:
+          ATSUIT_TEST_MODELS: ${{ github.workspace }}/models
+        run: python -m pytest -q
+      - name: Check node agent
+        run: python -m py_compile node-agent/atsuit_node.py tools/licence.py
+
+  image:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build --build-arg VERSION=$(cat VERSION) -t atsuit:ci .
+      - name: Smoke test
+        run: |
+          docker run -d --name atsuit -p 8080:8080 -e ATSUIT_ASR=0 atsuit:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/api/health && exit 0; sleep 2; done
+          docker logs atsuit; exit 1

@@ -1,0 +1,13 @@
+# HTTPS in front of AT-SUIT with Caddy's own local certificate authority.
+# Browsers need https before they let a page use the microphone.
+# Install the root certificate on each laptop once: Admin → Node setup explains how,
+# or copy it out with: docker compose cp tls:/data/caddy/pki/authorities/local/root.crt .
+{
+	local_certs
+	skip_install_trust
+}
+
+https://{$ATSUIT_TLS_HOST}, https://localhost {
+	tls internal
+	reverse_proxy atsuit:8080
+}

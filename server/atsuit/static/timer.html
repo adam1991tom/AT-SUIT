@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stage timer</title>
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  body { background: #000; overflow: hidden; cursor: none; }
+  .stage { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 3vh 4vw; }
+  #title { font-size: 4vw; color: #cbd5e1; min-height: 5vw; }
+  #clock { font-size: 26vw; line-height: 1; }
+  #msg { font-size: 6vw; font-weight: 700; color: #fff; background: #b91c1c; padding: 1vh 3vw; border-radius: 1vw; margin-top: 3vh; }
+  #room { position: fixed; left: 2vw; bottom: 2vh; color: #475569; font-size: 1.6vw; }
+  #off { position: fixed; right: 2vw; bottom: 2vh; color: #ef4444; font-size: 1.4vw; }
+</style>
+</head>
+<body>
+<div class="stage"><div id="title"></div><div id="clock" class="clock">--:--</div><div id="msg" class="hidden"></div></div>
+<div id="room"></div><div id="off" class="hidden">reconnecting…</div>
+<script src="/static/common.js"></script>
+<script>
+(async () => {
+  const roomId = location.pathname.split("/")[2];
+  let s = await AT.api(`/api/timers/${roomId}`);
+  const $ = (id) => document.getElementById(id);
+  $("room").textContent = s.room;
+  const draw = () => {
+    const left = AT.timerClock(s)();
+    $("clock").textContent = AT.fmtTime(left);
+    $("clock").className = "clock " + (left < 0 ? "over" : left < s.danger_ms ? "danger" : left < s.warn_ms ? "warn" : "");
+    $("title").textContent = s.title || "";
+    $("msg").textContent = s.message; $("msg").classList.toggle("hidden", !s.message_visible || !s.message);
+  };
+  setInterval(draw, 100);
+  AT.socket([`timer:${roomId}`], (e) => { if (e.type === "timer") s = e.data; }, (up) => {
+    $("off").classList.toggle("hidden", up);
+    if (up) AT.api(`/api/timers/${roomId}`).then((x) => (s = x));
+  });
+})();
+</script>
+</body>
+</html>

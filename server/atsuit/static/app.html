@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AT-SUIT</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div id="login" class="center hidden">
+  <form class="panel card" id="loginForm">
+    <h1>Sign in to <span data-product>AT-SUIT</span></h1>
+    <label>Username</label><input name="username" autocomplete="username" required>
+    <label>Password</label><input name="password" type="password" autocomplete="current-password" required>
+    <p id="loginErr" class="muted" style="color:#fecaca"></p>
+    <div class="row" style="justify-content:space-between"><a href="/node">Open the tech workspace</a><button class="primary">Sign in</button></div>
+  </form>
+</div>
+<div id="shell" class="shell hidden">
+  <nav class="side" id="nav">
+    <div class="brand"><img id="logo" class="hidden" alt=""><span data-product>AT-SUIT</span></div>
+    <a href="#/dashboard" data-mod="dashboard">Dashboard</a>
+    <a href="#/chat" data-mod="comms">Chat <span class="unread hidden" id="unreadAll"></span></a>
+    <a href="#/help" data-mod="comms">Help requests <span class="unread hidden" id="helpCount"></span></a>
+    <a href="#/timers" data-mod="timers">Timers</a>
+    <a href="#/captions" data-mod="captions">Captions</a>
+    <a href="#/overlays" data-mod="overlays">Overlays</a>
+    <a href="#/fleet" data-mod="fleet">Nodes</a>
+    <a href="#/admin" data-role="admin">Admin</a>
+    <div class="spacer"></div>
+    <a href="/node">Tech workspace</a>
+    <a href="#" id="logout"><span id="meName"></span><span class="muted small">Sign out</span></a>
+  </nav>
+  <main class="main" id="main"></main>
+</div>
+<script src="/static/common.js"></script>
+<script src="/static/chat.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

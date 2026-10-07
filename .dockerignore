@@ -1,0 +1,9 @@
+.git
+**/__pycache__
+**/.pytest_cache
+.env
+backups
+data
+node-agent
+docs
+server/tests

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Set up AT-SUIT</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="center">
+  <form class="panel card" id="f" autocomplete="off" novalidate>
+    <div class="steps"><span></span><span></span><span></span><span></span></div>
+
+    <section data-step="0">
+      <h1>Welcome to <span data-product>AT-SUIT</span></h1>
+      <p class="muted">This sets up the server for your venue. Everything here can be changed later in Admin.</p>
+      <label>Organisation name</label><input name="organisation" required placeholder="e.g. Grand Hall Events">
+      <label>Venue (site) name</label><input name="site_name" required placeholder="e.g. Main Venue">
+      <label>Time zone</label><input name="timezone" value="Europe/London">
+    </section>
+
+    <section data-step="1" class="hidden">
+      <h1>Rooms</h1>
+      <p class="muted">One room per line. Each room gets its own chat, timer and captions.</p>
+      <textarea name="rooms" rows="8" placeholder="CC&#10;HD&#10;RH&#10;Q1"></textarea>
+    </section>
+
+    <section data-step="2" class="hidden">
+      <h1>Administrator</h1>
+      <p class="muted">The first account. It can add techs and other admins.</p>
+      <label>Your name</label><input name="admin_display_name" placeholder="e.g. Adam">
+      <label>Username</label><input name="admin_username" required minlength="2" autocomplete="username">
+      <label>Password (8+ characters)</label><input name="admin_password" type="password" required minlength="8" autocomplete="new-password">
+      <label>Confirm password</label><input name="confirm" type="password" required minlength="8" autocomplete="new-password">
+    </section>
+
+    <section data-step="3" class="hidden">
+      <h1>Licence</h1>
+      <p class="muted">Paste your licence key, or leave it empty to run in evaluation mode (1 site, 5 nodes).</p>
+      <textarea name="licence_key" rows="4" placeholder="Licence key (optional)"></textarea>
+    </section>
+
+    <p id="err" class="muted" style="color:#fecaca"></p>
+    <div class="row" style="justify-content:space-between;margin-top:1rem">
+      <button type="button" id="back">Back</button>
+      <button type="submit" class="primary" id="next">Next</button>
+    </div>
+  </form>
+</div>
+<script src="/static/common.js"></script>
+<script>
+(async () => {
+  const st = await AT.api("/api/setup/status");
+  if (st.setup_complete) location.replace("/");
+  AT.branding();
+  const f = document.getElementById("f"), steps = [...f.querySelectorAll("section")];
+  let step = 0;
+  function show() {
+    steps.forEach((s, i) => s.classList.toggle("hidden", i !== step));
+    f.querySelectorAll(".steps span").forEach((s, i) => s.classList.toggle("on", i <= step));
+    document.getElementById("back").style.visibility = step ? "visible" : "hidden";
+    document.getElementById("next").textContent = step === steps.length - 1 ? "Finish setup" : "Next";
+    steps[step].querySelector("input,textarea")?.focus();
+  }
+  document.getElementById("back").onclick = () => { step--; show(); };
+  f.onsubmit = async (e) => {
+    e.preventDefault();
+    const err = document.getElementById("err"); err.textContent = "";
+    const bad = [...steps[step].querySelectorAll("input,textarea")].find((i) => !i.checkValidity());
+    if (bad) { err.textContent = `${bad.previousElementSibling?.textContent || "A field"} needs a valid value.`; bad.focus(); return; }
+    if (step === 2 && f.admin_password.value !== f.confirm.value) { err.textContent = "The passwords don't match."; return; }
+    if (step < steps.length - 1) { step++; show(); return; }
+    const body = Object.fromEntries(new FormData(f));
+    delete body.confirm;
+    body.rooms = body.rooms.split("\n").map((s) => s.trim()).filter(Boolean);
+    try {
+      await AT.post("/api/setup", body);
+      location.replace("/#/admin");
+    } catch (ex) { err.textContent = ex.message; }
+  };
+  show();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Captions</title>
+<style>
+  html, body { margin: 0; height: 100%; font-family: system-ui, "Segoe UI", sans-serif; }
+  body.audience { background: #000; color: #fff; }
+  body.overlay { background: transparent; }
+  .wrap { position: fixed; left: 4vw; right: 4vw; bottom: 6vh; }
+  .audience .wrap { font-size: 4.2vw; line-height: 1.25; }
+  .overlay .wrap { font-size: 3vw; line-height: 1.3; }
+  .overlay .line { display: inline; background: rgba(0,0,0,.78); color: #fff; padding: .1em .35em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .line { display: block; }
+  .partial { opacity: .7; }
+</style>
+</head>
+<body>
+<div class="wrap" id="w"></div>
+<script src="/static/common.js"></script>
+<script>
+(async () => {
+  const parts = location.pathname.split("/"), roomId = parts[2], overlay = parts[3] === "overlay";
+  document.body.className = overlay ? "overlay" : "audience";
+  const keep = overlay ? 2 : 3, w = document.getElementById("w");
+  let finals = [], partial = "";
+  const draw = () => {
+    const lines = finals.slice(-keep).map((t) => `<span class="line">${AT.esc(t)}</span>`);
+    if (partial) lines.push(`<span class="line partial">${AT.esc(partial)}</span>`);
+    w.innerHTML = lines.join(overlay ? "<br>" : "");
+  };
+  const sync = async () => { const r = await AT.api(`/api/captions/${roomId}/recent`); finals = r.finals; partial = r.partial; draw(); };
+  await sync();
+  AT.socket([`captions:${roomId}`], (e) => {
+    if (e.type === "final") { finals.push(e.data.text); finals = finals.slice(-10); partial = ""; draw(); }
+    else if (e.type === "partial") { partial = e.data.text; draw(); }
+    else if (e.type === "clear") { finals = []; partial = ""; draw(); }
+  }, (up) => up && sync());
+})();
+</script>
+</body>
+</html>
