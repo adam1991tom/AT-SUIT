@@ -150,6 +150,7 @@ test("the backup PC: pop-ups are silent, on top and never take focus", async () 
 
   await benSays("Speaker for HD is in the lobby");
   await expect.poll(async () => (await popupWindows(app)).length, { timeout: 10000 }).toBe(1);
+  await expect(page.locator("#bellCount")).toHaveText("1"); // and in the window's notifications
   await new Promise((r) => setTimeout(r, 800));
   const [p] = await popupWindows(app);
   expect(p.url).toContain("Speaker for HD is in the lobby");

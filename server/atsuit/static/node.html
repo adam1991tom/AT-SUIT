@@ -11,8 +11,48 @@
   #ident { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12vw; font-weight: 800; background: var(--accent); color: #fff; z-index: 50; }
   .bigclock { font-size: clamp(3rem, 9vw, 6rem); line-height: 1; }
   .helpbtn { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 700; font-size: 1.05rem; padding: .8rem 1.2rem; }
-  .chatbox .chat-mount { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  .chatbox .msgs .list { max-height: 48vh; }
+  .top { position: sticky; top: 0; z-index: 900; }
+  .winbar { display: flex; gap: .3rem; flex-wrap: wrap; }
+  .winbar button.on { border-color: var(--accent); color: #fff; background: color-mix(in srgb, var(--accent) 35%, var(--panel2)); }
+  .winbar .unread { margin-left: .3rem; }
+  /* the dashboard: the timer first, a column of quick looks beside it */
+  .dash { display: grid; gap: 1rem; padding: 1rem; grid-template-columns: minmax(0, 1fr) 320px; align-items: start; padding-bottom: 5rem; }
+  .dash .timer .bigclock { font-size: clamp(4rem, 13vw, 10rem); }
+  .dside { display: flex; flex-direction: column; gap: 1rem; }
+  .cap-line { min-height: 2.6rem; margin: .4rem 0; font-size: .95rem; }
+  @media (max-width: 900px) { .dash { grid-template-columns: 1fr; } }
+  /* windows over the dashboard */
+  .win { position: fixed; z-index: 20; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 1rem 1rem;
+    box-shadow: 0 12px 40px rgba(0,0,0,.55); max-height: calc(100vh - 70px); overflow: auto; resize: both; min-width: 260px; min-height: 120px; }
+  .win-head { display: flex; align-items: center; gap: .5rem; margin: 0 -1rem .7rem; padding: .5rem .6rem .5rem 1rem; background: var(--panel2); border-bottom: 1px solid var(--line);
+    cursor: move; position: sticky; top: 0; z-index: 1; user-select: none; touch-action: none; }
+  @media (max-width: 900px) { .win { position: static; width: auto !important; height: auto !important; margin: 0 1rem 1rem; resize: none; max-height: none; } .win-head { cursor: default; } }
+  .scr + .scr, .ov + .ov { border-top: 1px solid var(--line); margin-top: .7rem; padding-top: .7rem; }
+  /* drop-downs from the top bar: notifications and help */
+  .drop { position: relative; }
+  .dropdown { position: absolute; right: 0; top: calc(100% + .4rem); width: min(380px, 92vw); max-height: 70vh; overflow: auto; z-index: 1000;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: .8rem; box-shadow: 0 12px 40px rgba(0,0,0,.6); }
+  #helpBox { border-color: var(--bad); }
+  .helpbtn .unread, #bellBtn .unread { margin-left: .35rem; background: #fff; color: var(--bad); }
+  #bellBtn .unread { background: var(--accent); color: #fff; }
+  .note { padding: .5rem .6rem; border-left: 3px solid var(--line); background: var(--panel2); border-radius: 0 6px 6px 0; margin-top: .45rem; cursor: pointer; }
+  .note.n-urgent, .note.n-error { border-left-color: var(--bad); } .note.n-timer { border-left-color: var(--warn); } .note.n-good { border-left-color: var(--good); } .note.n-chat { border-left-color: var(--accent); }
+  #toasts { right: 372px; z-index: 1100; }
+  @media (max-width: 600px) { #toasts { right: 1rem; bottom: 4rem; } }
+  .scr .row select, .scr .row input { width: auto; flex: 1 1 0 !important; min-width: 0; }
+  /* chat: a small box at the bottom right that folds down */
+  .chatdock { position: fixed; right: 16px; bottom: 0; width: 340px; height: 460px; z-index: 800; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 10px 10px 0 0; box-shadow: 0 -6px 30px rgba(0,0,0,.5); }
+  .chatdock.closed { height: auto; }
+  .chatdock.closed .chatbody { display: none; }
+  .chathead { display: flex; align-items: center; gap: .5rem; padding: .55rem .8rem; background: var(--accent); color: #fff; border-radius: 10px 10px 0 0; cursor: pointer; user-select: none; }
+  .chathead .muted { color: #fff; } .chathead .unread { background: #fff; color: var(--accent); }
+  .chatbody { flex: 1; min-height: 0; padding: .5rem; display: flex; flex-direction: column; }
+  .chatbody .chat-mount { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .chatbody .msgs { min-height: 0 !important; display: flex; flex-direction: column; }
+  .chatbody .msgs .list { flex: 1; max-height: none; min-height: 0; }
+  .chatbody .tabs button { padding: .2rem .5rem; font-size: .8rem; }
+  @media (max-width: 600px) { .chatdock { right: 0; width: 100%; } }
   .opts { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
   .opt { display: block; margin: 0; padding: .7rem .8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); color: var(--text); cursor: pointer; font-size: .9rem; }
   .opt input { width: auto; margin-right: .35rem; }
@@ -65,8 +105,19 @@
     <b data-product>AT-SUIT</b>
     <span class="muted" id="who"></span><span class="pill hidden" id="modePill"></span>
     <select id="room" style="width:auto"></select>
+    <nav class="winbar" id="winBar"></nav>
     <span class="grow"></span>
     <span class="pill" id="conn">connecting</span>
+    <div class="drop"><button id="bellBtn" title="Notifications" aria-label="Notifications">🔔<span class="unread hidden" id="bellCount"></span></button>
+      <div class="dropdown hidden" id="bellBox"></div></div>
+    <div class="drop"><button class="helpbtn" id="helpTop">Help<span class="unread hidden" id="helpCount"></span></button>
+      <div class="dropdown hidden" id="helpBox">
+        <b>Call for help</b>
+        <div class="row" style="margin-top:.4rem"><select id="helpCat" style="width:auto"><option>Audio</option><option>Video</option><option>Presenter</option><option>Lighting</option><option>Network</option><option>Other</option></select>
+          <input id="helpText" class="grow" placeholder="What's wrong?"></div>
+        <div class="row" style="margin-top:.4rem;justify-content:flex-end"><button class="helpbtn" id="helpBtn">Send</button></div>
+        <div style="margin-top:.6rem"><b class="small">Open requests</b><div id="helpList" class="small" style="margin-top:.3rem"></div></div>
+      </div></div>
     <button id="laptopBtn" class="hidden">This laptop</button>
     <a class="btn" href="/" target="_blank">Console</a>
     <button id="out">Sign out</button>
@@ -77,40 +128,48 @@
       <label class="opt"><input type="radio" name="lapmode" value="main"><b>Main PC</b><span>No pop-ups or notifications at all.</span></label>
       <label class="opt"><input type="radio" name="lapmode" value="backup"><b>Backup PC</b><span>Pop-ups on top of everything, including slides. Never any sound.</span></label>
     </div>
-    <div class="row"><button id="popTest" class="small">Test a pop-up</button><span class="muted small" id="appVer"></span></div>
+    <div class="row" style="margin-top:.6rem"><button id="popTest" class="small">Test a pop-up</button><span class="muted small" id="appVer"></span></div>
   </div>
-  <div class="wrap ws-grid">
+
+  <main class="dash">
     <section class="panel timer" id="timerBox"></section>
+    <aside class="dside">
+      <section class="panel mini" id="capMini">
+        <div class="row" style="justify-content:space-between"><h3>Captions</h3><span class="pill" id="capState">off</span></div>
+        <div class="cap-line" id="capLine"><span class="muted">Nothing yet.</span></div>
+        <div class="meter"><i id="meter"></i></div>
+        <div class="row" style="margin-top:.5rem"><button class="small" data-openwin="captions">Open captions</button></div>
+      </section>
+      <section class="panel mini hidden" id="sessMini"></section>
+    </aside>
+  </main>
 
-    <section class="panel chatbox"><h3>Chat</h3><div class="chat-mount" id="chat"></div></section>
+  <section class="win" data-win="captions" data-title="Captions" data-w="480">
+    <div class="cap-live" id="capText"><span class="muted">Captions for this room appear here.</span></div>
+    <div class="row" style="margin-top:.6rem">
+      <select id="mic" class="grow"></select>
+      <button class="primary" id="micBtn">Send my mic</button>
+    </div>
+    <p class="muted small" id="micNote"></p>
+  </section>
 
-    <section class="panel captions">
-      <div class="row" style="justify-content:space-between"><h3>Captions</h3><span class="pill" id="capState">off</span></div>
-      <div class="cap-live" id="capText"><span class="muted">Captions for this room appear here.</span></div>
-      <div class="meter"><i id="meter"></i></div>
-      <div class="row" style="margin-top:.6rem">
-        <select id="mic" class="grow"></select>
-        <button class="primary" id="micBtn">Send my mic</button>
-      </div>
-      <p class="muted small" id="micNote"></p>
-    </section>
+  <section class="win" data-win="sessions" data-title="Sessions" data-w="620">
+    <div class="row" style="justify-content:flex-end"><select id="sessDay" style="width:auto"></select><button class="small" id="sessTimer" title="Replaces this room's cue list">Send this day to the timer</button></div>
+    <div id="sessList"></div>
+  </section>
 
-    <section class="panel overlays hidden" id="ovBox"><h3>Overlays in this room</h3><div id="ovList"></div></section>
+  <section class="win" data-win="screens" data-title="Screens" data-w="520">
+    <p class="muted small" style="margin-top:0">The Linux screens in this room. Pick what each one shows, or put a web page on it.</p>
+    <div id="scrList"></div>
+  </section>
 
-    <section class="panel sessions hidden" id="sessBox">
-      <div class="row" style="justify-content:space-between"><h3>Sessions in this room</h3>
-        <div class="row"><select id="sessDay" style="width:auto"></select><button class="small" id="sessTimer" title="Replaces this room's cue list">Send this day to the timer</button></div></div>
-      <div id="sessList"></div>
-    </section>
+  <section class="win" data-win="overlays" data-title="Overlays" data-w="460"><div id="ovList"></div></section>
 
-    <section class="panel links"><h3>Room links</h3><div class="tiles" id="links"></div></section>
+  <section class="win" data-win="links" data-title="Links" data-w="420"><div class="tiles" id="links"></div></section>
 
-    <section class="panel helpbox">
-      <h3>Help</h3>
-      <div class="row"><select id="helpCat" style="width:auto"><option>Audio</option><option>Video</option><option>Presenter</option><option>Lighting</option><option>Network</option><option>Other</option></select>
-        <input id="helpText" class="grow" placeholder="What's wrong?"><button class="helpbtn" id="helpBtn">Call for help</button></div>
-      <div id="helpList" class="small" style="margin-top:.6rem"></div>
-    </section>
+  <div class="chatdock" id="chatDock">
+    <div class="chathead" id="chatHead"><b>Chat</b><span class="unread hidden" id="chatUnread"></span><span class="grow"></span><span class="muted small" id="chatToggle">▾</span></div>
+    <div class="chatbody"><div class="chat-mount" id="chat"></div></div>
   </div>
 </div>
 <iframe id="kiosk" class="hidden" allow="autoplay; fullscreen"></iframe>
@@ -119,6 +178,7 @@
 <script src="/static/common.js"></script>
 <script src="/static/chat.js"></script>
 <script src="/static/cuelist.js"></script>
+<script src="/static/desk.js"></script>
 <script>
 (async () => {
   const { esc, api, post, guard, toast } = AT;
@@ -263,14 +323,11 @@
     else await post("/api/auth/logout");
     location.reload();
   };
-  ["timer", "chatbox", "captions", "links", "helpbox"].forEach((c) => {
-    const mod = { timer: "timers", chatbox: "comms", captions: "captions", links: "dashboard", helpbox: "comms" }[c];
-    if (!boot.modules[mod]) document.querySelector(`.${c}`).classList.add("hidden");
-  });
   if (!techLaptop()) {
     let saved = null; try { saved = +localStorage.getItem("atsuit_room") || null; } catch (_) {}
     roomId = (node?.room?.id) || saved || boot.rooms[0]?.id;
   }
+  const roomName = boot.rooms.find((r) => r.id === roomId)?.name || "";
   $("room").innerHTML = boot.rooms.map((r) => `<option value="${r.id}" ${r.id === roomId ? "selected" : ""}>${esc(r.name)}</option>`).join("");
   $("room").onchange = async () => {
     if (techLaptop()) await guard(() => api("/api/nodes/me/room", { method: "PUT", headers: nodeHdr(), body: { room_id: +$("room").value } }));
@@ -295,20 +352,59 @@
       if (!shown) toast("This is the main PC, so nothing pops up. Switch to Backup PC to test.");
     };
   }
-  function notify(title, body, kind) { if (APP && !quiet) APP.notify({ title, body: String(body || "").slice(0, 300), kind }); }
 
+  // Windows over the timer, opened and closed from the top bar.
+  const wins = Desk.windows($("winBar"), { captions: false, sessions: false, screens: false, overlays: false, links: false });
+  document.querySelectorAll("[data-openwin]").forEach((b) => (b.onclick = () => wins[b.dataset.openwin].open()));
+  wins.captions.available(!!boot.modules.captions);
+  wins.links.available(!!boot.modules.dashboard);
+  wins.sessions.available(false); wins.overlays.available(false); wins.screens.available(false);
+  if (!boot.modules.captions) $("capMini").classList.add("hidden");
+  if (!boot.modules.timers) $("timerBox").innerHTML = '<p class="muted">Timers are switched off for this site.</p>';
+
+  // Notifications: the main PC shows nothing; elsewhere the bell, a note in
+  // the window and (backup PC) a silent pop-up on top of everything.
+  const alerts = Desk.notifier({ button: $("bellBtn"), box: $("bellBox"), count: $("bellCount"), quiet,
+    popup: APP ? (title, body, kind) => APP.notify({ title, body: String(body || "").slice(0, 300), kind }) : null });
+  const problem = (title, body) => alerts.add("error", title, body);
+
+  // Connection: say so if it stays down, and when it's back.
+  let downTimer = null, wasDown = false;
   const topics = [...boot.sites.map((s) => `site:${s.id}`), ...boot.rooms.map((r) => `room:${r.id}`), `dm:${boot.me.id}`, `timer:${roomId}`, `captions:${roomId}`];
-  sock = AT.socket(topics, onEvent, (up) => { $("conn").textContent = up ? "live" : "reconnecting"; $("conn").className = "pill " + (up ? "good" : "bad"); });
+  sock = AT.socket(topics, onEvent, (up) => {
+    $("conn").textContent = up ? "live" : "reconnecting"; $("conn").className = "pill " + (up ? "good" : "bad");
+    clearTimeout(downTimer);
+    if (up) { if (wasDown) alerts.add("good", "Connected to AT-SUIT again"); wasDown = false; }
+    else downTimer = setTimeout(() => { wasDown = true; problem("Lost connection to AT-SUIT", "Chat, timer and captions stop updating until it's back."); }, 8000);
+  });
 
-  // timer and cue list
+  // timer and cue list: the main thing on screen
   let cuelist = null;
   if (boot.modules.timers) cuelist = CueList.mount($("timerBox"), roomId);
+  // The timer reaching its warning, danger and overtime is worth a note.
+  let tstate = null, tphase = "", trun = "";
+  if (boot.modules.timers) {
+    api(`/api/timers/${roomId}`).then((s) => { tstate = s; }).catch(() => {});
+    setInterval(() => {
+      if (!tstate || tstate.playback !== "play") return;
+      const run = `${tstate.cue?.id || ""}:${tstate.started_at || tstate.first_started_at || ""}:${tstate.duration_ms}`;
+      if (run !== trun) { trun = run; tphase = AT.timerDisplay(tstate).cls; return; }
+      const cls = AT.timerDisplay(tstate).cls;
+      if (cls && cls !== tphase) {
+        const what = tstate.title || "The timer";
+        if (cls === "warn") alerts.add("timer", `${what}: warning time`, `${AT.timerDisplay(tstate).text} left in ${roomName}`);
+        if (cls === "danger") alerts.add("timer", `${what}: danger time`, `${AT.timerDisplay(tstate).text} left in ${roomName}`);
+        if (cls === "over") alerts.add("urgent", `${what} is over time`, roomName);
+      }
+      tphase = cls;
+    }, 500);
+  }
 
   // this room's AT LiveOverlay laptops
   async function renderOverlays() {
     let targets = [];
     try { targets = (await api("/api/overlays/targets")).filter((t) => t.room_id === roomId); } catch (_) { return; }
-    $("ovBox").classList.toggle("hidden", !targets.length);
+    wins.overlays.available(targets.length > 0);
     $("ovList").innerHTML = targets.map((t) => `<div class="ov" data-t="${t.id}"><div class="row" style="justify-content:space-between"><b>${esc(t.name)}</b><span class="pill" data-st>…</span></div>
       <div class="row" style="margin-top:.4rem">Overlay <select data-n style="width:auto"><option value="all">All</option></select>
         <button class="small primary" data-a="show">Show</button><button class="small" data-a="hide">Hide</button><button class="small" data-a="reload">Reload</button></div>
@@ -331,76 +427,146 @@
   }
   if (boot.modules.overlays) renderOverlays();
 
+  // this room's Linux screens: what each shows, or any web page
+  let views = node?.views || [];
+  async function renderScreens() {
+    let all = [];
+    try { all = await api("/api/fleet/nodes"); } catch (_) { return; }
+    if (!views.length) try { views = await api("/api/timers-views"); } catch (_) {}
+    const screens = all.filter((n) => n.kind === "kiosk" && n.room_id === roomId);
+    wins.screens.available(screens.length > 0);
+    const label = (v) => (v.startsWith("url:") ? v.slice(4) : views.find((x) => x.id === v)?.name || v || "nothing yet");
+    $("scrList").innerHTML = screens.map((n) => `<div class="scr" data-s="${n.id}"><div class="row"><span class="dot ${n.online ? "on" : "off"}"></span><b class="grow">${esc(n.name)}</b>
+        <span class="muted small">${esc(label(n.screen_view || ""))}</span></div>
+      <div class="row" style="margin-top:.35rem"><select data-v class="grow">${views.map((v) => `<option value="${esc(v.id)}" ${v.id === n.screen_view ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select><button class="small primary" data-show>Show</button></div>
+      <div class="row" style="margin-top:.35rem"><input data-url class="grow" placeholder="https://… a web page for this screen" value="${esc((n.screen_view || "").startsWith("url:") ? n.screen_view.slice(4) : "")}"><button class="small" data-go>Show page</button>
+        <button class="small" data-id title="Show the screen's name on it">Identify</button></div></div>`).join("");
+    $("scrList").querySelectorAll("[data-s]").forEach((row) => {
+      const id = row.dataset.s;
+      const route = (view) => guard(() => AT.put(`/api/fleet/nodes/${id}/screen`, { room_id: roomId, view })).then(() => { toast("Sent to the screen", "good"); renderScreens(); });
+      row.querySelector("[data-show]").onclick = () => route(row.querySelector("[data-v]").value);
+      row.querySelector("[data-go]").onclick = () => {
+        let u = row.querySelector("[data-url]").value.trim();
+        if (!u) return toast("Put in the web page address first", "bad");
+        if (!/^https?:\/\//i.test(u)) u = "http://" + u;
+        route("url:" + u);
+      };
+      row.querySelector("[data-id]").onclick = () => guard(() => post(`/api/fleet/nodes/${id}/command`, { kind: "identify" })).then(() => toast("Sent", "good"));
+    });
+  }
+  if (boot.modules.fleet !== false) renderScreens();
+
   // this room's presenter sessions: who's here, their files, the show files
   const PR_ST = { pending: ["to review", "warn"], approved: ["approved", "good"], rejected: ["rejected", "bad"] };
-  let sessions = [], sessDay = null, sessTimer = null;
+  let sessions = [], sessDay = null, sessTimer = null, seenFiles = null;
   const sDay = (iso) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? iso.slice(0, 10) : "");
   const sTime = (iso) => (iso && iso.includes("T") ? iso.slice(11, 16) : iso || "");
   async function renderSessions() {
     try { sessions = await api(`/api/presenter/rooms/${roomId}/schedule`); } catch (_) { return; }
-    $("sessBox").classList.toggle("hidden", !sessions.length);
-    if (!sessions.length) return;
+    wins.sessions.available(sessions.length > 0);
+    // A new upload for this room is worth a note.
+    const files = sessions.flatMap((s) => s.presenters.flatMap((p) => p.files.slice(0, 1).map((f) => [f.id, p.full_name, f.original_name, s.title])));
+    if (seenFiles) files.filter(([id]) => !seenFiles.has(id)).forEach(([, who, name, title]) => alerts.add("chat", `New slides from ${who}`, `${name} for ${title}`, () => wins.sessions.open()));
+    seenFiles = new Set(files.map(([id]) => id));
     const today = new Date().toLocaleDateString("en-CA"), days = [...new Set(sessions.map((s) => sDay(s.starts_at)))].filter(Boolean).sort();
     if (!days.includes(sessDay)) sessDay = days.includes(today) ? today : days.find((d) => d > today) || days[days.length - 1] || "";
     $("sessDay").innerHTML = days.map((d) => `<option value="${d}" ${d === sessDay ? "selected" : ""}>${d === today ? "Today" : new Date(d + "T12:00").toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}</option>`).join("");
     $("sessDay").classList.toggle("hidden", !days.length);
     const nowHm = new Date().toTimeString().slice(0, 5);
+    const live = (s) => sDay(s.starts_at) === today && sTime(s.starts_at) <= nowHm && (!s.ends_at || sTime(s.ends_at) > nowHm);
     const shown = sessions.filter((s) => !days.length || sDay(s.starts_at) === sessDay || !sDay(s.starts_at));
-    $("sessList").innerHTML = shown.map((s) => {
-      const live = sDay(s.starts_at) === today && sTime(s.starts_at) <= nowHm && (!s.ends_at || sTime(s.ends_at) > nowHm);
-      return `<div class="ws-sess ${live ? "now" : ""}"><b>${esc(sTime(s.starts_at))}${s.ends_at ? "–" + esc(sTime(s.ends_at)) : ""}</b><div><b>${esc(s.title)}</b>${s.notes ? ` <span class="muted small">${esc(s.notes)}</span>` : ""}</div>` +
+    $("sessList").innerHTML = shown.map((s) => `<div class="ws-sess ${live(s) ? "now" : ""}"><b>${esc(sTime(s.starts_at))}${s.ends_at ? "–" + esc(sTime(s.ends_at)) : ""}</b><div><b>${esc(s.title)}</b>${s.notes ? ` <span class="muted small">${esc(s.notes)}</span>` : ""}</div>` +
         s.presenters.map((p) => { const f = p.files[0]; return `<div class="f">${esc(p.full_name)} <span class="pill ${p.checked_in_at ? "good" : ""}">${p.checked_in_at ? "here" : "not here"}</span>` +
           (f ? `<a href="/api/presenter/files/${f.id}">${esc(f.original_name)}</a> <span class="pill ${PR_ST[f.review_status][1]}">${PR_ST[f.review_status][0]}</span>` +
             (f.review_status !== "approved" ? `<button class="small" data-ok="${f.id}">Approve</button>` : "") + (f.review_status !== "rejected" ? `<button class="small" data-no="${f.id}">Reject</button>` : "")
             : '<span class="muted">no file yet</span>') +
           (!p.checked_in_at ? `<button class="small" data-in="${p.id}">Check in</button>` : "") + "</div>"; }).join("") +
-        (s.show_files.length ? `<div class="f"><span class="muted">Show files:</span> ${s.show_files.map((f) => `<a href="/api/presenter/show-files/${f.id}">${esc(f.label)}</a>`).join(", ")}</div>` : "") + "</div>";
-    }).join("") || '<p class="muted small">No sessions on this day.</p>';
+        (s.show_files.length ? `<div class="f"><span class="muted">Show files:</span> ${s.show_files.map((f) => `<a href="/api/presenter/show-files/${f.id}">${esc(f.label)}</a>`).join(", ")}</div>` : "") + "</div>").join("")
+      || '<p class="muted small">No sessions on this day.</p>';
     $("sessList").querySelectorAll("[data-ok]").forEach((b) => (b.onclick = () => guard(() => AT.put(`/api/presenter/files/${b.dataset.ok}/review`, { status: "approved" }))));
     $("sessList").querySelectorAll("[data-no]").forEach((b) => (b.onclick = () => { const note = prompt("What should the presenter change? They see this on their page.", ""); if (note !== null) guard(() => AT.put(`/api/presenter/files/${b.dataset.no}/review`, { status: "rejected", note })); }));
     $("sessList").querySelectorAll("[data-in]").forEach((b) => (b.onclick = () => guard(() => post(`/api/presenter/presenters/${b.dataset.in}/checkin`))));
+    // Now and next on the dashboard.
+    const todays = sessions.filter((s) => sDay(s.starts_at) === today);
+    const now = todays.find(live), next = todays.find((s) => sTime(s.starts_at) > nowHm);
+    $("sessMini").classList.toggle("hidden", !now && !next);
+    $("sessMini").innerHTML = `<div class="row" style="justify-content:space-between"><h3>Sessions</h3><button class="small" data-openwin="sessions">Open</button></div>` +
+      [["Now", now], ["Next", next]].filter(([, s]) => s).map(([k, s]) => `<div class="small" style="margin-top:.3rem"><span class="muted">${k} ${esc(sTime(s.starts_at))}</span> <b>${esc(s.title)}</b><div class="muted">${esc(s.presenters.map((p) => p.full_name + (p.checked_in_at ? " ✓" : "")).join(", "))}</div></div>`).join("");
+    $("sessMini").querySelector("[data-openwin]").onclick = () => wins.sessions.open();
   }
   if (boot.modules.presenter) {
     $("sessDay").onchange = (e) => { sessDay = e.target.value; renderSessions(); };
     $("sessTimer").onclick = () => confirm("Replace this room's cue list with this day's sessions?") &&
       guard(() => post(`/api/presenter/rooms/${roomId}/to-timer`, { day: sessDay || "" })).then((r) => toast(`${r.cues} cues in the timer`, "good"));
     renderSessions();
+    setInterval(renderSessions, 60000); // keeps "now" moving
   }
 
-  // chat: open on this room's channel
+  // chat: a small box at the bottom right that folds away, like Facebook's
+  const dock = $("chatDock");
+  let dockOpen = true, dockUnread = 0;
+  try { dockOpen = localStorage.getItem("atsuit_chat_open") !== "0"; } catch (_) {}
+  const setDock = (open) => {
+    dockOpen = open; dock.classList.toggle("closed", !open); $("chatToggle").textContent = open ? "▾" : "▴";
+    if (open) dockUnread = 0;
+    $("chatUnread").textContent = dockUnread; $("chatUnread").classList.toggle("hidden", !dockUnread);
+    try { localStorage.setItem("atsuit_chat_open", open ? "1" : "0"); } catch (_) {}
+  };
+  $("chatHead").onclick = () => setDock(!dockOpen);
   if (boot.modules.comms) {
     const chans = await api("/api/comms/channels");
     chat = Chat.mount($("chat"), { me: boot.me, compact: true, prefer: chans.find((c) => c.room_id === roomId)?.id });
-  }
+    setDock(dockOpen);
+  } else dock.classList.add("hidden");
 
   // links
   if (boot.modules.dashboard) {
     const links = (await api(`/api/dashboard/links?room_id=${roomId}`)).filter((l) => l.room_id === roomId || l.kind === "tool");
-    $("links").innerHTML = links.map((l) => `<a class="tile" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("") || '<p class="muted small">No links for this room yet.</p>';
+    $("links").innerHTML = links.map((l) => `<a class="tile" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("") || '<p class="muted small">No links for this room yet. An admin adds them in Admin → Links.</p>';
   }
 
-  // help
+  // help: the red button at the top
   async function renderHelp() {
-    const rows = (await api("/api/comms/help")).filter((h) => h.status !== "resolved").slice(0, 6);
-    $("helpList").innerHTML = rows.map((h) => `<div class="row" style="margin:.2rem 0"><span class="pill ${h.status === "open" ? "bad" : "warn"}">${esc(h.status)}</span> <b>${esc(h.room_name)}</b> ${esc(h.category)}: ${esc(h.description)} <span class="muted">${esc(h.assigned_to)}</span>` +
+    const rows = (await api("/api/comms/help")).filter((h) => h.status !== "resolved").slice(0, 8);
+    const open = rows.filter((h) => h.status === "open").length;
+    $("helpCount").textContent = open; $("helpCount").classList.toggle("hidden", !open);
+    $("helpList").innerHTML = rows.map((h) => `<div class="row" style="margin:.25rem 0"><span class="pill ${h.status === "open" ? "bad" : "warn"}">${esc(h.status)}</span> <b>${esc(h.room_name)}</b> ${esc(h.category)}: ${esc(h.description)} <span class="muted">${esc(h.assigned_to)}</span>` +
       `${h.status === "open" ? `<button class="small" data-h="${h.id}" data-s="acknowledged">On my way</button>` : ""}<button class="small" data-h="${h.id}" data-s="resolved">Resolved</button></div>`).join("") || '<span class="muted">No open requests.</span>';
     $("helpList").querySelectorAll("[data-h]").forEach((b) => b.onclick = () => guard(() => AT.put(`/api/comms/help/${b.dataset.h}`, { status: b.dataset.s })));
   }
+  $("helpTop").onclick = (e) => {
+    e.stopPropagation();
+    const box = $("helpBox"), opening = box.classList.contains("hidden");
+    document.querySelectorAll(".dropdown").forEach((d) => d.classList.add("hidden"));
+    box.classList.toggle("hidden", !opening);
+    if (opening) { renderHelp(); $("helpText").focus(); }
+  };
+  $("helpBox").onclick = (e) => e.stopPropagation();
   if (boot.modules.comms) {
     renderHelp();
-    $("helpBtn").onclick = () => guard(() => post("/api/comms/help", { room_id: roomId, category: $("helpCat").value, description: $("helpText").value, priority: "urgent" })).then(() => { $("helpText").value = ""; toast("Help is on the way", "good"); });
-  }
+    const send = () => guard(() => post("/api/comms/help", { room_id: roomId, category: $("helpCat").value, description: $("helpText").value, priority: "urgent" }))
+      .then(() => { $("helpText").value = ""; toast("Help is on the way", "good"); renderHelp(); });
+    $("helpBtn").onclick = send;
+    $("helpText").onkeydown = (e) => { if (e.key === "Enter") send(); };
+  } else $("helpTop").parentElement.classList.add("hidden");
 
-  // captions
+  // captions: a quick look on the dashboard, the full view in its window
   const finals = [];
-  let partial = "";
+  let partial = "", capLive = false;
   function renderCaps() {
-    $("capText").innerHTML = finals.slice(-3).map((t) => `<div>${esc(t)}</div>`).join("") + (partial ? `<div class="partial">${esc(partial)}</div>` : "") || '<span class="muted">Captions for this room appear here.</span>';
+    $("capText").innerHTML = finals.slice(-6).map((t) => `<div>${esc(t)}</div>`).join("") + (partial ? `<div class="partial">${esc(partial)}</div>` : "") || '<span class="muted">Captions for this room appear here.</span>';
+    const last = partial || finals[finals.length - 1] || "";
+    $("capLine").innerHTML = last ? esc(last) : '<span class="muted">Nothing yet.</span>';
+  }
+  function capStatus(live, source) {
+    if (capLive && !live) problem(`Captions stopped in ${roomName}`, "Nothing is being captioned. Check the mic in Captions.");
+    capLive = live;
+    $("capState").textContent = live ? (source ? `live · ${source}` : "live") : "off"; $("capState").className = "pill " + (live ? "good" : "");
   }
   if (boot.modules.captions) {
     const r = await api(`/api/captions/${roomId}/recent`);
     finals.push(...r.finals); partial = r.partial; renderCaps();
-    $("capState").textContent = r.live ? "live" : "off"; $("capState").className = "pill " + (r.live ? "good" : "");
+    capStatus(r.live);
     setupMic();
   }
 
@@ -408,24 +574,28 @@
     chat && chat.onEvent(evt);
     const own = (m) => (boot.me.kind === "account" ? m.sender_id === boot.me.id : !m.sender_id && m.sender_name === boot.me.name);
     if (evt.type === "message.new" && !own(evt.data)) {
-      const m = evt.data, mine = evt.topic.startsWith("dm:") || evt.topic === `room:${roomId}` || evt.topic.startsWith("site:");
-      if (mine || m.priority === "urgent") notify(evt.topic.startsWith("dm:") ? `${m.sender_name} (direct)` : m.sender_name, m.body || "Sent a file", m.priority === "urgent" ? "urgent" : "chat");
+      const m = evt.data, dm = evt.topic.startsWith("dm:"), mine = dm || evt.topic === `room:${roomId}` || evt.topic.startsWith("site:");
+      if (!dockOpen) { dockUnread++; setDock(false); }
+      if (mine || m.priority === "urgent") alerts.add(m.priority === "urgent" ? "urgent" : "chat", dm ? `${m.sender_name} (direct)` : m.sender_name, m.body || "Sent a file", () => setDock(true));
     }
-    if (evt.type === "help.new") notify(`Help needed in ${evt.data.room_name}`, evt.data.description || evt.data.category, "urgent");
+    if (evt.type === "help.new") { alerts.add("urgent", `Help needed in ${evt.data.room_name}`, `${evt.data.category}: ${evt.data.description || ""}`, () => $("helpTop").click()); renderHelp(); }
+    if (evt.type === "help.updated") {
+      renderHelp();
+      const h = evt.data;
+      if (h.room_id === roomId && h.status === "acknowledged") alerts.add("good", `${h.assigned_to || "Someone"} is on the way`, `${h.category}: ${h.description || ""}`);
+    }
     cuelist && cuelist.onEvent(evt);
+    if (evt.topic === `timer:${roomId}` && evt.type === "timer") tstate = evt.data;
     if (evt.type === "presenter.changed" && evt.topic === `room:${roomId}` && boot.modules.presenter) { clearTimeout(sessTimer); sessTimer = setTimeout(renderSessions, 300); }
     if (evt.topic === `captions:${roomId}`) {
       if (evt.type === "final") { finals.push(evt.data.text); partial = ""; renderCaps(); }
       else if (evt.type === "partial") { partial = evt.data.text; renderCaps(); }
       else if (evt.type === "clear") { finals.length = 0; partial = ""; renderCaps(); }
       else if (evt.type === "level") $("meter").style.width = Math.max(0, Math.min(100, (evt.data.db + 60) / 60 * 100)) + "%";
-      else if (evt.type === "status") { $("capState").textContent = evt.data.live ? `live · ${evt.data.source}` : "off"; $("capState").className = "pill " + (evt.data.live ? "good" : ""); }
+      else if (evt.type === "status") capStatus(evt.data.live, evt.data.source);
     }
-    if (evt.type === "help.new") { if (!quiet) toast(`Help needed in ${evt.data.room_name}: ${evt.data.description || evt.data.category}`, "bad"); renderHelp(); }
-    if (evt.type === "help.updated") renderHelp();
   }
 
-  // ------------------------------------------------------------- mic in --
   async function setupMic() {
     const btn = $("micBtn"), note = $("micNote"), sel = $("mic");
     if (!window.isSecureContext || !navigator.mediaDevices) {
@@ -454,7 +624,7 @@
       const q = nodeToken ? `?node_token=${encodeURIComponent(nodeToken)}` : "";
       ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/audio/${roomId}${q}`);
       ws.binaryType = "arraybuffer";
-      ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === "error") { toast(m.message, "bad"); stopMic(); } if (m.type === "replaced") { toast(`${m.by} took over the captions mic`); stopMic(); } };
+      ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === "error") { problem("Captions mic stopped", m.message); stopMic(); } if (m.type === "replaced") { alerts.add("chat", `${m.by} took over the captions mic`); stopMic(); } };
       ws.onclose = () => stopMic();
       proc.port.onmessage = (e) => ws.readyState === 1 && ws.send(e.data);
       btn.textContent = "Stop my mic"; btn.classList.remove("primary"); btn.classList.add("danger");
@@ -468,7 +638,7 @@
       btn.textContent = "Send my mic"; btn.classList.add("primary"); btn.classList.remove("danger");
       note.textContent = "";
     }
-    btn.onclick = () => (ws ? stopMic() : startMic().catch((e) => { toast(e.message, "bad"); stopMic(); }));
+    btn.onclick = () => (ws ? stopMic() : startMic().catch((e) => { problem("The mic didn't start", e.message); stopMic(); }));
   }
 })();
 </script>
