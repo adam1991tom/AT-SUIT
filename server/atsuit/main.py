@@ -134,8 +134,9 @@ def create_app() -> FastAPI:
         return page("present.html")
 
     @app.get("/timer/{room_id}", include_in_schema=False)
-    def timer_page(room_id: int):
-        return page("timer.html")
+    def timer_page(room_id: int, view: str = ""):
+        # Backstage is a studio clock with the stage timer, cues and help calls: a page of its own.
+        return page("backstage.html" if view == "backstage" else "timer.html")
 
     @app.get("/captions/{room_id}", include_in_schema=False)
     def captions_page(room_id: int):

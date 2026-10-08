@@ -315,7 +315,39 @@ async def request_help(body: HelpIn, p: Principal = Depends(require_tech)):
         )
         h = dict(c.execute("SELECT * FROM help_requests WHERE id=?", (cur.lastrowid,)).fetchone())
     await hub.publish(f"site:{r['site_id']}", "help.new", h)
+    await publish_board(h["room_id"])
     return h
+
+
+BOARD_FIELDS = ("id", "room_id", "room_name", "requested_by", "category", "description", "priority", "status",
+                "assigned_to", "created_at", "acknowledged_at")
+
+
+def help_board(c, room_id: int) -> dict:
+    """What a backstage screen shows: this room's help calls that aren't resolved, and how many are open elsewhere on the site."""
+    room = c.execute("SELECT site_id FROM rooms WHERE id=?", (room_id,)).fetchone()
+    if not room:
+        raise HTTPException(404, "Room not found")
+    rows = c.execute("SELECT * FROM help_requests WHERE room_id=? AND status!='resolved' ORDER BY id DESC LIMIT 10", (room_id,)).fetchall()
+    others = c.execute("SELECT COUNT(*) FROM help_requests WHERE site_id IS ? AND room_id IS NOT ? AND status='open'",
+                       (room["site_id"], room_id)).fetchone()[0]
+    return {"room_id": room_id, "calls": [{k: h[k] for k in BOARD_FIELDS} for h in rows], "open_elsewhere": others}
+
+
+async def publish_board(room_id: int | None) -> None:
+    """Backstage screens listen on the room's public timer topic."""
+    if room_id is None:
+        return
+    with db.ro() as c:
+        board = help_board(c, room_id)
+    await hub.publish(f"timer:{room_id}", "help", board)
+
+
+@router.get("/api/comms/help/board/{room_id}")
+def get_help_board(room_id: int):
+    """Public, like the timer: the backstage screen shows the room's help calls without signing in."""
+    with db.ro() as c:
+        return help_board(c, room_id)
 
 
 @router.get("/api/comms/help")
@@ -347,4 +379,5 @@ async def update_help(help_id: int, body: HelpUpdate, p: Principal = Depends(req
             c.execute(f"UPDATE help_requests SET {col}=? WHERE id=?", (db.now_iso(), help_id))
         out = dict(c.execute("SELECT * FROM help_requests WHERE id=?", (help_id,)).fetchone())
     await hub.publish(f"site:{out['site_id']}", "help.updated", out)
+    await publish_board(out["room_id"])
     return out

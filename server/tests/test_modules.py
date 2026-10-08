@@ -333,3 +333,20 @@ def test_windows_app_release(admin, client):
     assert client.get("/api/nodes/app/..%2Fatsuit.db").status_code == 404
     client.post("/api/auth/logout")
     assert client.post("/api/fleet/app", files=files).status_code in (401, 403)
+
+
+def test_backstage_help_board_is_public_and_live(admin):
+    rid = rooms(admin)["HD"]
+    with admin.websocket_connect(f"/ws?topics=timer:{rid}") as ws:
+        assert ws.receive_json()["type"] == "hello"
+        h = admin.post("/api/comms/help", json={"room_id": rid, "category": "audio", "description": "Mic 3 dropping out"}).json()
+        evt = ws.receive_json()
+        assert evt["type"] == "help" and evt["data"]["calls"][0]["description"] == "Mic 3 dropping out"
+        admin.put(f"/api/comms/help/{h['id']}", json={"status": "resolved"})
+        assert ws.receive_json()["data"]["calls"] == []
+    admin.post("/api/comms/help", json={"room_id": rooms(admin)["CC"], "description": "Clicker"})
+    admin.post("/api/auth/logout")
+    board = admin.get(f"/api/comms/help/board/{rid}").json()  # a screen, not signed in
+    assert board == {"room_id": rid, "calls": [], "open_elsewhere": 1}
+    page = admin.get(f"/timer/{rid}?view=backstage").text
+    assert "studio" in page and admin.get(f"/timer/{rid}").text != page

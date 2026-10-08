@@ -36,7 +36,7 @@ public = APIRouter()  # custom views and the Ontime-compatible feed (module chec
 TIMER_TYPES = ("count-down", "count-up", "clock", "none")
 END_ACTIONS = ("none", "stop", "load-next", "play-next")
 # "hcc" is the Standard view (the id stays so existing links and screens keep working).
-BUILTIN_VIEWS = {"stage": "Stage timer", "minimal": "Minimal timer", "clock": "Clock", "backstage": "Backstage (cue list)",
+BUILTIN_VIEWS = {"stage": "Stage timer", "minimal": "Minimal timer", "clock": "Clock", "backstage": "Backstage (studio clock)",
                  "hcc": "Standard", "overlay": "Overlay window"}
 # Views that used to be built in. BDNG is now an imported HTML view (docs/views/bdng.html):
 # view=bdng shows the imported "bdng" view if there is one, else the Standard view.

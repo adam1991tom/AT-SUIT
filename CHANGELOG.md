@@ -4,6 +4,10 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.6.4
+
+- **Backstage is a studio clock.** `/timer/<room>?view=backstage` (and any screen set to Backstage) is now a radio-studio style screen: a big clock with sixty second dots filling round the face and the site's time in the middle, an outer ring showing how much of the stage timer is left (amber, then red), and an ON STAGE / PAUSED / OVERTIME lamp. Beside it: exactly what the stage screen is showing (the timer in the Standard style and colours, when it started and ends, and any message, second line, blink, clock or blackout), now and next with planned times, the running order, and the room's help calls. A new help call shows straight away in red with who asked and when, the screen's edge flashes for its first two minutes, and it turns amber once someone is on it; calls open in other rooms are counted underneath. No sign-in needed, like the other timer screens.
+
 ## 0.6.3
 
 - **The second line turns off where you turned it on.** *Show text* is now a toggle: it reads *Hide text* while that text is on stage, and pressing it again (or with the box empty) takes the line off. The second line's header has a clear *Turn off* button (*Show again* brings it back), and the countdown controls only show when there is a countdown.
