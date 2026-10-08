@@ -6,6 +6,10 @@ full screen in Chromium and keeps it there. The page shows one room's timer,
 captions, a custom view or a web page, picked on the screen itself or routed
 from the dashboard (Timers -> Screens).
 
+  * Pairing: a new screen needs no code. It shows a six-digit pairing code
+    full screen; the tech types it into "Add a screen" on their laptop and
+    picks the layout. (The older enrolment code, --code, still works.)
+
   * HDMI rule: when an external display (HDMI, DisplayPort, DVI, VGA) is
     plugged in, the picture goes only to that display and the built-in panel
     is switched off. Unplug it and the built-in panel comes back.
@@ -17,7 +21,8 @@ from the dashboard (Timers -> Screens).
 Python 3 standard library only. Needs an X11 desktop session, xrandr and
 Chromium (install.sh sets all of this up).
 
-    python3 atsuit_screen.py --server http://10.100.70.101:8180 --code ABCD-1234-EF56
+    python3 atsuit_screen.py --server http://10.100.70.101:8180
+    python3 atsuit_screen.py --server http://10.100.70.101:8180 --code ABCD-1234-EF56   # enrolment code
 """
 from __future__ import annotations
 
@@ -33,11 +38,12 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from pathlib import Path
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 HOME = Path(os.environ.get("ATSUIT_SCREEN_HOME", Path.home() / ".config" / "atsuit-screen"))
 CONFIG = HOME / "config.json"
 INTERNAL = re.compile(r"^(eDP|LVDS|DSI)", re.I)
@@ -231,7 +237,7 @@ def newer(a: str, b: str) -> bool:
 
 # ------------------------------------------------------------------- main --
 def enrol(args, conf: dict) -> dict:
-    server = args.server.rstrip("/")
+    server = (args.server or conf.get("server") or "").rstrip("/")
     name = args.name or socket.gethostname()
     r = http(server, "POST", "/api/nodes/enrol", {"code": args.code.strip().upper(), "name": name, "kind": "kiosk"})
     conf.update(server=server, token=r["token"], name=r["name"])
@@ -248,20 +254,65 @@ def keep_awake() -> None:
             pass
 
 
+class Pairing:
+    """Ask the server for a pairing code, show it (the /screen page draws it
+    big, from #pair=<secret>) and wait for a tech to type it in."""
+
+    def __init__(self, server: str, name: str):
+        self.server, self.name = server, name
+        self.secret: str | None = None
+        self.code = ""
+
+    def url(self) -> str:
+        return f"{self.server}/screen#pair={self.secret}"
+
+    def request(self) -> None:
+        r = http(self.server, "POST", "/api/screens/pair/request", {"name": self.name, "info": {"agent": VERSION}})
+        self.secret, self.code = r["secret"], r["code"]
+        print(f"pairing code {r.get('display', self.code)}: type it into Add a screen on a tech laptop", flush=True)
+
+    def poll(self) -> str | None:
+        """The token once a tech has paired this screen; None while waiting.
+        A code that ran out (or a restarted server) gets a new one."""
+        if not self.secret:
+            self.request()
+            return None
+        try:
+            r = http(self.server, "GET", f"/api/screens/pair/status?secret={urllib.parse.quote(self.secret)}")
+        except RuntimeError as e:
+            if str(e).startswith("404"):
+                self.request()
+                return None
+            raise
+        if r.get("state") == "paired" and r.get("token"):
+            print(f"paired as {r.get('name')}", flush=True)
+            return r["token"]
+        return None
+
+
 def run(args) -> None:
     conf = load_config()
-    if args.server and (not conf.get("token") or conf.get("server") != args.server.rstrip("/") or args.re_enrol):
-        if not args.code:
-            sys.exit("This screen isn't enrolled yet: pass --code with the enrolment code from Admin -> Node setup")
+    if args.server:
+        server = args.server.rstrip("/")
+        if conf.get("server") != server:
+            conf.pop("token", None)
+        conf["server"] = server
+        save_config(conf)
+    if not conf.get("server"):
+        sys.exit("Pass --server the first time, e.g. --server http://10.100.70.101:8180")
+    if args.code and (not conf.get("token") or args.re_enrol):
         conf = enrol(args, conf)
-    if not conf.get("token"):
-        sys.exit("Pass --server and --code the first time")
-    server, token = conf["server"], conf["token"]
+    elif args.re_enrol:
+        conf.pop("token", None)
+        save_config(conf)
+    if args.save_only:
+        return
+    server, token = conf["server"], conf.get("token")
     browser_path = find_browser(args.browser)
     if not browser_path and not args.no_browser:
         sys.exit("Chromium isn't installed (sudo apt install chromium, or chromium-browser)")
     browser = Browser(browser_path) if browser_path else None
-    url = f"{server}/screen#token={token}"
+    pairing: Pairing | None = None
     keep_awake()
     stopping = False
 
@@ -271,14 +322,33 @@ def run(args) -> None:
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
 
+    def page_url() -> str:
+        return f"{server}/screen#token={token}" if token else (pairing.url() if pairing and pairing.secret else f"{server}/screen")
+
     last_beat = 0.0
+    shown_url = ""
     outs: list[dict] = []
     while not stopping:
         outs, changed = arrange_displays() if not args.no_displays else (read_displays(), False)
         geometry = next((o["geometry"] for o in outs if o["active"]), None)
-        if browser and (changed or not browser.running()):
+        if not token:  # not paired yet: show a code and wait for a tech
+            pairing = pairing or Pairing(server, args.name or socket.gethostname())
+            try:
+                new_token = pairing.poll()
+            except (RuntimeError, OSError) as e:
+                print("server:", e, flush=True)
+                new_token = None
+            if new_token:
+                token = new_token
+                conf["token"] = token
+                save_config(conf)
+                pairing = None
+                last_beat = 0.0
+        url = page_url()
+        if browser and (changed or not browser.running() or url != shown_url):
             browser.start(url, geometry)
-        if time.time() - last_beat >= args.interval:
+            shown_url = url
+        if token and time.time() - last_beat >= args.interval:
             last_beat = time.time()
             try:
                 r = http(server, "POST", "/api/nodes/heartbeat", token=token, body={
@@ -306,13 +376,18 @@ def run(args) -> None:
                     self_update(server, token, release)
             except RuntimeError as e:
                 if str(e).startswith("401"):
-                    sys.exit("The server no longer knows this screen. Enrol it again with --code.")
-                print("server:", e, flush=True)
+                    # Removed from the dashboard: back to showing a pairing code.
+                    print("the server no longer knows this screen; showing a pairing code", flush=True)
+                    token = None
+                    conf.pop("token", None)
+                    save_config(conf)
+                else:
+                    print("server:", e, flush=True)
             except OSError as e:
                 print("server unreachable:", e, flush=True)
         if args.once:
             break
-        time.sleep(args.poll)
+        time.sleep(args.poll if token else min(args.poll, 2.0))
     if browser and not args.once:
         browser.stop()
 
@@ -320,7 +395,7 @@ def run(args) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description="AT-SUIT screen agent (Linux)")
     ap.add_argument("--server", help="AT-SUIT address, e.g. http://10.100.70.101:8180 (only needed the first time)")
-    ap.add_argument("--code", help="enrolment code (first time only)")
+    ap.add_argument("--code", help="enrolment code (optional: without one the screen shows a pairing code)")
     ap.add_argument("--name", help="screen name (default: the computer's hostname)")
     ap.add_argument("--re-enrol", action="store_true")
     ap.add_argument("--browser", help="browser command (default: chromium)")
@@ -329,6 +404,7 @@ def main() -> None:
     ap.add_argument("--no-displays", action="store_true", help="don't change display outputs")
     ap.add_argument("--no-browser", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--once", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--save-only", action="store_true", help=argparse.SUPPRESS)
     ap.add_argument("--poll", type=float, default=3.0, help=argparse.SUPPRESS)
     ap.add_argument("--interval", type=float, default=15.0, help=argparse.SUPPRESS)
     ap.add_argument("--version", action="version", version=VERSION)

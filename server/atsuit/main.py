@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import VERSION, asr, db
 from .hub import can_subscribe, hub
-from .modules import captions, comms, core, dashboard, fleet, imports, overlays, presenter, timers
+from .modules import captions, comms, core, dashboard, fleet, imports, overlays, pairing, presenter, timers
 from .security import ws_principal
 
 STATIC = Path(__file__).parent / "static"
@@ -40,6 +40,7 @@ async def lifespan(app: FastAPI):
     db.migrate()
     asr.engine = asr.Engine()
     captions.rooms.clear()
+    pairing.reset()
     tasks = [asyncio.create_task(housekeeping()), asyncio.create_task(captions.load_engine()),
              asyncio.create_task(timers.end_actions())]
     yield
@@ -49,7 +50,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(title="AT-SUIT", version=VERSION, lifespan=lifespan, docs_url="/api/docs", redoc_url=None)
-    for module in (core, comms, timers, fleet, captions, overlays, dashboard, presenter, imports):
+    for module in (core, comms, timers, fleet, pairing, captions, overlays, dashboard, presenter, imports):
         app.include_router(module.router)
     app.include_router(fleet.legacy)
     app.include_router(captions.ws_router)

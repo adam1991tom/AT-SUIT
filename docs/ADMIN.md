@@ -85,17 +85,46 @@ session and automatic login on):
 
 ```
 curl -fsSL http://SERVER:PORT/screen-agent/install.sh | bash -s -- \
-     --server http://SERVER:PORT --code ENROLMENT-CODE --name HD-STAGE-1 --allow-power
+     --server http://SERVER:PORT --name HD-STAGE-1 --allow-power
 ```
 
-It installs Chromium, adds the screen under that name and starts it full
-screen at every login. Leave out `--allow-power` if the dashboard shouldn't
-be able to reboot it. Any browser can also be a screen: open
-`http://SERVER:PORT/screen` and enter a name and the enrolment code.
+It installs Chromium and starts the screen full screen at every login. Leave
+out `--allow-power` if the dashboard shouldn't be able to reboot it.
+
+**Pairing (the simple way).** A screen that isn't added yet boots to a big
+six-digit code. The tech, on their own laptop in the workspace:
+
+1. finds **Add a screen** next to the timer,
+2. types the code from the screen,
+3. picks what it shows: any timer view (built in, built in Timers → Views or
+   uploaded), captions (audience screen, transparent overlay or subtitle bar),
+   a test pattern, or *A web page…*,
+4. optionally names it (otherwise the computer's name, or `SCREEN-<code>`),
+   and presses **Add screen**.
+
+The screen joins the tech's room and switches to that layout within a couple
+of seconds. Any tech can do this; no admin or enrolment code is needed.
+Codes last 15 minutes and the screen shows a fresh one by itself. Pairing a
+screen again (re-imaged, or removed from the dashboard) reuses its name and
+gives it a new key; a screen that is deleted in the console goes back to
+showing a code. Any browser can be a screen the same way: open
+`http://SERVER:PORT/screen`.
+
+**Enrolment code (scripted installs).** Add `--code ENROLMENT-CODE` (Admin →
+Node setup) to the install command and the screen is added straight away
+without pairing; on a browser screen, *Use an enrolment code instead* at the
+bottom of the pairing page does the same.
 
 **HDMI rule**: when an HDMI (or DisplayPort, DVI, VGA) display is plugged
 in, the picture goes only to that display and the built-in screen goes
 dark. Unplug it and the built-in screen comes back.
+
+**Captions on a screen**: pick a captions layout when pairing (or later in
+the workspace's Screens window). How the captions look (font, size, colours,
+lines, position, hold and fade, the AI disclaimer) is set per room by any tech
+in Captions → Caption settings → Appearance, separately for the audience
+screen, the overlay and the subtitle bar; screens change as soon as it's
+saved.
 
 **Choosing what it shows**: on the screen, tap the top-left corner 5 times
 (or press P) and pick the room and view. From the console, Timers →

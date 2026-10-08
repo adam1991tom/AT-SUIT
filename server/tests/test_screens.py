@@ -193,7 +193,7 @@ else touch {state}; fi
                     break
                 time.sleep(0.2)
             assert node and node["name"] == "AIO-1"
-            assert node["kind"] == "kiosk" and node["version"] == "screen-agent 0.2.0"
+            assert node["kind"] == "kiosk" and node["version"] == f"screen-agent {load_agent().VERSION}"
             assert node["info"]["showing_on"] == ["HDMI-1"], node["info"]
             calls = log.read_text()
             assert "--output eDP-1 --off --output HDMI-1 --auto --primary --pos 0x0" in calls
