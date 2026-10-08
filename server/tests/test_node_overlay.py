@@ -100,3 +100,8 @@ def test_overlay_site_scoping(admin, client):
     client.post("/api/admin/accounts", json={"username": "vic", "password": "password1", "role": "viewer"})
     client.post("/api/auth/login", json={"username": "vic", "password": "password1"})
     assert client.put(f"/api/fleet/nodes/{node_id}/overlay", json={"on": True}).status_code == 403
+
+
+def test_overlay_defaults_to_top_centre():
+    from atsuit.modules import fleet
+    assert fleet.OVERLAY_DEFAULT["position"] == "top-center" and "top-center" in fleet.OVERLAY_POSITIONS

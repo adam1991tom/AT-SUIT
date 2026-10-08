@@ -742,9 +742,9 @@ def legacy_bootstrap():
 # turn a laptop's overlay on or off and move it. What was asked for is kept in
 # the node's info JSON as "overlay_want"; what the app actually shows comes
 # back as "overlay" (PUT /api/nodes/me/overlay). No schema change needed.
-OVERLAY_POSITIONS = ("bottom-right", "bottom-left", "top-right", "top-left", "bottom-bar", "top-bar")
+OVERLAY_POSITIONS = ("top-center", "bottom-right", "bottom-left", "top-right", "top-left", "bottom-bar", "top-bar")
 OVERLAY_SIZES = ("small", "medium", "large")
-OVERLAY_DEFAULT = {"on": False, "url": "", "position": "bottom-right", "size": "medium", "display": 0, "opacity": 0.85}
+OVERLAY_DEFAULT = {"on": False, "url": "", "position": "top-center", "size": "medium", "display": 0, "opacity": 0.85}
 
 
 class OverlayIn(BaseModel):

@@ -357,6 +357,11 @@
   // This laptop: main or backup PC, and silent pop-ups (Windows app only).
   if (APP && techLaptop()) {
     await APP.setSettings({ popups: mode === "backup" }); // the app follows what the tech picked
+    // The overlay follows the room this tech signed in to, so it is already set when it is turned on.
+    if (APP.overlayState && APP.overlay && roomId) {
+      const o = await APP.overlayState().catch(() => null);
+      if (o && o.room_id !== roomId) await APP.overlay({ room_id: roomId, on: o.on }).catch(() => {});
+    }
     $("laptopBtn").classList.remove("hidden");
     $("laptopBtn").onclick = () => $("laptop").classList.toggle("hidden");
     document.querySelector(`[name=lapmode][value=${mode}]`).checked = true;
@@ -422,7 +427,7 @@
   // AT Overlay: the room timer in a click-through window on any tech laptop
   // in this room. From here a tech can turn it on or off on their own laptop
   // or on the other one (e.g. from the backup PC onto the main PC's screen).
-  const OV_POS = [["bottom-right", "Bottom right"], ["bottom-left", "Bottom left"], ["top-right", "Top right"], ["top-left", "Top left"], ["bottom-bar", "Bar along the bottom"], ["top-bar", "Bar along the top"]];
+  const OV_POS = [["top-center", "Top centre"], ["bottom-right", "Bottom right"], ["bottom-left", "Bottom left"], ["top-right", "Top right"], ["top-left", "Top left"], ["bottom-bar", "Bar along the bottom"], ["top-bar", "Bar along the top"]];
   const OV_SIZE = [["small", "Small"], ["medium", "Medium"], ["large", "Large"]];
   let atOvCount = 0, lvOvCount = 0;
   const ovAvail = () => wins.overlays.available(atOvCount + lvOvCount > 0);

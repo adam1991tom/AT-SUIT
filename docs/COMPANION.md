@@ -131,7 +131,7 @@ The AT-SUIT Node app can float the room timer over a tech laptop's screen
 | Overlay as a bottom bar | `/api/fleet/nodes/7/overlay` | `{"on": true, "position": "bottom-bar", "size": "medium"}` |
 | Overlay showing a web page | `/api/fleet/nodes/7/overlay` | `{"on": true, "url": "https://..."}` |
 
-Positions: `bottom-right`, `bottom-left`, `top-right`, `top-left`,
+Positions: `top-center` (the default), `bottom-right`, `bottom-left`, `top-right`, `top-left`,
 `bottom-bar`, `top-bar`. Sizes: `small`, `medium`, `large`. An empty `url`
 means the room timer.
 

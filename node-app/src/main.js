@@ -242,10 +242,10 @@ function restack() {
 // turned on and off here (tray), from the workspace, or remotely from another
 // laptop or Companion through the server (node command "overlay").
 const OVERLAY_PARTITION = "atsuit-overlay";
-const OVERLAY_POSITIONS = ["bottom-right", "bottom-left", "top-right", "top-left", "bottom-bar", "top-bar"];
+const OVERLAY_POSITIONS = ["top-center", "bottom-right", "bottom-left", "top-right", "top-left", "bottom-bar", "top-bar"];
 const OVERLAY_SIZES = { small: { w: 320, h: 110, bar: 56 }, medium: { w: 440, h: 150, bar: 80 }, large: { w: 600, h: 200, bar: 110 } };
 const OVERLAY_MARGIN = 16;
-const OVERLAY_DEFAULT = { on: false, url: "", position: "bottom-right", size: "medium", display: 0, opacity: 0.85, room_id: null };
+const OVERLAY_DEFAULT = { on: false, url: "", position: "top-center", size: "medium", display: 0, opacity: 0.85, room_id: null };
 const httpUrl = (u) => /^https?:\/\/[^\s]{1,1000}$/i.test(u);
 
 function overlayConf(cfg, prev) {
@@ -286,6 +286,7 @@ function overlayBounds(c) {
   switch (c.position) {
     case "bottom-bar": return { x: wa.x, y: wa.y + wa.height - s.bar, width: wa.width, height: s.bar };
     case "top-bar": return { x: wa.x, y: wa.y, width: wa.width, height: s.bar };
+    case "top-center": return { x: wa.x + Math.round((wa.width - w) / 2), y: wa.y + m, width: w, height: h };
     case "top-left": return { x: wa.x + m, y: wa.y + m, width: w, height: h };
     case "top-right": return { x: wa.x + wa.width - w - m, y: wa.y + m, width: w, height: h };
     case "bottom-left": return { x: wa.x + m, y: wa.y + wa.height - h - m, width: w, height: h };
