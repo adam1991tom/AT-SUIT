@@ -4,7 +4,7 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
-## Unreleased
+## 0.6.0
 
 - **Add a screen with a code.** A new Linux screen (or any browser on `/screen`) shows a big six-digit code. Any tech types it into *Add a screen* beside the timer in the workspace and picks what it shows: a timer view, a built or uploaded view, captions (audience screen, transparent overlay or the new subtitle bar), a test pattern or a web page. The screen joins the room and shows it straight away. The screen agent (0.3.0) installs without an enrolment code and goes back to showing a code if it is removed; `--code` still works.
 - **Captions work like AT LiveCaption.** Per room, for any tech (Captions → Caption settings, or `/static/captions-control.html`): mic gain and graphic EQ with a live analyser, level meter after processing, custom vocabulary with a boost strength, music/filler noise shown as [MUSIC], spelled-out acronyms joined, a live preview that marks words the engine wasn't sure of, click-a-word corrections that add to the vocabulary, the last 200 captions, transcripts you start and stop at any time with SRT and WebVTT export, and each caption screen's look (font, size, weight, alignment, colours, opacity, lines, position, hold, fade, AI disclaimer), pushed live to the screens. Caption screens use LiveCaption's rolling lines: wrapped to the screen width, long sentences roll on without waiting for a pause, old lines hold then fade. New vocabulary reaches rooms already captioning at their next pause. See `captions-parity.md` in the v0.6 notes for the full comparison.
@@ -18,8 +18,10 @@ release workflow publishes the image and the GitHub release.
 - Companion module (`companion-module/`): presets 3 to 60, +/-, control, blink, clock, blackout, messages, AT Overlay and caption tests, with live feedback and a time-left variable.
 - Admins and techs land on the workspace; the console Dashboard shows live room timers; the Companion guide is served at `/guide/companion`.
 - Main PC no longer shows urgent chat toasts.
-
-## Unreleased
+- **AT Overlay** can sit top centre, now the default, and follows the room the tech signed in to.
+- **Screens preview** window: pin live thumbnails of the room's timer views, caption screens and Linux screens.
+- **Pin any window** to a dashboard grid under the timer, reorder it and make it wider.
+- Workspace **Links** window has search and groups (this room, tools, everything else) for the imported Homarr board.
 
 - **Screen test (from AT-ScreenTest).** `/screentest` is a browser page of test patterns for any display: solid colours with a slow pulse, colour bars, grey and RGB gradients, a pixel checkerboard that inverts, crosshatch and geometry, sharpness and text, a motion line, an overscan border with the 5% safe area, and the LED tile map (rows by columns, tile coordinates, a corner mark to spot a rotated panel, and a highlight that walks tile by tile). Move the mouse for the controls; arrow keys change pattern. A Linux screen or kiosk can be sent to any pattern from the workspace's Screens window, Timers → Screens, or Companion (`screentest:ledmap` and so on).
 
