@@ -156,6 +156,14 @@
       <button class="primary" id="micBtn">Send my mic</button>
     </div>
     <p class="muted small" id="micNote"></p>
+    <div class="row" style="margin-top:.4rem;flex-wrap:wrap">
+      <button class="small" id="capTest">Send a test line</button>
+      <button class="small" id="capClear">Clear the screens</button>
+      <a class="small" id="capScreen" target="_blank">Caption screen</a>
+      <a class="small" id="capOverlay" target="_blank">Overlay (for a video mixer)</a>
+      <a class="small hidden" id="capScript" target="_blank">Latest transcript</a>
+    </div>
+    <p class="muted small" id="capEngine"></p>
   </section>
 
   <section class="win" data-win="sessions" data-title="Sessions" data-w="620">
@@ -624,6 +632,11 @@
     finals.push(...r.finals); partial = r.partial; renderCaps();
     capStatus(r.live);
     setupMic();
+    $("capScreen").href = `/captions/${roomId}`; $("capOverlay").href = `/captions/${roomId}/overlay`;
+    $("capTest").onclick = () => guard(() => post(`/api/captions/${roomId}/test`, { text: "Test caption: can everyone read this?", final: true }));
+    $("capClear").onclick = () => guard(() => post(`/api/captions/${roomId}/clear`));
+    api("/api/captions/status").then((st) => { const e = st.engine || {}; $("capEngine").textContent = e.state === "ready" ? "Caption engine ready." : e.state === "off" ? "Caption engine is off. Ask an admin to turn it on." : `Caption engine: ${e.state}${e.detail ? " (" + e.detail + ")" : ""}`; }).catch(() => {});
+    api("/api/captions/transcripts").then((ts) => { const t = ts.find((x) => x.room_id === roomId); if (t) { $("capScript").href = `/api/captions/transcripts/${t.id}`; $("capScript").classList.remove("hidden"); } }).catch(() => {});
   }
 
   function onEvent(evt) {
