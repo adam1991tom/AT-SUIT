@@ -7,6 +7,8 @@ AT-SUIT with an API key. A key can do what a tech can: run any room's timer,
 show stage messages, work the overlay laptops, test captions, route screens.
 It can't change settings, accounts or licences.
 
+> **Easier:** the `companion-module/` folder in the repo is a ready-made Companion module with presets for everything below. See its README. The plain HTTP buttons below keep working.
+
 ## 1. Make an API key
 
 1. Sign in as an admin and go to **Admin → API keys**.

@@ -239,3 +239,24 @@ def test_companion_guide_is_served(client):
     assert page.status_code == 200
     text = client.get("/api/guide/companion")
     assert text.status_code == 200 and "API" in text.text
+
+
+def test_companion_module_calls_real_routes():
+    """Every request the Companion module can build must match a route on the server."""
+    import json, re, shutil, subprocess
+    from pathlib import Path
+    from atsuit.main import app
+    node = shutil.which("node")
+    lib = Path(__file__).resolve().parents[2] / "companion-module" / "lib.js"
+    if not node or not lib.is_file():
+        import pytest
+        pytest.skip("node or the module isn't here")
+    cases = [["preset", {"minutes": 5}], ["add", {"minutes": 1}], ["control", {"cmd": "go"}], ["blink", {"mode": "on"}],
+             ["clock", {"mode": "toggle"}], ["blackout", {"mode": "off"}], ["message", {"text": "x"}], ["message_hide", {}],
+             ["overlay", {"node": 7, "on": "on"}], ["caption_test", {"text": "x"}], ["caption_clear", {}]]
+    js = f"const {{request}}=require({json.dumps(str(lib))});console.log(JSON.stringify({json.dumps(cases)}.map(([a,o])=>[a,request(a,o,3)])))"
+    out = json.loads(subprocess.check_output([node, "-e", js]))
+    routes = [(r.path, m) for r in app.routes if hasattr(r, "methods") for m in r.methods]
+    for action, (path, _body, *meth) in out:
+        method = meth[0] if meth else "POST"
+        assert any(m == method and re.fullmatch(re.sub(r"\{[^}]+\}", "[^/]+", p), path) for p, m in routes), (action, path)

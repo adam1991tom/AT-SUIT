@@ -1,0 +1,16 @@
+{
+  "id": "at-suit",
+  "name": "at-suit",
+  "shortname": "AT-SUIT",
+  "description": "Control AT-SUIT room timers, messages, overlays and caption screens",
+  "version": "0.5.0",
+  "license": "UNLICENSED",
+  "repository": "https://github.com/adam1991tom/AT-SUIT",
+  "bugs": "https://github.com/adam1991tom/AT-SUIT/issues",
+  "maintainers": [{ "name": "AT", "email": "noreply@example.invalid" }],
+  "runtime": { "type": "node22", "api": "nodejs-ipc", "apiVersion": "0.0.0", "entrypoint": "../main.js" },
+  "legacyIds": [],
+  "manufacturer": "AT",
+  "products": ["AT-SUIT"],
+  "keywords": ["timer", "stage", "AV"]
+}
