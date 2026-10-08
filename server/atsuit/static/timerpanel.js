@@ -63,11 +63,13 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
         <div class="tp-row" style="margin-top:.3rem"><button class="small" data-sa="toggle">Start / pause</button><button class="small" data-sa="reset">Reset</button>
           <button class="small" data-sadd="-60000">−1m</button><button class="small" data-sadd="60000">+1m</button><button class="small" data-svis>Hide</button></div></div>`;
     const $ = (q) => el.querySelector(q);
+    // Hand the reply straight to the room timer above, so the press shows at once.
+    const shown = (x) => { if (x) document.dispatchEvent(new CustomEvent("atsuit:timer", { detail: x })); return x; };
 
     // quick timers
     $("[data-tstart]").onchange = (e) => { startOnTap = e.target.checked; store.set("start", startOnTap); };
     el.querySelectorAll("[data-min]").forEach((b) => b.onclick = () =>
-      guard(() => post(`/api/timers/${roomId}/preset/${b.dataset.min}?start=${startOnTap}`)).then((x) => x && toast(`${b.dataset.min} minutes ${startOnTap ? "started" : "loaded"}`, "good")));
+      guard(() => post(`/api/timers/${roomId}/preset/${b.dataset.min}?start=${startOnTap}`)).then(shown, () => {}));
 
     // quick messages: tap to show, tap the one on stage to hide it
     $("[data-mblink]").onchange = (e) => { blinkMsg = e.target.checked; store.set("blink", blinkMsg); };
@@ -76,7 +78,7 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
       $("[data-msgs]").innerHTML = msgs.map((m, i) => `<button data-mi="${i}" class="${onStage(m) ? "on" : ""}">${esc(m)}</button>`).join("") || '<span class="muted small">No quick messages.</span>';
       $("[data-msgs]").querySelectorAll("[data-mi]").forEach((b) => b.onclick = () => {
         const t = msgs[+b.dataset.mi];
-        guard(() => onStage(t) ? post(`/api/timers/${roomId}/message/hide`) : post(`/api/timers/${roomId}/message/show`, { text: t, blink: blinkMsg }));
+        guard(() => onStage(t) ? post(`/api/timers/${roomId}/message/hide`) : post(`/api/timers/${roomId}/message/show`, { text: t, blink: blinkMsg })).then(shown, () => {});
       });
       $("[data-medit]").classList.toggle("hidden", !canEdit || editing);
     }
@@ -91,7 +93,7 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
       guard(() => del("/api/timers-quick-messages")).then((r) => { if (r) { msgs = r.messages; editor(false); } });
 
     // the second line
-    const sec = (action, body) => guard(() => post(`/api/timers/${roomId}/secondary/${action}`, body || {}));
+    const sec = (action, body) => guard(() => post(`/api/timers/${roomId}/secondary/${action}`, body || {})).then(shown, () => {});
     $("[data-sshow]").onclick = () => { const t = $("[data-stext]").value.trim(); if (!t) return toast("Type the text first", "bad"); sec("text", { text: t }); };
     $("[data-stext]").onkeydown = (e) => { if (e.key === "Enter") $("[data-sshow]").click(); };
     el.querySelectorAll("[data-smin]").forEach((b) => b.onclick = () => sec("timer", { minutes: +b.dataset.smin }));

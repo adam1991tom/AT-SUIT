@@ -17,12 +17,28 @@
   .winbar { display: flex; gap: .3rem; flex-wrap: wrap; }
   .winbar button.on { border-color: var(--accent); color: #fff; background: color-mix(in srgb, var(--accent) 35%, var(--panel2)); }
   .winbar .unread { margin-left: .3rem; }
-  /* the dashboard: the timer first, a column of quick looks beside it */
-  .dash { display: grid; gap: 1rem; padding: 1rem; grid-template-columns: minmax(0, 1fr) 320px; align-items: start; padding-bottom: 5rem; }
-  .dash .timer .bigclock { font-size: clamp(4rem, 13vw, 10rem); }
-  .dside { display: flex; flex-direction: column; gap: 1rem; }
+  /* the board: every part is a tile on a 12-column grid the tech can rearrange (layout.js) */
+  .board { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: 40px; grid-auto-flow: row dense; gap: 1rem; padding: 1rem 1rem 5rem; align-items: start; }
+  .board .btile { grid-row: auto; min-width: 0; position: relative; margin: 0; }
+  .board .btile.tile-fixed { align-self: stretch; overflow: auto; }
+  .board .btile.tile-off { display: none; }
+  #timerBox, #timerBox > [data-tp], #timerBox .tp { display: contents; }
+  .tile-timer { container-type: inline-size; }
+  .tile-timer .bigclock { font-size: clamp(2.4rem, 17cqw, 8rem); line-height: 1; margin: .2rem 0; }
   .cap-line { min-height: 2.6rem; margin: .4rem 0; font-size: .95rem; }
-  @media (max-width: 900px) { .dash { grid-template-columns: 1fr; } }
+  .board.editing .btile { outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; padding-top: 2.6rem; }
+  .tile-tools { display: none; }
+  .board.editing .tile-tools { display: flex; align-items: center; gap: .3rem; position: absolute; left: 0; right: 0; top: 0; height: 2.2rem; padding: 0 .4rem; z-index: 5;
+    background: color-mix(in srgb, var(--accent) 18%, var(--panel2)); border-bottom: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; font-size: .8rem; }
+  .tile-tools button { padding: .1rem .45rem; font-size: .8rem; }
+  .tile-tools .tt-grip { cursor: grab; font-size: 1.1rem; padding: 0 .3rem; user-select: none; }
+  .tile-tools b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tile-corner { display: none; }
+  .board.editing .tile-corner { display: block; position: absolute; right: 2px; bottom: 2px; width: 16px; height: 16px; cursor: nwse-resize; z-index: 5;
+    background: linear-gradient(135deg, transparent 50%, var(--accent) 50%); border-radius: 0 0 6px 0; touch-action: none; }
+  .tile-moving { opacity: .4; }
+  .board-edit { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin: 1rem 1rem 0; padding: .6rem .8rem; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--panel); }
+  @media (max-width: 900px) { .board { grid-template-columns: 1fr; grid-auto-rows: auto; } .board .btile { grid-column: 1 / -1 !important; grid-row: auto !important; } }
   /* windows over the dashboard */
   .win { position: fixed; z-index: 20; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 1rem 1rem;
     box-shadow: 0 12px 40px rgba(0,0,0,.55); max-height: calc(100vh - 70px); overflow: auto; resize: both; min-width: 260px; min-height: 120px; }
@@ -61,12 +77,9 @@
   .opt span { display: block; color: var(--muted); font-size: .82rem; margin-top: .25rem; }
   .opt:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   #startRooms .tile.on { border-color: var(--accent); background: var(--accent); color: #fff; }
-  /* windows pinned to the dashboard sit in a grid under the timer */
-  .pingrid { display: grid; gap: 1rem; padding: 0 1rem 5rem; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; }
-  .pingrid:empty { display: none; }
-  .win.pinned { position: static; resize: vertical; max-height: 70vh; box-shadow: none; width: auto; min-width: 0; }
+  /* a window pinned to the board is a tile like the rest */
+  .win.pinned { position: relative; resize: none; max-height: none; box-shadow: none; width: auto !important; height: auto; min-width: 0; left: auto !important; top: auto !important; z-index: auto !important; }
   .win.pinned .win-head { cursor: default; }
-  .win:not(.pinned) .pin-tools { display: none; }
   [data-pin].on { background: var(--accent); color: var(--accent-ink, #0B1020); }
   /* previews: live thumbnails of the room's outputs */
   .pv-grid { display: grid; gap: .7rem; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
@@ -128,6 +141,7 @@
     <span class="muted" id="who"></span><span class="pill hidden" id="modePill"></span>
     <select id="room" style="width:auto"></select>
     <nav class="winbar" id="winBar"></nav>
+    <button id="layoutBtn" class="small" title="Move, resize, hide and show the parts of this screen">Layout</button>
     <span class="grow"></span>
     <span class="pill" id="conn">connecting</span>
     <div class="drop"><button id="bellBtn" title="Notifications" aria-label="Notifications">🔔<span class="unread hidden" id="bellCount"></span></button>
@@ -153,19 +167,17 @@
     <div class="row" style="margin-top:.6rem"><button id="popTest" class="small">Test a pop-up</button><span class="muted small" id="appVer"></span></div>
   </div>
 
-  <main class="dash">
+  <div class="board" id="board">
     <section class="panel timer" id="timerBox"></section>
-    <aside class="dside">
-      <section class="panel mini" id="capMini">
-        <div class="row" style="justify-content:space-between"><h3>Captions</h3><span class="pill" id="capState">off</span></div>
-        <div class="cap-line" id="capLine"><span class="muted">Nothing yet.</span></div>
-        <div class="meter"><i id="meter"></i></div>
-        <div class="row" style="margin-top:.5rem"><button class="small" data-openwin="captions">Open captions</button></div>
-      </section>
-      <section class="panel mini hidden" id="sessMini"></section>
-    </aside>
-  </main>
-  <div id="pinGrid" class="pingrid"></div>
+    <section class="panel mini pair-mini" id="pairMini"></section>
+    <section class="panel mini" id="capMini">
+      <div class="row" style="justify-content:space-between"><h3>Captions</h3><span class="pill" id="capState">off</span></div>
+      <div class="cap-line" id="capLine"><span class="muted">Nothing yet.</span></div>
+      <div class="meter"><i id="meter"></i></div>
+      <div class="row" style="margin-top:.5rem"><button class="small" data-openwin="captions">Open captions</button></div>
+    </section>
+    <section class="panel mini hidden" id="sessMini"></section>
+  </div>
 
   <section class="win" data-win="captions" data-title="Captions" data-w="480">
     <div class="cap-live" id="capText"><span class="muted">Captions for this room appear here.</span></div>
@@ -211,6 +223,7 @@
 <script src="/static/common.js"></script>
 <script src="/static/chat.js"></script>
 <script src="/static/previews.js"></script>
+<script src="/static/layout.js"></script>
 <script src="/static/timerpanel.js"></script>
 <script src="/static/cuelist.js"></script>
 <script src="/static/desk.js"></script>
@@ -401,6 +414,8 @@
   }
 
   // Windows over the timer, opened and closed from the top bar.
+  // The board: each part of the screen is a tile the tech can move, resize and hide (layout.js). Pinned windows join it.
+  Layout.mount($("board"), $("layoutBtn"));
   const wins = Desk.windows($("winBar"), { captions: false, sessions: false, screens: false, previews: false, overlays: false, links: false });
   document.querySelectorAll("[data-openwin]").forEach((b) => (b.onclick = () => wins[b.dataset.openwin].open()));
   wins.captions.available(!!boot.modules.captions);
@@ -428,6 +443,27 @@
   // timer and cue list: the main thing on screen
   let cuelist = null;
   if (boot.modules.timers) cuelist = CueList.mount($("timerBox"), roomId);
+
+  {
+    const box = $("timerBox");
+    if (cuelist) {
+      // The timer's own controls form one tile; quick timers, messages, the second line and the cue list are tiles of their own.
+      const tile = document.createElement("div");
+      tile.className = "panel tile-timer";
+      [...box.children].filter((n) => !n.matches("[data-tp], details")).forEach((n) => tile.appendChild(n));
+      box.prepend(tile);
+      Layout.add("timer", tile, "Room timer", [5, 0]);
+      const tp = box.querySelectorAll("[data-tp] > div");
+      [["quick", "Quick timers", 3], ["messages", "Messages to the speaker", 4], ["second", "Second line", 4]].forEach(([id, title, w], i) => {
+        if (tp[i]) { tp[i].classList.add("panel"); Layout.add(id, tp[i], title, [w, 0]); }
+      });
+      const cues = box.querySelector("details");
+      if (cues) { cues.classList.add("panel"); Layout.add("cues", cues, "Cue list", [8, 0]); }
+    } else { box.style.display = "block"; Layout.add("timer", box, "Room timer", [7, 0]); }
+    Layout.add("pair", $("pairMini"), "Add a screen", [4, 0]);
+    Layout.add("captions", $("capMini"), "Captions", [4, 0]);
+    Layout.add("sessions", $("sessMini"), "Sessions", [4, 0]);
+  }
   // The timer reaching its warning, danger and overtime is worth a note.
   let tstate = null, tphase = "", trun = "";
   if (boot.modules.timers) {

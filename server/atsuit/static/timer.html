@@ -263,7 +263,7 @@
   const place = (el, left, width) => { el.style.left = left + "%"; el.style.width = width + "%"; };
   const draw = () => {
     const type = s.timer_type || "count-down", loaded = s.playback !== "stop";
-    const idle = !loaded || (strict && s.playback === "armed");
+    const idle = !loaded; // a loaded timer shows its time straight away, before GO
     const clock = kind === "clock" || s.show_clock || type === "clock";
     const left = s.running ? s.remaining_ms - (Date.now() - s._rx) : s.remaining_ms;
     const total = s.duration_ms + (s.added_ms || 0);

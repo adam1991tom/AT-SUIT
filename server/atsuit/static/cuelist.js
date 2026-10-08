@@ -102,10 +102,12 @@ const CueList = (() => {
       if (f) guard(() => upload(`/api/timers/${roomId}/cues/import`, f)).then((r) => toast(`${r.imported} cues imported`, "good"));
       e.target.value = "";
     };
-    el.querySelectorAll("[data-a]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/${b.dataset.a}`)));
-    el.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/add`, { delta_ms: +b.dataset.add })));
-    $("[data-show]").onclick = () => guard(() => post(`/api/timers/${roomId}/message`, { message: $("[data-msg]").value, message_visible: true }));
-    el.querySelectorAll("[data-sw]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/${b.dataset.sw}`, {})).then((x) => { if (x) { s = x; panel?.update(x); } }));
+    // Every timer button shows its result straight away from the reply, without waiting for the live feed.
+    const act = (path, body) => guard(() => post(`/api/timers/${roomId}/${path}`, body)).then(apply, () => {});
+    el.querySelectorAll("[data-a]").forEach((b) => b.onclick = () => act(b.dataset.a));
+    el.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => act("add", { delta_ms: +b.dataset.add }));
+    $("[data-show]").onclick = () => act("message", { message: $("[data-msg]").value, message_visible: true });
+    el.querySelectorAll("[data-sw]").forEach((b) => b.onclick = () => act(b.dataset.sw, {}));
     api("/api/timers-views").then((views) => {
       const sel = $("[data-views]");
       sel.insertAdjacentHTML("beforeend", views.filter((v) => !["stage", "backstage"].includes(v.id)).map((v) => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join(""));
@@ -115,10 +117,22 @@ const CueList = (() => {
         sel.value = "";
       };
     }).catch(() => {});
-    $("[data-flash]").onchange = (e) => guard(() => post(`/api/timers/${roomId}/thresholds`, { flash_danger: e.target.checked }));
-    $("[data-hide]").onclick = () => guard(() => post(`/api/timers/${roomId}/message`, { message_visible: false }));
+    $("[data-flash]").onchange = (e) => act("thresholds", { flash_danger: e.target.checked });
+    $("[data-hide]").onclick = () => act("message", { message_visible: false });
 
-    setInterval(() => {
+    // The newest state wins, whether it came back from a button or over the live feed.
+    function apply(x) {
+      if (!x || x.room_id !== roomId || !("remaining_ms" in x)) return x;
+      if (s && x.server_time < s.server_time) return x;
+      const was = s?.cue?.id;
+      x._rx = Date.now(); s = x; panel?.update(s); draw();
+      if (was !== s.cue?.id) renderList();
+      return x;
+    }
+    document.addEventListener("atsuit:timer", (e) => apply(e.detail));
+
+    setInterval(() => draw(), 100);
+    function draw() {
       if (!s) return;
       const d = timerDisplay(s), c = $("[data-clock]");
       $("[data-flash]").checked = !!s.flash_danger;
@@ -127,18 +141,17 @@ const CueList = (() => {
       c.className = "clock bigclock " + d.cls;
       $("[data-now]").textContent = (s.cue ? `${s.cue.cue ? s.cue.cue + " · " : ""}` : "") + (s.title || "") + (s.playback === "pause" ? "  (paused)" : "");
       $("[data-next]").textContent = (s.next ? `Next: ${s.next.title} (${dur(s.next.duration_ms)})` : "") + (s.message_visible ? `  ·  On stage: ${s.message}` : "");
-    }, 200);
+    }
 
     (async () => {
-      [s, cues] = await Promise.all([api(`/api/timers/${roomId}`), api(`/api/timers/${roomId}/cues`)]);
-      panel?.update(s);
-      renderList();
+      const [first, list] = await Promise.all([api(`/api/timers/${roomId}`), api(`/api/timers/${roomId}/cues`)]);
+      cues = list; apply(first); renderList();
     })();
 
     return {
       onEvent(evt) {
         if (evt.topic !== `timer:${roomId}`) return;
-        if (evt.type === "timer") { const was = s?.cue?.id; s = evt.data; panel?.update(s); if (was !== s.cue?.id) renderList(); }
+        if (evt.type === "timer") apply(evt.data);
         if (evt.type === "cues") { cues = evt.data.cues; renderList(); }
       },
     };

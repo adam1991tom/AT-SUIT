@@ -4,6 +4,12 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.6.1
+
+- **GO starts what is loaded.** Pressing a quick timer (with *Start on tap* off) and then GO now starts that timer; before, GO moved past it and every screen went to `--:--`. A cue loaded with *Next* also starts on GO, and GO after that moves on as before.
+- **Screens and the workspace respond at once.** Every timer button updates the workspace from the server's reply instead of waiting for the live feed, older updates can no longer overwrite newer ones, and the Standard view shows a loaded time before GO instead of a blank.
+- **The workspace layout is yours.** Everything on the workspace (room timer, quick timers, messages, second line, cue list, Add a screen, captions, sessions and any pinned window) is a tile. *Layout* turns on editing: drag ⠿ to move a tile, ◂ ▸ ▴ ▾ or the corner to resize it, ✕ to hide it, *Show a hidden part* to bring it back, or pick a ready-made layout (Standard, Compact timer, Big timer). Each laptop keeps its own. The timer tile is smaller by default and its clock scales to the tile.
+
 ## 0.6.0
 
 - **Add a screen with a code.** A new Linux screen (or any browser on `/screen`) shows a big six-digit code. Any tech types it into *Add a screen* beside the timer in the workspace and picks what it shows: a timer view, a built or uploaded view, captions (audience screen, transparent overlay or the new subtitle bar), a test pattern or a web page. The screen joins the room and shows it straight away. The screen agent (0.3.0) installs without an enrolment code and goes back to showing a code if it is removed; `--code` still works.

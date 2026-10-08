@@ -263,6 +263,10 @@ async def timer_action(room_id: int, action: str, body: TimerAction | None = Non
             if not q:
                 raise HTTPException(404, "Cue not found")
             _load(c, room_id, q, start=False)
+        elif action == "go" and playback(r) == "armed":
+            # GO starts what is loaded and not started yet (a quick timer, or a cue loaded with Next);
+            # once it has run, GO moves on to the next cue.
+            _update(c, room_id, running=1, started_at=now, remaining_ms=left, first_started_at=r["first_started_at"] or now)
         elif action in ("go", "next"):
             q = _neighbours(cues, r["cue_id"])
             if q:

@@ -404,3 +404,20 @@ def test_bdng_is_an_imported_view(admin, client):
 def timers_shim():
     from atsuit.modules.timers import SHIM
     return SHIM
+
+
+def test_go_starts_a_loaded_quick_timer(admin):
+    """Load 10 minutes without starting, then GO: it starts that timer (it used to clear it)."""
+    rid = room(admin, "RH")
+    s = admin.post(f"/api/timers/{rid}/preset/10?start=false").json()
+    assert s["playback"] == "armed" and s["remaining_ms"] == 600000
+    s = admin.post(f"/api/timers/{rid}/go").json()
+    assert s["playback"] == "play" and s["running"] and s["duration_ms"] == 600000
+    # with cues: Next loads one, GO starts that one rather than skipping past it
+    a = add(admin, rid, title="A", duration_ms=60000)
+    add(admin, rid, title="B", duration_ms=120000)
+    admin.post(f"/api/timers/{rid}/load", json={"cue_id": a})
+    s = admin.post(f"/api/timers/{rid}/go").json()
+    assert s["cue"]["id"] == a and s["running"]
+    s = admin.post(f"/api/timers/{rid}/go").json()  # running: GO moves on
+    assert s["title"] == "B" and s["running"]
