@@ -4,6 +4,11 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.6.3
+
+- **The second line turns off where you turned it on.** *Show text* is now a toggle: it reads *Hide text* while that text is on stage, and pressing it again (or with the box empty) takes the line off. The second line's header has a clear *Turn off* button (*Show again* brings it back), and the countdown controls only show when there is a countdown.
+- **Tidier timer screens.** The status bar leaves out what has nothing to say yet (no cue, not started, nothing elapsed) instead of showing dashes, and keeps the end time on the right. In the workspace, the stage message box and its Show / Hide sit on one line.
+
 ## 0.6.2
 
 - **Emoji in chat.** A 😊 button beside the message box opens a picker (faces, hands and show-day signs like 🎤 🔇 ⚠️ 🆘) and drops the emoji where the cursor is. Any message can get a reaction: ☺︎+ offers 👍 ✅ 👀 ❤️ 😂 🙏 or the full picker; tap a reaction again to take it away, hover it to see who.

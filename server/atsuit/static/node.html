@@ -24,6 +24,7 @@
   .board .btile.tile-off { display: none; }
   #timerBox, #timerBox > [data-tp], #timerBox .tp { display: contents; }
   .tile-timer { container-type: inline-size; }
+  .tile-timer .row > input.grow { width: auto; flex-basis: 9rem; } /* the stage message and its Show / Hide on one line */
   .tile-timer .bigclock { font-size: clamp(2.4rem, 17cqw, 8rem); line-height: 1; margin: .2rem 0; }
   .cap-line { min-height: 2.6rem; margin: .4rem 0; font-size: .95rem; }
   .board.editing .btile { outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; padding-top: 2.6rem; }

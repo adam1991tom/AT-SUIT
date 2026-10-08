@@ -35,7 +35,8 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
       .tp .tp-m button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
       .tp .tp-row { display: flex; gap: .3rem; flex-wrap: wrap; align-items: center; }
       .tp .tp-row input { flex: 1; min-width: 8rem; width: auto; }
-      .tp .tp-sec-now { font-variant-numeric: tabular-nums; font-weight: 700; }
+      .tp .tp-sec-now { font-variant-numeric: tabular-nums; font-weight: 700; flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .tp [data-sshow].on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
       .tp textarea { min-height: 9rem; font-size: .9rem; }`;
     document.head.append(st);
   }
@@ -56,12 +57,13 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
         <div class="tp-m" data-msgs><span class="muted small">Loading…</span></div>
         <div class="hidden" data-meditor style="margin-top:.4rem"><textarea data-mtext placeholder="One message per line"></textarea>
           <div class="tp-row" style="justify-content:flex-end;margin-top:.3rem"><button class="small" data-mreset>Back to the defaults</button><button class="small" data-mcancel>Cancel</button><button class="small primary" data-msave>Save</button></div></div></div>
-      <div><div class="tp-h"><span>Second line under the timer</span><span class="tp-sec-now small" data-snow style="text-transform:none;letter-spacing:0"></span></div>
+      <div><div class="tp-h"><span>Second line under the timer</span><span class="tp-sec-now small" data-snow style="text-transform:none;letter-spacing:0"></span>
+          <button class="small" data-svis title="Take the second line off the stage screens (or put it back)">Turn off</button></div>
         <div class="tp-row"><input data-stext maxlength="200" placeholder="Text, e.g. Q&amp;A next"><button class="small" data-sshow>Show text</button></div>
         <div class="tp-row" style="margin-top:.3rem"><span class="small muted">Countdown</span>${SEC_MINUTES.map((m) => `<button class="small" data-smin="${m}">${m}m</button>`).join("")}
           <input data-sdur placeholder="mm:ss" style="width:5.5rem;min-width:5.5rem;flex:0 0 auto"><button class="small" data-sset>Set</button></div>
-        <div class="tp-row" style="margin-top:.3rem"><button class="small" data-sa="toggle">Start / pause</button><button class="small" data-sa="reset">Reset</button>
-          <button class="small" data-sadd="-60000">−1m</button><button class="small" data-sadd="60000">+1m</button><button class="small" data-svis>Hide</button></div></div>`;
+        <div class="tp-row hidden" style="margin-top:.3rem" data-sctl><button class="small" data-sa="toggle">Start / pause</button><button class="small" data-sa="reset">Reset</button>
+          <button class="small" data-sadd="-60000">−1m</button><button class="small" data-sadd="60000">+1m</button></div></div>`;
     const $ = (q) => el.querySelector(q);
     // Hand the reply straight to the room timer above, so the press shows at once.
     const shown = (x) => { if (x) document.dispatchEvent(new CustomEvent("atsuit:timer", { detail: x })); return x; };
@@ -94,8 +96,17 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
 
     // the second line
     const sec = (action, body) => guard(() => post(`/api/timers/${roomId}/secondary/${action}`, body || {})).then(shown, () => {});
-    $("[data-sshow]").onclick = () => { const t = $("[data-stext]").value.trim(); if (!t) return toast("Type the text first", "bad"); sec("text", { text: t }); };
+    // Show text puts the typed text on stage; pressed again (or with the box empty) it takes it off.
+    const textOn = () => { const x = s?.secondary; return !!(x && x.visible && x.mode === "text" && x.text); };
+    const sameText = () => textOn() && s.secondary.text === $("[data-stext]").value.trim();
+    $("[data-sshow]").onclick = () => {
+      const t = $("[data-stext]").value.trim();
+      if (sameText() || (!t && textOn())) return sec("hide");
+      if (!t) return toast("Type the text first", "bad");
+      sec("text", { text: t });
+    };
     $("[data-stext]").onkeydown = (e) => { if (e.key === "Enter") $("[data-sshow]").click(); };
+    $("[data-stext]").oninput = () => tick();
     el.querySelectorAll("[data-smin]").forEach((b) => b.onclick = () => sec("timer", { minutes: +b.dataset.smin }));
     $("[data-sset]").onclick = () => { const d = parse($("[data-sdur]").value); if (!d) return toast("Time as mm:ss, like 5:00", "bad"); sec("timer", { duration_ms: d, start: false }); };
     el.querySelectorAll("[data-sa]").forEach((b) => b.onclick = () => sec(b.dataset.sa));
@@ -112,8 +123,14 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
       } else if (x.text) now = `“${x.text}”`;
       const txt = now ? (x.visible ? "On stage: " : "Hidden: ") + now : "Off";
       if ($("[data-snow]").textContent !== txt) $("[data-snow]").textContent = txt;
-      $("[data-svis]").textContent = x.visible ? "Hide" : "Show";
-      $("[data-svis]").disabled = !now;
+      const vis = $("[data-svis]");
+      vis.textContent = x.visible && now ? "Turn off" : "Show again";
+      vis.classList.toggle("hidden", !now);
+      vis.classList.toggle("danger", !!(x.visible && now));
+      const sh = $("[data-sshow]"), typed = $("[data-stext]").value.trim();
+      sh.textContent = sameText() || (!typed && textOn()) ? "Hide text" : "Show text";
+      sh.classList.toggle("on", sameText());
+      $("[data-sctl]").classList.toggle("hidden", !(x.mode === "timer" && x.duration_ms));
       const cur = !s.cue && s.playback !== "stop" ? Math.round(s.duration_ms / 60000) : null;
       el.querySelectorAll("[data-min]").forEach((b) => b.classList.toggle("cur", cur !== null && +b.dataset.min === cur && s.duration_ms % 60000 === 0));
     }

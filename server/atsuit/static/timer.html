@@ -38,6 +38,8 @@
   #status .it b { font-size: clamp(9px, .72vw, 15px); font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--sblabel); }
   #status .it span { font-size: clamp(14px, 1.45vw, 30px); font-weight: 700; color: var(--sbfg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #status .grow { flex: 1; } #status .end { margin-left: auto; }
+  #status .grow.empty + .it, #status .grow.empty + .it.empty + .it, #status .grow.empty + .it.empty + .it.empty + .it { margin-left: auto; } /* keep started / elapsed / end on the right */
+  #status .it.empty { display: none; } /* nothing to say yet (not started, no cue): leave it out */
   #status .st span { display: flex; align-items: center; gap: .45em; }
   #status .st span::before { content: ""; width: .55em; height: .55em; border-radius: 50%; background: var(--sblabel); }
   #status .st.play span::before { background: #22c55e; } #status .st.pause span::before { background: var(--c-warn); } #status .st.over span::before { background: var(--c-over); }
@@ -216,7 +218,7 @@
     return s.time_format === "12" ? `${h % 12 || 12}:${pad(m)} ${h >= 12 ? "PM" : "AM"}` : `${pad(h)}:${pad(m)}`;
   };
   const sb = (k) => $("status").querySelector(`[data-s="${k}"]`);
-  const setSb = (k, v, cls) => { const it = sb(k), sp = it.lastChild; if (sp.textContent !== v) sp.textContent = v; if (cls !== undefined) it.className = it.className.replace(/ (play|pause|over|stop|armed|clock)\b/g, "") + (cls ? " " + cls : ""); };
+  const setSb = (k, v, cls) => { const it = sb(k), sp = it.lastChild; if (sp.textContent !== v) sp.textContent = v; it.classList.toggle("empty", v === "—"); if (cls !== undefined) it.className = it.className.replace(/ (play|pause|over|stop|armed|clock)\b/g, "") + (cls ? " " + cls : ""); };
   const drawStatus = (left, phase, clock, idle) => {
     const nowMs = s.clock_ms + Date.now() - s._rx;
     setSb("tod", todText());
