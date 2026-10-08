@@ -10,19 +10,27 @@ const Previews = (() => {
     if (view.startsWith("url:")) return view.slice(4);
     if (view.startsWith("view:")) return `/room/${roomId}/external/${encodeURIComponent(view.slice(5))}/`;
     if (view === "captions") return `/captions/${roomId}`;
+    if (view === "captions:overlay") return `/captions/${roomId}/overlay`;
+    if (view.startsWith("captions:")) return `/captions/${roomId}?layout=${encodeURIComponent(view.slice(9))}`;
     return `/timer/${roomId}?view=${encodeURIComponent(view)}`;
   }
+
+  const CAPTIONS = [["captions", "Audience screen"], ["captions:overlay", "Overlay (transparent, for a mixer)"], ["captions:bar", "Subtitle bar"]];
 
   function mount(el, { roomId }) {
     const KEY = `atsuit_previews_${roomId}`;
     let pinned = [], views = [], screens = [];
     try { pinned = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (_) {}
+    // Older pins of the caption screens had their own keys; they are the caption layouts now.
+    const OLD = { "cap:screen": "view:captions", "cap:overlay": "view:captions:overlay", "view:stage": "view:hcc" };
+    pinned = [...new Set(pinned.map((k) => OLD[k] || k))];
     const save = () => { try { localStorage.setItem(KEY, JSON.stringify(pinned)); } catch (_) {} };
 
     const outputs = () => [
-      ...views.filter((v) => !v.test).map((v) => ({ key: "view:" + v.id, label: v.name, url: urlFor(roomId, v.id), group: "Timer views" })),
-      { key: "cap:screen", label: "Captions screen", url: `/captions/${roomId}`, group: "Captions" },
-      { key: "cap:overlay", label: "Captions overlay", url: `/captions/${roomId}/overlay`, group: "Captions" },
+      // each output once, in its own group: the timer views, then the caption layouts
+      ...views.filter((v) => !v.test && !v.captions && !/^(screentest|captions)(:|$)/.test(String(v.id)))
+        .map((v) => ({ key: "view:" + v.id, label: v.name, url: urlFor(roomId, v.id), group: "Timer views" })),
+      ...CAPTIONS.map(([id, label]) => ({ key: "view:" + id, label, url: urlFor(roomId, id), group: "Captions" })),
       ...screens.map((n) => ({ key: "scr:" + n.id, label: n.name, sub: n.screen_view ? "showing " + (n.screen_view.startsWith("url:") ? n.screen_view.slice(4) : n.screen_view) : "nothing yet", url: urlFor(n.room_id || roomId, n.screen_view), group: "Linux screens" })),
     ];
 

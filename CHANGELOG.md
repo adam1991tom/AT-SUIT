@@ -8,6 +8,7 @@ release workflow publishes the image and the GitHub release.
 
 - **No separate Stage view: the stage screen is Standard.** `/timer/<room>` and the *Standard ↗* links open the Standard view; screens and links still set to `stage` show Standard too. Stage is gone from every view list.
 - **The Clock view is just the clock.** The time of day with a small *Current time* above it, and the stage message when one is showing. No room name, no status bar, no second line, no progress bar.
+- **Screens preview lists each output once.** The caption screens (audience screen, overlay, subtitle bar) are all under *Captions*, not repeated under *Timer views*; the subtitle bar and overlay previews open the right caption layout; earlier pins carry over.
 - **The overlay stays where it was put.** The app puts the overlay window back in its place once it has shown and loaded (Windows can move a new transparent window), and tells the server where it really is. In the workspace's Overlays window, a laptop whose app is too old for top centre (before 0.6.0, which put it bottom right) says so, as does a laptop showing it somewhere other than asked.
 
 ## 0.6.4
