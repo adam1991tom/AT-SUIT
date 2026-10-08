@@ -335,7 +335,7 @@ def node_me(p: Principal = Depends(require_node)):
         from .timers import list_views
 
         return {"node": node_out(n, c), "room": dict(room) if room else None, "rooms": rooms,
-                "day": work_day(c, n["site_id"]), "views": list_views(c) + [{"id": "captions", "name": "Captions", "builtin": True}]}
+                "day": work_day(c, n["site_id"]), "views": list_views(c, tests=True) + [{"id": "captions", "name": "Captions", "builtin": True}]}
 
 
 # ------------------------------------------------------- remote screens --

@@ -109,6 +109,11 @@ def create_app() -> FastAPI:
     def screen_page():
         return page("screen.html")
 
+    @app.get("/screentest", include_in_schema=False)
+    def screentest_page():
+        # Test patterns for any display; no sign-in, nothing to leak.
+        return page("screentest.html")
+
     @app.get("/present/{token}", include_in_schema=False)
     def presenter_portal(token: str):
         return page("present.html")

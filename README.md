@@ -45,6 +45,7 @@ backups and updates, and [docs/ADMIN.md](docs/ADMIN.md) for day-to-day setup.
 | `/` | admins, techs | console: dashboard, chat, help, timer preview and screens, presenters, captions, nodes, admin |
 | `/node` | techs on their laptop | the tech workspace |
 | `/timer/<room>` | stage screens | full-screen countdown, no sign-in (`?view=minimal`, `clock`, `backstage`, `hcc`, `bdng`, `overlay`, `built:<name>`) |
+| `/screentest` | anyone | display test patterns (colour bars, gradients, checkerboard, geometry, sharpness, motion, overscan, LED tile map) for any screen; no sign-in. Screens can be sent to a pattern from the workspace or Timers → Screens |
 | `/screen` | Linux screens | display-only screen: shows the room and view picked on it or routed from the console |
 | `/room/<room>/external/<view>/` | screens, OBS | custom Ontime-style views uploaded in Timers → Views |
 | `/present/<link>` | presenters | their own page: upload slides, see review notes, check in. No account; each presenter has their own link |

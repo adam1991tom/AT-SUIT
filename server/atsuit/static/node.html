@@ -487,7 +487,7 @@
   async function renderScreens() {
     let all = [];
     try { all = await api("/api/fleet/nodes"); } catch (_) { return; }
-    if (!views.length) try { views = await api("/api/timers-views"); } catch (_) {}
+    if (!views.length) try { views = await api("/api/timers-views?screens=1"); } catch (_) {}
     const screens = all.filter((n) => n.kind === "kiosk" && n.room_id === roomId);
     wins.screens.available(screens.length > 0);
     const label = (v) => (v.startsWith("url:") ? v.slice(4) : views.find((x) => x.id === v)?.name || v || "nothing yet");

@@ -160,7 +160,9 @@ Overlay laptops are numbered in Admin → Overlay laptops (`targets/1` is the fi
 | Identify screen 12 | `POST /api/fleet/nodes/12/command` | `{"kind": "identify"}` |
 
 Views: `stage`, `minimal`, `clock`, `backstage`, `hcc`, `bdng`, `overlay`,
-`captions`, `built:<name>` for views built in Timers → Views, `view:<name>`
+`captions`, `screentest:<pattern>` for a display test pattern (`colorbars`, `grayramp`,
+`rgbramp`, `checker`, `crosshatch`, `sharpness`, `motion`, `overscan`, `ledmap`, `black`,
+`white`, `red`, `green`, `blue`, `gray`), `built:<name>` for views built in Timers → Views, `view:<name>`
 for uploaded ones, or `url:https://...` for any web page.
 
 ### Reading values back into Companion

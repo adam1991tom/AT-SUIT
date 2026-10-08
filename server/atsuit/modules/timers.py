@@ -566,19 +566,34 @@ def views_dir() -> Path:
     return d
 
 
-def list_views(c) -> list[dict]:
+# Test patterns for checking a display (the browser version of AT-ScreenTest).
+# The patterns themselves are drawn by static/screentest.html.
+SCREENTEST = {"colorbars": "Colour bars", "grayramp": "Grey gradient", "rgbramp": "RGB gradient", "checker": "Pixel checkerboard",
+              "crosshatch": "Crosshatch and geometry", "sharpness": "Sharpness and text", "motion": "Motion line", "overscan": "Overscan border",
+              "ledmap": "LED tile map", "black": "Solid black", "white": "Solid white", "red": "Solid red", "green": "Solid green",
+              "blue": "Solid blue", "gray": "50% gray"}
+
+
+def test_views() -> list[dict]:
+    return [{"id": f"screentest:{k}", "name": f"Test pattern: {v}", "builtin": True, "test": True} for k, v in SCREENTEST.items()]
+
+
+def list_views(c, tests: bool = False) -> list[dict]:
     custom = db.rows(c.execute("SELECT slug,name,created_at FROM timer_views ORDER BY name"))
     designs = db.rows(c.execute("SELECT slug,name,created_at FROM timer_designs ORDER BY name"))
     return [{"id": k, "name": v, "builtin": True} for k, v in BUILTIN_VIEWS.items()] + \
            [{"id": f"built:{v['slug']}", "slug": v["slug"], "name": v["name"], "builtin": False, "design": True,
              "created_at": v["created_at"]} for v in designs] + \
-           [{"id": f"view:{v['slug']}", "slug": v["slug"], "name": v["name"], "builtin": False, "created_at": v["created_at"]} for v in custom]
+           [{"id": f"view:{v['slug']}", "slug": v["slug"], "name": v["name"], "builtin": False, "created_at": v["created_at"]} for v in custom] + \
+           (test_views() if tests else [])
 
 
 def view_known(c, view: str) -> bool:
     """A view a screen can be routed to: built in, built in the console, or uploaded."""
     if view in BUILTIN_VIEWS:
         return True
+    if view.startswith("screentest:"):
+        return view[11:] in SCREENTEST
     if view.startswith("built:"):
         return bool(c.execute("SELECT 1 FROM timer_designs WHERE slug=?", (view[6:],)).fetchone())
     if view.startswith("view:"):
@@ -587,9 +602,10 @@ def view_known(c, view: str) -> bool:
 
 
 @router.get("/api/timers-views")
-def get_views():
+def get_views(screens: bool = False):
+    """The timer views; with ?screens=1 also the display test patterns a screen can be put on."""
     with db.ro() as c:
-        return list_views(c)
+        return list_views(c, tests=screens)
 
 
 @router.post("/api/timers-views")

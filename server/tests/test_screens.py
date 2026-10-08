@@ -212,3 +212,23 @@ else touch {state}; fi
     finally:
         srv.terminate()
         srv.wait(15)
+
+
+def test_screen_test_patterns(admin, client):
+    # The browser screen test is a public page (like the stage timers) and a screen can be put on any pattern.
+    page = client.get("/screentest")
+    assert page.status_code == 200 and "ledmap" in page.text
+    plain = {v["id"] for v in admin.get("/api/timers-views").json()}
+    withtests = {v["id"] for v in admin.get("/api/timers-views?screens=1").json()}
+    assert not any(i.startswith("screentest:") for i in plain)          # the Views page stays about timers
+    assert {"screentest:colorbars", "screentest:ledmap", "screentest:checker"} <= withtests
+    code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
+    n = admin.post("/api/nodes/enrol", json={"code": code, "name": "tv", "kind": "kiosk"}).json()
+    put = lambda v: admin.put(f"/api/fleet/nodes/{n['node_id']}/screen", json={"view": v})
+    assert put("screentest:ledmap").status_code == 200
+    assert put("screentest:nope").status_code == 400
+    # every pattern the page draws is one the server accepts, and the other way round
+    import re
+    from atsuit.modules.timers import SCREENTEST
+    drawn = set(re.findall(r"^    (\w+): \{ name:", page.text, re.M)) | {"white", "red", "green", "blue", "gray"}
+    assert drawn == set(SCREENTEST)

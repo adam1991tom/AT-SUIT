@@ -4,6 +4,10 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## Unreleased
+
+- **Screen test (from AT-ScreenTest).** `/screentest` is a browser page of test patterns for any display: solid colours with a slow pulse, colour bars, grey and RGB gradients, a pixel checkerboard that inverts, crosshatch and geometry, sharpness and text, a motion line, an overscan border with the 5% safe area, and the LED tile map (rows by columns, tile coordinates, a corner mark to spot a rotated panel, and a highlight that walks tile by tile). Move the mouse for the controls; arrow keys change pattern. A Linux screen or kiosk can be sent to any pattern from the workspace's Screens window, Timers → Screens, or Companion (`screentest:ledmap` and so on).
+
 ## 0.5.0
 
 - **AT-SUIT logo and brand.** The app, the Windows app, its tray icon, the favicons and the sign-in pages use the new AT-SUIT logo, and the default accent is the brand orange. `branding/` has the logo files, app icons, social images, the brand guide (HTML and PDF) and `make_brand.py`, which rebuilds them all. Headings use the brand font (Saira), the console sidebar is navy with an orange marker on the current page, pages show the spinning gear while they start, and the Windows app's setup, pop-ups and a new "can't reach the server" page carry the logo.

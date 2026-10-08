@@ -64,6 +64,7 @@
   const hdr = () => ({ Authorization: `Node ${token}` });
 
   function urlFor(roomId, view) {
+    if (view.startsWith("screentest:")) return `/screentest?p=${encodeURIComponent(view.slice(11))}`;   // needs no room
     if (!view || !roomId && !view.startsWith("url:")) return "";
     if (view.startsWith("url:")) return view.slice(4);
     if (view.startsWith("view:")) return `/room/${roomId}/external/${encodeURIComponent(view.slice(5))}/`;
