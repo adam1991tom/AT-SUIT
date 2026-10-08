@@ -1,0 +1,690 @@
+<!doctype html>
+<!--
+  BDNG sponsor clock: the Ontime custom view built for the BDNG client
+  (Ontime v4, external/BDNG), as one file for AT-SUIT.
+
+  Import it in Admin → Timers → Uploaded views (name it "BDNG"), or with the
+  "Import BDNG view" button there. AT-SUIT serves it at
+  /room/<room>/external/bdng/ and feeds it the room's live timer through
+  Ontime's own websocket protocol (the page's ws://host/ws is pointed at
+  /ontime/<room>/ws), so the original code below runs unchanged.
+
+  styles.css, config.js and app.js are the originals, inlined. Logos are not
+  included: upload them in Admin → Timers (BDNG top and bottom logo), or
+  import a .zip of this file as index.html with assets/top-logo.png and
+  assets/bottom-logo.png next to it.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BDNG Sponsor Clock</title>
+    <style>
+:root {
+  --bg-color: #f5f5f5;
+  --text-color: #1a1a1a;
+  --phase-color: #1a1a1a;
+  --overtime-color: #fa5656;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-color);
+  font-family: 'Arial', 'Helvetica Neue', Helvetica, sans-serif;
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.row--top {
+  height: 28vh;
+  padding-top: 3vh;
+}
+
+.row--top img {
+  max-width: 78vw;
+  max-height: 22vh;
+  object-fit: contain;
+}
+
+.row--clock {
+  height: 44vh;
+}
+
+.clock-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5vh;
+}
+
+.secondary {
+  font-weight: 700;
+  font-size: clamp(40px, 7vw, 150px);
+  color: var(--text-color);
+  font-variant-numeric: tabular-nums;
+  display: none;
+}
+
+.secondary.is-visible {
+  display: block;
+}
+
+.clock {
+  font-weight: 700;
+  font-size: clamp(80px, 16vw, 340px);
+  line-height: 1;
+  color: var(--phase-color);
+  font-variant-numeric: tabular-nums;
+  transition: color 0.4s ease;
+  /* Dark stroke so lighter phase colours (e.g. the warning yellow)
+     still stand out clearly against the light background. A thinner
+     stroke plus a soft matching shadow reads smoother than a thick
+     stroke alone, which looks jagged/blocky at large sizes. */
+  -webkit-text-stroke: 1.5px #1a1a1a;
+  text-shadow: 0 0 3px #1a1a1a, 0 0 3px #1a1a1a;
+  -webkit-font-smoothing: antialiased;
+  paint-order: stroke fill;
+}
+
+/* Clock blinks when the operator hits Blink with no message on
+   screen (mirrors Ontime's own behaviour — blink targets whatever
+   is currently visible: the message text, or the clock itself). */
+.clock.is-blink {
+  animation: clock-blink 0.8s ease-in-out infinite;
+}
+
+@keyframes clock-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.12;
+  }
+}
+
+.row--bottom {
+  height: 28vh;
+  gap: 2.2vw;
+}
+
+.row--bottom img {
+  height: clamp(70px, 13vh, 170px);
+  object-fit: contain;
+}
+
+.bottom-text {
+  font-weight: 700;
+  font-size: clamp(22px, 3.1vw, 56px);
+  color: var(--text-color);
+}
+
+/* Progress bar: static normal/warning/danger zones sized from the
+   event's own thresholds — the full bar is always visible, showing
+   every zone up front. The portion not yet reached is dimmed by a
+   translucent overlay; the portion the timer has already passed
+   through sits at full 100% brightness. */
+.progress-track.is-hidden {
+  display: none;
+}
+
+.progress-track {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 36px;
+  background: rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.progress-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  width: 0%;
+  left: 0%;
+}
+
+.progress-mask {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  height: 100%;
+  left: 0%;
+  width: 100%;
+  background: var(--bg-color);
+  opacity: 0.55;
+  transition: left 0.3s linear, width 0.3s linear;
+}
+
+.progress-overtime-fill {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  background: var(--overtime-color);
+  display: none;
+}
+
+.progress-track.is-overtime .progress-zone,
+.progress-track.is-overtime .progress-mask {
+  display: none;
+}
+
+.progress-track.is-overtime .progress-overtime-fill {
+  display: block;
+}
+
+/* Fullscreen message overlay — mirrors Ontime's built-in Timer Message */
+.message-overlay {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  padding: 4vw;
+  background: var(--bg-color);
+  text-align: center;
+}
+
+.message-overlay.is-visible {
+  display: flex;
+}
+
+.message-text {
+  font-weight: 600;
+  font-size: clamp(48px, 10vw, 220px);
+  line-height: 1.15;
+  color: var(--text-color);
+}
+
+.message-overlay.is-blink .message-text {
+  animation: message-blink 0.8s ease-in-out infinite;
+}
+
+@keyframes message-blink {
+  0%,
+  100% {
+    color: var(--text-color);
+  }
+  50% {
+    color: #d8d8d8;
+  }
+}
+
+/* Full-screen red alert border, shown once the timer hits 0:00.
+   Blinks on its own, independent of the message blink above. */
+.alert-border {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 0 solid var(--overtime-color);
+  transition: border-width 0.2s ease;
+}
+
+.alert-border.is-active {
+  border-width: 24px;
+  animation: border-blink 0.6s ease-in-out infinite;
+}
+
+/* Full-screen blackout — independent of the message overlay, sits
+   above everything else (mirrors Ontime's own Blackout screen toggle,
+   which works regardless of whether a message is showing). */
+.blackout-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: #000;
+}
+
+.blackout-overlay.is-active {
+  display: block;
+}
+
+@keyframes border-blink {
+  0%,
+  100% {
+    border-width: 16px;
+    border-color: var(--overtime-color);
+  }
+  50% {
+    border-width: 44px;
+    border-color: #ff0000;
+  }
+}
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="row row--top">
+        <img id="topLogo" alt="Headline sponsor logo" />
+      </div>
+
+      <div class="row row--clock">
+        <div class="clock-group">
+          <div class="clock" id="clock">--:--</div>
+          <div class="secondary" id="secondary"></div>
+        </div>
+      </div>
+
+      <div class="row row--bottom">
+        <img id="bottomLogo" alt="Timekeeping sponsor logo" />
+        <div class="bottom-text" id="bottomText"></div>
+      </div>
+
+      <div class="progress-track" id="progressTrack">
+        <div class="progress-zone progress-zone--normal" id="zoneNormal"></div>
+        <div class="progress-zone progress-zone--warning" id="zoneWarning"></div>
+        <div class="progress-zone progress-zone--danger" id="zoneDanger"></div>
+        <div class="progress-mask" id="progressMask"></div>
+        <div class="progress-overtime-fill" id="progressOvertimeFill"></div>
+      </div>
+    </div>
+
+    <div class="message-overlay" id="messageOverlay">
+      <div class="message-text" id="messageText"></div>
+    </div>
+
+    <div class="alert-border" id="alertBorder"></div>
+
+    <div class="blackout-overlay" id="blackoutOverlay"></div>
+
+    <script>
+/* ============================================================
+   SPONSOR CONFIG — edit this file each year, nothing else.
+
+   To swap sponsors:
+   1. Replace assets/top-logo.png and assets/bottom-logo.png
+      (transparent background PNGs look best — if a logo comes
+      as a JPG with a white background, it needs the background
+      removed first or it'll show as a white box).
+   2. Update bottomText below.
+   3. Colours/thresholds are optional — leave them alone unless
+      the client wants a different look.
+   ============================================================ */
+
+window.ONTIME_SPONSOR_CONFIG = {
+  topLogo: 'assets/top-logo.png',
+  bottomLogo: 'assets/bottom-logo.png',
+  bottomText: 'BDNG Official Timekeeping Sponsor',
+
+  // Base colours
+  backgroundColor: '#f5f5f5',
+  textColor: '#1a1a1a',
+
+  // Timer colour states — these switch automatically based on each
+  // event's own Warning/Danger thresholds (set per-event in the
+  // Ontime rundown), same as Ontime's built-in behaviour.
+  warningColor: '#ffcc00',
+  dangerColor: '#ff1744',
+  overtimeColor: '#ff0000',
+
+  // Shown when no event is loaded / playback is stopped
+  idleText: '--:--',
+};
+    </script>
+    <script>
+(function () {
+  const config = window.ONTIME_SPONSOR_CONFIG || {};
+
+  const els = {
+    topLogo: document.getElementById('topLogo'),
+    bottomLogo: document.getElementById('bottomLogo'),
+    bottomText: document.getElementById('bottomText'),
+    clock: document.getElementById('clock'),
+    progressTrack: document.getElementById('progressTrack'),
+    zoneNormal: document.getElementById('zoneNormal'),
+    zoneWarning: document.getElementById('zoneWarning'),
+    zoneDanger: document.getElementById('zoneDanger'),
+    progressMask: document.getElementById('progressMask'),
+    progressOvertimeFill: document.getElementById('progressOvertimeFill'),
+    messageOverlay: document.getElementById('messageOverlay'),
+    messageText: document.getElementById('messageText'),
+    secondary: document.getElementById('secondary'),
+    alertBorder: document.getElementById('alertBorder'),
+    blackoutOverlay: document.getElementById('blackoutOverlay'),
+  };
+
+  // --- apply config ---
+  els.topLogo.src = config.topLogo || '';
+  els.bottomLogo.src = config.bottomLogo || '';
+  els.bottomText.textContent = config.bottomText || '';
+
+  const root = document.documentElement.style;
+  root.setProperty('--bg-color', config.backgroundColor || '#f5f5f5');
+  root.setProperty('--text-color', config.textColor || '#1a1a1a');
+  root.setProperty('--phase-color', config.textColor || '#1a1a1a');
+  root.setProperty('--overtime-color', config.overtimeColor || '#fa5656');
+
+  const PHASE_COLORS = {
+    normal: config.textColor || '#1a1a1a',
+    warning: config.warningColor || '#ffbc56',
+    danger: config.dangerColor || '#e6001a',
+    overtime: config.overtimeColor || '#fa5656',
+  };
+
+  // Static zone colours on the progress bar — all zones sit at full
+  // brightness; dimming for "not yet reached" is handled by the mask.
+  els.zoneNormal.style.background = PHASE_COLORS.normal;
+  els.zoneWarning.style.background = PHASE_COLORS.warning;
+  els.zoneDanger.style.background = PHASE_COLORS.danger;
+  els.progressOvertimeFill.style.background = PHASE_COLORS.overtime;
+
+  // --- formatting ---
+  const MS_S = 1000;
+  const MS_M = MS_S * 60;
+  const MS_H = MS_M * 60;
+
+  function formatCountdown(ms) {
+    if (ms == null) return config.idleText || '--:--';
+    const negative = ms < 0;
+    const abs = Math.abs(ms);
+    const h = Math.floor(abs / MS_H);
+    const m = Math.floor((abs % MS_H) / MS_M);
+    const s = Math.floor((abs % MS_M) / MS_S);
+    const pad = (n) => String(n).padStart(2, '0');
+    const body = h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+    return negative ? `-${body}` : body;
+  }
+
+  // Time-of-day, for events whose Timer Type is set to "Clock" in Ontime.
+  let timeFormat = '24';
+  fetch('/data/settings')
+    .then((r) => r.json())
+    .then((d) => {
+      if (d && d.timeFormat) timeFormat = d.timeFormat;
+    })
+    .catch(() => {});
+
+  function formatClock(ms) {
+    if (ms == null) return '--:--:--';
+    const totalSeconds = Math.floor(ms / 1000);
+    const h24 = Math.floor(totalSeconds / 3600) % 24;
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    const pad = (n) => String(n).padStart(2, '0');
+    if (timeFormat === '12') {
+      const ampm = h24 >= 12 ? 'PM' : 'AM';
+      const h12 = h24 % 12 || 12;
+      return `${h12}:${pad(m)}:${pad(s)} ${ampm}`;
+    }
+    return `${pad(h24)}:${pad(m)}:${pad(s)}`;
+  }
+
+  // --- phase logic — prefers Ontime's own computed timer.phase, falling
+  // back to our own threshold check only if that field isn't present. ---
+  function computePhase(timer, eventNow) {
+    if (timer && timer.phase) {
+      if (timer.phase === 'warning') return 'warning';
+      if (timer.phase === 'danger') return 'danger';
+      if (timer.phase === 'overtime') return 'overtime';
+      if (timer.current != null && timer.current < 0) return 'overtime';
+      return 'normal';
+    }
+
+    const current = timer && timer.current;
+    if (current == null) return 'normal';
+    if (current < 0) return 'overtime';
+    if (eventNow && typeof eventNow.timeDanger === 'number' && current <= eventNow.timeDanger) {
+      return 'danger';
+    }
+    if (eventNow && typeof eventNow.timeWarning === 'number' && current <= eventNow.timeWarning) {
+      return 'warning';
+    }
+    return 'normal';
+  }
+
+  // --- progress bar: static normal/warning/danger zones sized from the
+  // event's own thresholds, revealed by a background-coloured mask that
+  // wipes away from the left as time elapses (same mechanic Ontime's own
+  // built-in multi-segment bar uses). ---
+  function layoutZones(duration, eventNow) {
+    const timeDanger = eventNow && typeof eventNow.timeDanger === 'number' ? eventNow.timeDanger : 0;
+    const timeWarning = eventNow && typeof eventNow.timeWarning === 'number' ? eventNow.timeWarning : 0;
+
+    if (!duration) {
+      els.zoneDanger.style.width = '0%';
+      els.zoneWarning.style.width = '0%';
+      els.zoneNormal.style.width = '100%';
+      els.zoneNormal.style.left = '0%';
+      return;
+    }
+
+    const dangerPct = Math.min(100, Math.max(0, (timeDanger / duration) * 100));
+    const warningPct = Math.min(100 - dangerPct, Math.max(0, ((timeWarning - timeDanger) / duration) * 100));
+    const normalPct = Math.max(0, 100 - dangerPct - warningPct);
+
+    els.zoneNormal.style.left = '0%';
+    els.zoneNormal.style.width = `${normalPct}%`;
+
+    els.zoneWarning.style.left = `${normalPct}%`;
+    els.zoneWarning.style.width = `${warningPct}%`;
+
+    els.zoneDanger.style.left = `${normalPct + warningPct}%`;
+    els.zoneDanger.style.width = `${dangerPct}%`;
+  }
+
+  function updateProgressBar(timer, phase) {
+    els.progressTrack.classList.toggle('is-overtime', phase === 'overtime');
+    if (phase === 'overtime') return;
+
+    layoutZones(timer.duration, latestEventNow);
+
+    let elapsedPct = 0;
+    if (timer.duration) {
+      elapsedPct = Math.min(100, Math.max(0, (timer.elapsed / timer.duration) * 100));
+    }
+    els.progressMask.style.left = `${elapsedPct}%`;
+    els.progressMask.style.width = `${100 - elapsedPct}%`;
+  }
+
+  let latestEventNow = null;
+  let latestClock = null;
+
+  function render(timer) {
+    const isIdle = !timer || timer.playback === 'stop' || timer.playback === 'armed';
+    const isClockType = latestEventNow && latestEventNow.timerType === 'clock';
+
+    // A "Clock" event shows time-of-day, not a countdown, so the
+    // warning/danger/overtime bar and progress bar don't apply.
+    els.progressTrack.classList.toggle('is-hidden', !!isClockType);
+
+    if (isIdle) {
+      els.clock.textContent = isClockType ? formatClock(latestClock) : config.idleText || '--:--';
+      root.setProperty('--phase-color', PHASE_COLORS.normal);
+      els.alertBorder.classList.remove('is-active');
+      els.progressTrack.classList.remove('is-overtime');
+      els.progressMask.style.left = '0%';
+      els.progressMask.style.width = '100%';
+      return;
+    }
+
+    // Same reasoning applies to the automatic phase styling — it stays
+    // static for a clock. A manually triggered message blink (via the
+    // operator's Blink toggle) still works regardless.
+    const phase = isClockType ? 'normal' : computePhase(timer, latestEventNow);
+    els.clock.textContent = isClockType ? formatClock(latestClock) : formatCountdown(timer.current);
+    root.setProperty('--phase-color', PHASE_COLORS[phase]);
+
+    // Red border around the whole screen once the timer hits 0:00
+    els.alertBorder.classList.toggle('is-active', phase === 'overtime');
+
+    updateProgressBar(timer, phase);
+  }
+
+  // --- fullscreen message overlay (mirrors Ontime's built-in Timer Message) ---
+  function renderMessage(message) {
+    const timerMessage = message && message.timer;
+
+    // The clock blinks whenever Blink is on, whether or not a message
+    // is also showing on screen.
+    els.clock.classList.toggle('is-blink', !!(timerMessage && timerMessage.blink));
+
+    // Blackout is independent of the message — it covers the whole
+    // screen regardless of whether a message is visible.
+    els.blackoutOverlay.classList.toggle('is-active', !!(timerMessage && timerMessage.blackout));
+
+    if (!timerMessage || !timerMessage.visible || !timerMessage.text) {
+      els.messageOverlay.classList.remove('is-visible', 'is-blink');
+    } else {
+      els.messageText.textContent = timerMessage.text;
+      els.messageOverlay.classList.add('is-visible');
+      els.messageOverlay.classList.toggle('is-blink', !!timerMessage.blink);
+    }
+
+    latestMessage = message;
+    renderSecondary();
+  }
+
+  // --- secondary line: either the Secondary Message text, or one of
+  // the aux timers, picked by the operator (message.timer.secondarySource). ---
+  let latestMessage = null;
+  let latestAux = { aux1: null, aux2: null, aux3: null };
+
+  function renderSecondary() {
+    const timerMessage = latestMessage && latestMessage.timer;
+    const source = timerMessage && timerMessage.secondarySource;
+
+    let text = '';
+    if (source === 'secondary') {
+      text = (latestMessage.secondary || '').trim();
+    } else if (source === 'aux1' || source === 'aux2' || source === 'aux3') {
+      const aux = latestAux[source];
+      text = aux ? formatCountdown(aux.current) : '';
+    }
+
+    if (!text) {
+      els.secondary.classList.remove('is-visible');
+      return;
+    }
+    els.secondary.textContent = text;
+    els.secondary.classList.add('is-visible');
+  }
+
+  // --- websocket ---
+  function getStageHash() {
+    const href = window.location.href;
+    if (!href.includes('getontime.no')) return '';
+    const stageHash = href.split('/').at(3);
+    return stageHash ? `/${stageHash}` : '';
+  }
+
+  const isSecure = window.location.protocol === 'https:';
+  const socketUrl = `${isSecure ? 'wss' : 'ws'}://${window.location.host}${getStageHash()}/ws`;
+
+  let reconnectTimeout;
+  const reconnectInterval = 1000;
+
+  function connectSocket() {
+    const socket = new WebSocket(socketUrl);
+
+    socket.onopen = () => {
+      clearTimeout(reconnectTimeout);
+    };
+
+    socket.onclose = () => {
+      reconnectTimeout = setTimeout(connectSocket, reconnectInterval);
+    };
+
+    socket.onerror = () => {
+      socket.close();
+    };
+
+    socket.onmessage = (event) => {
+      const { tag, payload } = JSON.parse(event.data);
+      if (tag !== 'runtime-data') return;
+
+      if ('eventNow' in payload) {
+        latestEventNow = payload.eventNow;
+      }
+      if ('clock' in payload) {
+        latestClock = payload.clock;
+      }
+      if ('timer' in payload) {
+        render(payload.timer);
+      }
+      if ('message' in payload) {
+        renderMessage(payload.message);
+      }
+      if ('auxtimer1' in payload) {
+        latestAux.aux1 = payload.auxtimer1;
+        renderSecondary();
+      }
+      if ('auxtimer2' in payload) {
+        latestAux.aux2 = payload.auxtimer2;
+        renderSecondary();
+      }
+      if ('auxtimer3' in payload) {
+        latestAux.aux3 = payload.auxtimer3;
+        renderSecondary();
+      }
+    };
+  }
+
+  // --- debug preview: ?debugPhase=normal|warning|danger|overtime ---
+  // Lets you preview a colour state without waiting for a real countdown.
+  const debugPhase = new URLSearchParams(window.location.search).get('debugPhase');
+  if (debugPhase && PHASE_COLORS[debugPhase]) {
+    const debugDuration = 600000;
+    latestEventNow = { timeWarning: 120000, timeDanger: 60000 };
+    const debugElapsed = {
+      normal: debugDuration * 0.4,
+      warning: debugDuration * 0.85,
+      danger: debugDuration * 0.95,
+      overtime: debugDuration,
+    }[debugPhase];
+    els.clock.textContent = debugPhase === 'overtime' ? '-0:05' : '5:00';
+    root.setProperty('--phase-color', PHASE_COLORS[debugPhase]);
+    els.alertBorder.classList.toggle('is-active', debugPhase === 'overtime');
+    updateProgressBar({ duration: debugDuration, elapsed: debugElapsed }, debugPhase);
+  } else {
+    connectSocket();
+  }
+})();
+    </script>
+    <!-- AT-SUIT: logos and bottom text set in Admin → Timers (BDNG). Not part of
+         the Ontime original; harmless when this file runs on Ontime itself. -->
+    <script>
+      (function () {
+        var cfg = window.ONTIME_SPONSOR_CONFIG || {};
+        var hide = function (img) { img.onerror = function () { img.style.display = 'none'; }; if (!img.getAttribute('src')) img.style.display = 'none'; };
+        var top = document.getElementById('topLogo'), bottom = document.getElementById('bottomLogo');
+        hide(top); hide(bottom);
+        if (!/^\/room\/\d+\/external\//.test(location.pathname) && !/[?&]room=/.test(location.search)) return;
+        fetch('/api/timers-views/look/bdng').then(function (r) { return r.ok ? r.json() : null; }).then(function (look) {
+          if (!look) return;
+          var set = function (img, url) { if (url) { img.style.display = ''; img.src = url; } };
+          set(top, look.logos && look.logos.top);
+          set(bottom, look.logos && look.logos.bottom);
+          if (look.options && typeof look.options.bottom_text === 'string') document.getElementById('bottomText').textContent = look.options.bottom_text;
+        }).catch(function () {});
+      })();
+    </script>
+  </body>
+</html>

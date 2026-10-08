@@ -27,12 +27,13 @@ const CueList = (() => {
       </div>
       <div class="row" style="margin-top:.5rem;flex-wrap:wrap">
         <button data-sw="blink" title="Flash the timer (and the message) on the stage screens">Blink</button>
-        <button data-sw="clock" title="Show the time of day on the stage screens instead of the timer">Clock</button>
+        ${window.TimerPanel ? "" : '<button data-sw="clock" title="Show the time of day on the stage screens instead of the timer">Clock</button>'}
         <button data-sw="blackout" title="Blank the stage screens">Blackout</button>
       </div>
       <div class="row" style="margin-top:.5rem"><input data-msg class="grow" placeholder="Message to the stage">
         <button data-show>Show</button><button data-hide>Hide</button></div>
       <label class="small muted" style="display:flex;gap:.3rem;align-items:center;margin:.4rem 0 0" title="Blinks the stage timer when a cue reaches its danger time, and stops when the next one starts"><input type="checkbox" data-flash style="width:auto">Flash the timer at danger</label>
+      <div data-tp></div>
       <details style="margin-top:.6rem" open><summary><b>Cue list</b> <span class="muted small" data-count></span></summary>
         <div class="cues" data-list></div>
         <form class="cueform" data-form>
@@ -50,6 +51,8 @@ const CueList = (() => {
       </details>`;
     const $ = (sel) => el.querySelector(sel);
     const form = $("[data-form]");
+    // quick timers, quick messages and the second line (timerpanel.js), before the buttons are wired up
+    const panel = window.TimerPanel ? TimerPanel.mount($("[data-tp]"), roomId) : null;
 
     function renderList() {
       $("[data-count]").textContent = cues.length ? `${cues.length} cue${cues.length === 1 ? "" : "s"}` : "";
@@ -102,7 +105,7 @@ const CueList = (() => {
     el.querySelectorAll("[data-a]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/${b.dataset.a}`)));
     el.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/add`, { delta_ms: +b.dataset.add })));
     $("[data-show]").onclick = () => guard(() => post(`/api/timers/${roomId}/message`, { message: $("[data-msg]").value, message_visible: true }));
-    el.querySelectorAll("[data-sw]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/${b.dataset.sw}`, {})).then((x) => (s = x)));
+    el.querySelectorAll("[data-sw]").forEach((b) => b.onclick = () => guard(() => post(`/api/timers/${roomId}/${b.dataset.sw}`, {})).then((x) => { if (x) { s = x; panel?.update(x); } }));
     api("/api/timers-views").then((views) => {
       const sel = $("[data-views]");
       sel.insertAdjacentHTML("beforeend", views.filter((v) => !["stage", "backstage"].includes(v.id)).map((v) => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join(""));
@@ -128,13 +131,14 @@ const CueList = (() => {
 
     (async () => {
       [s, cues] = await Promise.all([api(`/api/timers/${roomId}`), api(`/api/timers/${roomId}/cues`)]);
+      panel?.update(s);
       renderList();
     })();
 
     return {
       onEvent(evt) {
         if (evt.topic !== `timer:${roomId}`) return;
-        if (evt.type === "timer") { const was = s?.cue?.id; s = evt.data; if (was !== s.cue?.id) renderList(); }
+        if (evt.type === "timer") { const was = s?.cue?.id; s = evt.data; panel?.update(s); if (was !== s.cue?.id) renderList(); }
         if (evt.type === "cues") { cues = evt.data.cues; renderList(); }
       },
     };

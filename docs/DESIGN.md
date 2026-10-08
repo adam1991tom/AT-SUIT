@@ -206,7 +206,19 @@ and shutdown. Both heartbeat; the server merges their reports.
 read Ontime's `runtime-data` messages. AT-SUIT serves each uploaded view
 with a small script that points that socket at `/ontime/<room>/ws`, which
 sends the same message shapes (clock, timer, eventNow/eventNext, message,
-rundown) built from the room's timer and cue list.
+rundown) built from the room's timer and cue list. The shim (`static/ontime-shim.js`)
+also moves Ontime's REST reads (`/data/settings`, `/data/runtime`,
+`/data/rundowns/current`) to `/ontime/<room>/data/...`. The second line under
+the timer is sent as Ontime's secondary message (`message.secondary`,
+`secondarySource: "secondary"`) or aux timer 1 (`secondarySource: "aux1"`).
+`static/viewbar.js` is served with the shim and draws the AT-SUIT status bar
+over an imported view when it is switched on for that view.
+
+The client's BDNG view ships this way: `docs/views/bdng.html` is the original
+Ontime view (HTML, CSS, config and JS inlined, no logos) plus a few lines that
+read its logos and bottom text from `/api/timers-views/look/bdng`. Admin →
+Timers imports it as `view:bdng`; `view=bdng` (when it was built in) redirects
+there, or shows the Standard view (`hcc`) if it isn't imported.
 
 **Nodes pull their own updates.** Every heartbeat reply names the current
 node agent version and checksum; an older agent downloads it, checks the

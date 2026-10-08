@@ -6,7 +6,7 @@
 <link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
 <link rel="stylesheet" href="/static/app.css">
 <style>
-  /* Every view works like the venue's HCC view: the timer turns amber then red,
+  /* Every view works like the Standard view (the venue's Ontime view): the timer turns amber then red,
      Blink pulses the whole timer, the stage message covers the timer, a red
      border flashes in overtime and Blackout blanks the screen. */
   :root { --tbg: #000; --tfg: #fff; --c-warn: #ffcc00; --c-danger: #ff1744; --c-over: #ff0000; --fade: #6b6b6b; --tsize: 26vw; }
@@ -14,14 +14,34 @@
   .stage { position: relative; height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; padding: 3vh 4vw 5vh; }
   .main { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
   #title { font-size: 4vw; color: #cbd5e1; min-height: 5vw; }
-  #timer { font-size: var(--tsize); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--tfg); transition: color .4s ease; white-space: nowrap; }
+  #timer { font-size: var(--tsize); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--tfg); transition: color .4s ease; white-space: nowrap; flex-shrink: 0; }
   #timer.warn { color: var(--c-warn); } #timer.danger { color: var(--c-danger); } #timer.over { color: var(--c-over); }
   #timer.blink { animation: pulse .8s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .12; } }
-  #next { font-size: 2.4vw; color: #64748b; margin-top: 2vh; min-height: 3vw; }
+  /* the next cue isn't shown on the stage (it stays in the tech workspace); a view built in the console can turn it on */
+  #next { display: none; font-size: 2.4vw; color: #64748b; margin-top: 2vh; min-height: 3vw; }
+  .v-design.with-next #next { display: block; }
+  /* the second line under the timer: a second countdown or a short text (like the venue's views) */
+  #sec { display: none; flex-shrink: 0; font-weight: 700; font-size: clamp(40px, 7vw, 150px); line-height: normal; color: var(--tfg); font-variant-numeric: tabular-nums; margin-top: 1.5vh; white-space: nowrap; max-width: 96%; overflow: hidden; text-overflow: ellipsis; }
+  #sec.on { display: block; } #sec.over { color: var(--c-danger); } #sec.text { white-space: normal; font-size: clamp(32px, 5vw, 110px); }
   #tod { display: none; font-variant-numeric: tabular-nums; font-weight: 700; color: #94a3b8; }
   .logo { display: none; object-fit: contain; }
-  #room { position: fixed; left: 2vw; bottom: 2.4vh; color: #475569; font-size: 1.6vw; z-index: 2; }
+  /* the room, small in the bottom-left corner and only just visible against the background */
+  #room { position: fixed; left: 1vw; bottom: calc(var(--barh) + .6vh); color: color-mix(in srgb, var(--tfg) 16%, var(--tbg)); font-size: clamp(10px, .85vw, 18px); font-weight: 600; letter-spacing: .04em; z-index: 4; pointer-events: none; }
+  /* the status bar along the bottom, like Ontime's: time of day, state, cue, started, expected end, elapsed */
+  :root { --barh: 1.2vh; --sbh: clamp(38px, 5.4vh, 76px); --sbfg: color-mix(in srgb, var(--tfg) 78%, var(--tbg)); --sblabel: color-mix(in srgb, var(--tfg) 42%, var(--tbg)); }
+  #status { display: none; position: fixed; left: 0; right: 0; bottom: var(--barh); height: var(--sbh); z-index: 3; box-sizing: border-box; padding: 0 1.4vw 0 calc(1.4vw + var(--roomw, 0px));
+    align-items: center; gap: 2.6vw; border-top: 1px solid color-mix(in srgb, var(--tfg) 12%, var(--tbg)); background: color-mix(in srgb, var(--tfg) 4%, var(--tbg)); font-variant-numeric: tabular-nums; overflow: hidden; }
+  .has-status #status { display: flex; }
+  .has-status #room { bottom: calc(var(--barh) + var(--sbh) / 2); transform: translateY(50%); }
+  #status .it { display: flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 1.15; }
+  #status .it b { font-size: clamp(9px, .72vw, 15px); font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--sblabel); }
+  #status .it span { font-size: clamp(14px, 1.45vw, 30px); font-weight: 700; color: var(--sbfg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #status .grow { flex: 1; } #status .end { margin-left: auto; }
+  #status .st span { display: flex; align-items: center; gap: .45em; }
+  #status .st span::before { content: ""; width: .55em; height: .55em; border-radius: 50%; background: var(--sblabel); }
+  #status .st.play span::before { background: #22c55e; } #status .st.pause span::before { background: var(--c-warn); } #status .st.over span::before { background: var(--c-over); }
+  #status .st.over span { color: var(--c-over); }
   #off { position: fixed; right: 2vw; bottom: 2.4vh; color: #ef4444; font-size: 1.4vw; z-index: 1100; }
   /* progress: normal, warning and danger zones, dimmed until the timer reaches them */
   #bar { position: fixed; left: 0; right: 0; bottom: 0; height: 1.2vh; background: rgba(255,255,255,.15); overflow: hidden; }
@@ -44,7 +64,7 @@
   #black.on { display: block; }
 
   /* minimal: just the numbers */
-  .v-minimal #title, .v-minimal #next, .v-minimal #room, .v-minimal #bar { display: none; }
+  .v-minimal #title, .v-minimal #next, .v-minimal #bar { display: none; }
   .v-minimal { --tsize: 32vw; }
   /* clock: time of day */
   .v-clock #next, .v-clock #bar { display: none; }
@@ -52,6 +72,7 @@
   .v-backstage .stage { flex-direction: row; gap: 3vw; }
   .v-backstage .main { flex: 1.3; align-items: flex-start; text-align: left; }
   .v-backstage { --tsize: 13vw; } .v-backstage #title { font-size: 3vw; } .v-backstage #next { font-size: 2vw; }
+  .v-backstage #list { margin-bottom: var(--sbh); }
   .v-backstage #msg { position: absolute; padding: 2vw; justify-content: flex-start; } .v-backstage #msg div { font-size: 5vw; }
   .v-backstage #alert { position: absolute; }
   #list { display: none; flex: 1; overflow: hidden; font-size: 1.6vw; color: #cbd5e1; }
@@ -63,36 +84,27 @@
   #list .q .t { flex: 1; }
   #list .q .d { color: #94a3b8; font-variant-numeric: tabular-nums; }
 
-  /* HCC: black, logo top left, big timer, progress bar along the bottom */
-  .v-hcc, .v-bdng { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; }
-  .v-hcc .stage, .v-bdng .stage { padding: 0; }
-  .v-hcc #title, .v-hcc #next, .v-hcc #room, .v-bdng #title, .v-bdng #next, .v-bdng #room { display: none; }
+  /* Standard (id hcc, the venue's own Ontime view): black, logo top left, big timer, progress bar along the bottom */
+  .v-hcc { font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; }
+  .v-hcc .stage { padding: 0; }
+  .v-hcc #title, .v-hcc #next { display: none; }
+  .v-hcc { --barh: 36px; }
   .v-hcc { --tsize: clamp(120px, 24vw, 480px); }
   .v-hcc #logoTop { display: block; position: absolute; top: 3.5vh; left: 3.5vw; height: clamp(50px, 8vh, 110px); z-index: 2; }
-  .v-hcc #bar, .v-bdng #bar { height: 36px; }
-  /* BDNG: light, a sponsor logo above and below the timer */
-  .v-bdng { --tbg: #f5f5f5; --tfg: #1a1a1a; --fade: #d8d8d8; --tsize: clamp(80px, 16vw, 340px); }
-  .v-bdng .main { flex: 0 0 44vh; }
-  .v-bdng .top, .v-bdng .bottom { display: flex; align-items: center; justify-content: center; height: 28vh; box-sizing: border-box; }
-  .v-bdng .top { padding-top: 3vh; } .v-bdng .bottom { gap: 2.2vw; }
-  .v-bdng #logoTop { display: block; max-width: 78vw; max-height: 22vh; }
-  .v-bdng #logoBottom { display: block; height: clamp(70px, 13vh, 170px); }
-  .v-bdng #btext { font-weight: 700; font-size: clamp(22px, 3.1vw, 56px); color: var(--tfg); }
-  .v-bdng #timer { -webkit-text-stroke: 1.5px #1a1a1a; text-shadow: 0 0 3px #1a1a1a, 0 0 3px #1a1a1a; paint-order: stroke fill; -webkit-font-smoothing: antialiased; }
-  .v-bdng #bar { background: rgba(0,0,0,.12); }
-  .top, .bottom { display: none; }
+  .v-hcc #bar { height: 36px; }
 
   /* overlay: a see-through panel for a small borderless window or a bar across the screen */
   html.v-overlay, .v-overlay { background: transparent !important; }
   .v-overlay .stage { padding: 0; }
   .v-overlay .main { position: absolute; inset: 0; background: rgba(0,0,0,.72); border-radius: min(3vh, 14px); overflow: hidden;
-    display: grid; grid-template-columns: 1fr auto; grid-template-rows: 1fr auto; grid-template-areas: "timer tod" "title next";
+    display: grid; grid-template-columns: 1fr auto; grid-template-rows: 1fr auto; grid-template-areas: "timer tod" "title sec";
     align-items: center; text-align: left; padding: 0 max(4vh, 1.4vw) calc(max(3vh, 4px) + 2px); column-gap: 3vw; }
   .v-overlay { --tsize: min(60vh, 17vw); }
   .v-overlay #timer { grid-area: timer; }
   .v-overlay #tod { display: block; grid-area: tod; font-size: min(26vh, 5.5vw); justify-self: end; }
+  .v-overlay #sec { grid-area: sec; justify-self: end; margin: 0; font-size: min(12vh, 2.6vw); padding-bottom: .4vh; color: #e2e8f0; max-width: 100%; }
   .v-overlay #title, .v-overlay #next { font-size: min(12vh, 2.6vw); min-height: 0; margin: 0; padding-bottom: .4vh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .v-overlay #title { grid-area: title; color: #e2e8f0; } .v-overlay #next { grid-area: next; justify-self: end; color: #94a3b8; }
+  .v-overlay #title { grid-area: title; color: #e2e8f0; } .v-overlay #next { display: none; }
   .v-overlay #bar { position: absolute; height: max(3vh, 4px); background: rgba(255,255,255,.12); }
   .v-overlay #bar .mask { background: #000; }
   .v-overlay #msg { position: absolute; background: rgba(0,0,0,.92); padding: 2vh 3vw; } .v-overlay #msg div { font-size: min(34vh, 6vw); }
@@ -104,47 +116,59 @@
   /* built in the console (Timers → Views) */
   .v-design #logoTop.show { display: block; position: absolute; top: 3.5vh; left: 3.5vw; height: clamp(40px, 9vh, 120px); z-index: 2; }
   .v-design #tod.show { display: block; position: fixed; top: 3vh; right: 3vw; font-size: 4vw; color: var(--tfg); opacity: .8; }
-  .v-design #room { display: none; }
-  .v-design.no-title #title, .v-design.no-next #next, .v-design.no-bar #bar { display: none; }
+  .has-status.v-stage .stage, .has-status.v-clock .stage, .has-status.v-backstage .stage, .has-status.v-minimal .stage, .has-status.v-design .stage { padding-bottom: calc(var(--sbh) + var(--barh) + 2vh); }
+  .v-design.no-title #title, .v-design.no-bar #bar { display: none; }
 </style>
 </head>
 <body>
 <div id="black"></div>
 <div class="stage">
   <img id="logoTop" class="logo" alt="">
-  <div class="top"></div>
   <div class="main">
-    <div id="title"></div><div id="timer">--:--</div><div id="next"></div><div id="tod"></div>
+    <div id="title"></div><div id="timer">--:--</div><div id="sec"></div><div id="next"></div><div id="tod"></div>
     <div id="bar" class="off"><i class="zn"></i><i class="zw"></i><i class="zd"></i><i class="mask"></i><i class="ot"></i></div>
     <div id="msg"><div></div></div>
     <div id="alert"></div>
   </div>
-  <div class="bottom"><img id="logoBottom" class="logo" alt=""><div id="btext"></div></div>
   <div id="list"></div>
 </div>
+<div id="status"><div class="it" data-s="tod"><b>Time now</b><span></span></div><div class="it st" data-s="state"><b>Timer</b><span></span></div>
+  <div class="it grow" data-s="cue"><b>Now</b><span></span></div><div class="it" data-s="start"><b>Started</b><span></span></div>
+  <div class="it" data-s="elapsed"><b>Elapsed</b><span></span></div><div class="it" data-s="end"><b>Expected end</b><span></span></div></div>
 <div id="room"></div><div id="off" class="hidden">reconnecting…</div>
 <script src="/static/common.js"></script>
 <script>
 (async () => {
-  // /timer/<room>?view=stage|minimal|clock|backstage|hcc|bdng|overlay, or built:<name> from Timers → Views
+  // /timer/<room>?view=stage|minimal|clock|backstage|hcc (Standard)|overlay, or built:<name> from Timers → Views
   const roomId = location.pathname.split("/")[2];
-  const view = new URLSearchParams(location.search).get("view") || "stage";
-  const KINDS = ["stage", "minimal", "clock", "backstage", "hcc", "bdng", "overlay"];
+  let view = new URLSearchParams(location.search).get("view") || "stage";
+  if (view === "bdng") {
+    // BDNG used to be built in; it is now an imported view. Show that if it's there, else the Standard view.
+    const views = await AT.api("/api/timers-views").catch(() => []);
+    const imp = views.find((v) => v.id === "view:bdng") || views.find((v) => (v.id || "").startsWith("view:bdng"));
+    if (imp) { location.replace(`/room/${roomId}/external/${encodeURIComponent(imp.slug)}/`); return; }
+    view = "hcc";
+  }
+  const KINDS = ["stage", "minimal", "clock", "backstage", "hcc", "overlay"];
   const kind = view.startsWith("built:") ? "design" : KINDS.includes(view) ? view : "stage";
   const $ = (id) => document.getElementById(id);
   document.body.className = document.documentElement.className = "v-" + kind;
-  // HCC and BDNG show "--:--" until a timer starts, as the venue's own views did.
-  const strict = kind === "hcc" || kind === "bdng";
+  // Standard shows "--:--" until a timer starts, as the venue's own Ontime view did.
+  const strict = kind === "hcc";
   let design = null;
+  const q = new URLSearchParams(location.search);
+  // The status bar: on by default (off for minimal and overlay), set per view in Timers → Views, or ?status=0/1.
+  let statusOn = !["minimal", "overlay"].includes(kind);
+  const TITLES = { hcc: "Timer", overlay: "Timer overlay", clock: "Clock", backstage: "Backstage", minimal: "Timer" };
+  if (TITLES[kind]) document.title = TITLES[kind];
 
-  // BDNG lays out top, timer, bottom: move the logo into its row.
-  if (kind === "bdng") { document.querySelector(".top").append($("logoTop")); }
   const setLogo = (img, url) => { if (url) { img.src = url; img.onerror = () => (img.style.display = "none"); } else img.style.display = "none"; };
-  if (strict || kind === "design") {
+  {
     const look = await AT.api(`/api/timers-views/look/${encodeURIComponent(view)}`).catch(() => null);
+    if (look && look.options && "status_bar" in look.options) statusOn = !!look.options.status_bar;
+    if (look && look.design) statusOn = look.design.show_status !== false;
     if (look && strict) {
       setLogo($("logoTop"), look.logos.top || look.site_logo);
-      if (kind === "bdng") { setLogo($("logoBottom"), look.logos.bottom); $("btext").textContent = look.options.bottom_text || ""; }
     }
     if (look && look.design) {
       design = look.design;
@@ -155,18 +179,26 @@
       $("next").style.opacity = ".65";
       if (design.show_logo && look.logos.logo) { setLogo($("logoTop"), look.logos.logo); $("logoTop").classList.add("show"); }
       $("tod").classList.toggle("show", design.show_clock);
-      for (const [k, c] of [["show_title", "no-title"], ["show_next", "no-next"], ["show_progress", "no-bar"]]) document.body.classList.toggle(c, !design[k]);
+      for (const [k, c] of [["show_title", "no-title"], ["show_progress", "no-bar"]]) document.body.classList.toggle(c, !design[k]);
+      document.body.classList.toggle("with-next", !!design.show_next);
       document.title = look.name;
     }
   }
+
+  if (q.has("status")) statusOn = !["0", "false", "off", "no"].includes(q.get("status").toLowerCase());
+  if (kind !== "overlay") document.body.classList.toggle("has-status", statusOn);
+  if (kind === "overlay") statusOn = false;
 
   let s = await AT.api(`/api/timers/${roomId}`), cues = [];
   const got = (x) => { x._rx = Date.now(); s = x; };
   got(s);
   $("room").textContent = s.room;
+  // keep the status bar's first item clear of the room name in the corner
+  const roomGap = () => document.documentElement.style.setProperty("--roomw", $("room").offsetWidth ? $("room").offsetWidth + 16 + "px" : "0px");
+  roomGap(); addEventListener("resize", roomGap);
 
   const pad = (n) => String(n).padStart(2, "0");
-  // HCC style: 4:59, 1:02:03, -0:05 in overtime. The others: 04:59, +00:05.
+  // Standard style: 4:59, 1:02:03, -0:05 in overtime. The others: 04:59, +00:05.
   const fmt = (ms) => {
     if (!strict) return AT.fmtTime(ms);
     const a = Math.abs(ms), h = Math.floor(a / 3600000), m = Math.floor(a % 3600000 / 60000), sec = Math.floor(a % 60000 / 1000);
@@ -178,6 +210,41 @@
     return `${pad(h)}:${pad(m)}:${pad(sec)}`;
   };
   const dur = (ms) => AT.fmtTime(ms).replace(/^\+/, "");
+  const hhmm = (ms) => {
+    if (ms == null || isNaN(ms)) return "—";
+    const t = Math.floor(((ms % 86400000) + 86400000) % 86400000 / 1000), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60);
+    return s.time_format === "12" ? `${h % 12 || 12}:${pad(m)} ${h >= 12 ? "PM" : "AM"}` : `${pad(h)}:${pad(m)}`;
+  };
+  const sb = (k) => $("status").querySelector(`[data-s="${k}"]`);
+  const setSb = (k, v, cls) => { const it = sb(k), sp = it.lastChild; if (sp.textContent !== v) sp.textContent = v; if (cls !== undefined) it.className = it.className.replace(/ (play|pause|over|stop|armed|clock)\b/g, "") + (cls ? " " + cls : ""); };
+  const drawStatus = (left, phase, clock, idle) => {
+    const nowMs = s.clock_ms + Date.now() - s._rx;
+    setSb("tod", todText());
+    const pb = s.playback;
+    const label = clock && (s.show_clock || kind === "clock") ? ["Clock", "clock"] : phase === "over" ? ["Overtime", "over"] : pb === "play" ? ["Running", "play"] : pb === "pause" ? ["Paused", "pause"] : pb === "armed" ? ["Ready", "armed"] : ["Stopped", "stop"];
+    setSb("state", label[0], label[1]);
+    const cue = s.cue ? (s.cue.cue ? `${s.cue.cue} · ` : "") : "";
+    setSb("cue", (cue + (s.title || "")) || (s.cue_count ? "—" : "No cue loaded"));
+    const startedAgo = s.started_at ? (s.server_time - s.started_at) * 1000 + (Date.now() - s._rx) : null;
+    setSb("start", startedAgo != null ? hhmm(nowMs - startedAgo) : "—");
+    const total = s.duration_ms + (s.added_ms || 0);
+    setSb("elapsed", s.started_at && !idle ? (strict ? fmt : dur)(Math.max(0, total - left)) : "—");
+    setSb("end", pb === "play" && left > -86400000 ? hhmm(nowMs + left) : pb === "pause" || pb === "armed" ? `${dur(Math.max(0, left))} left` : "—");
+  };
+  const drawSecondary = () => {
+    const x = s.secondary, el = $("sec");
+    const show = x && x.visible && (x.mode === "timer" ? x.duration_ms > 0 : !!x.text) && (!design || design.show_secondary !== false);
+    el.classList.toggle("on", !!show);
+    if (!show) return;
+    let text, over = false;
+    if (x.mode === "timer") {
+      const l = x.running ? x.remaining_ms - (Date.now() - s._rx) : x.remaining_ms;
+      text = fmt(l); over = l < 0;
+    } else text = x.text;
+    el.classList.toggle("text", x.mode !== "timer");
+    el.classList.toggle("over", over);
+    if (el.textContent !== text) el.textContent = text;
+  };
   const renderList = () => {
     $("list").innerHTML = cues.map((q) => `<div class="q ${q.id === s.cue?.id ? "now" : ""} ${q.skip ? "skip" : ""}" style="border-left-color:${AT.esc(q.colour || "transparent")}">` +
       `<span class="cue">${AT.esc(q.cue)}</span><span class="t">${AT.esc(q.title)}</span><span class="d">${q.time_start ? AT.esc(q.time_start) + " · " : ""}${dur(q.duration_ms)}</span></div>`).join("");
@@ -222,6 +289,8 @@
       $("title").textContent = s.title || "";
       $("next").textContent = s.next ? `Next: ${s.next.title}` : "";
     }
+    drawSecondary();
+    if (statusOn) drawStatus(left, phase, clock, idle);
     // progress
     bar.classList.toggle("off", clock || type === "none" || type === "count-up" || (!loaded && !strict));
     bar.classList.toggle("over", phase === "over");

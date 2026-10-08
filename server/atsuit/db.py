@@ -134,6 +134,15 @@ MIGRATIONS: list[str] = [
     CREATE TABLE timer_designs(slug TEXT PRIMARY KEY, name TEXT NOT NULL, config_json TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL);
     """,
+    # 7: a second, smaller line under the stage timer: a countdown or a text
+    """
+    ALTER TABLE timers ADD COLUMN sec_mode TEXT NOT NULL DEFAULT 'text';
+    ALTER TABLE timers ADD COLUMN sec_visible INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE timers ADD COLUMN sec_text TEXT NOT NULL DEFAULT '';
+    ALTER TABLE timers ADD COLUMN sec_duration_ms INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE timers ADD COLUMN sec_remaining_ms INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE timers ADD COLUMN sec_started_at REAL;
+    """,
 ]
 
 

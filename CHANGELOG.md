@@ -6,6 +6,12 @@ release workflow publishes the image and the GitHub release.
 
 ## Unreleased
 
+- **The HCC view is now called Standard** (its id stays `hcc`, so screens and links keep working). Same look, logo still uploadable.
+- **BDNG is an imported view**: the client's Ontime view exactly as built (`docs/views/bdng.html`, the original HTML, CSS and JS in one file, no logos inside). Import it in Admin → Timers with one button (or upload the file like any view); it runs unchanged on the room's Ontime-compatible feed, and reads its two logos and bottom text ("BDNG Official Timekeeping Sponsor") from Admin → Timers. Screens still set to `bdng` show it, or the Standard view until it is imported.
+- **Timer views: Ontime-style status bar** along the bottom of the stage, Standard, clock and backstage views (time now, running/paused/overtime, the cue, started, elapsed, expected end). On by default, switchable per view in Admin → Timers (and in the view builder), or `?status=0/1` on a screen's address. Standard looks exactly as before above it (checked pixel for pixel against the venue's Ontime view). Imported views can have it too, as a strip over their bottom edge (off unless ticked).
+- **Second line under the timer**: a second countdown or a short text, set from the workspace, the API (`/api/timers/<room>/secondary/...`) or Companion. Standard, stage, minimal and overlay show it; so do imported Ontime views like BDNG (secondary message / aux timer 1).
+- The **next cue is no longer shown** on the stage views (still in the workspace; a built view can turn it on). The **room name** sits small in the bottom-left corner, only just visible.
+- **Workspace timer: quick buttons** for 3 to 60 minutes (start on tap, or load only) and a big **Clock** button; **quick messages** to the speaker (tap to show, tap again to hide, optional blink), editable by admins.
 - Captions window: send a test line, clear the screens, links to the caption screen and overlay, engine state, latest transcript.
 - Companion module (`companion-module/`): presets 3 to 60, +/-, control, blink, clock, blackout, messages, AT Overlay and caption tests, with live feedback and a time-left variable.
 - Admins and techs land on the workspace; the console Dashboard shows live room timers; the Companion guide is served at `/guide/companion`.

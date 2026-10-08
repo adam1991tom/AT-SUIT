@@ -253,7 +253,9 @@ def test_companion_module_calls_real_routes():
         pytest.skip("node or the module isn't here")
     cases = [["preset", {"minutes": 5}], ["add", {"minutes": 1}], ["control", {"cmd": "go"}], ["blink", {"mode": "on"}],
              ["clock", {"mode": "toggle"}], ["blackout", {"mode": "off"}], ["message", {"text": "x"}], ["message_hide", {}],
-             ["overlay", {"node": 7, "on": "on"}], ["caption_test", {"text": "x"}], ["caption_clear", {}]]
+             ["overlay", {"node": 7, "on": "on"}], ["caption_test", {"text": "x"}], ["caption_clear", {}],
+             ["quick_message", {"text": "x"}], ["secondary_text", {"text": "x"}], ["secondary_timer", {"minutes": 5}],
+             ["secondary_control", {"cmd": "hide"}], ["secondary_add", {"minutes": 1}]]
     js = f"const {{request}}=require({json.dumps(str(lib))});console.log(JSON.stringify({json.dumps(cases)}.map(([a,o])=>[a,request(a,o,3)])))"
     out = json.loads(subprocess.check_output([node, "-e", js]))
     routes = [(r.path, m) for r in app.routes if hasattr(r, "methods") for m in r.methods]
