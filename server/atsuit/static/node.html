@@ -178,7 +178,7 @@
 
   <section class="win" data-win="overlays" data-title="Overlays" data-w="480"><div id="atOv"></div><div id="ovList"></div></section>
 
-  <section class="win" data-win="links" data-title="Links" data-w="420"><div class="tiles" id="links"></div></section>
+  <section class="win" data-win="links" data-title="Links" data-w="560"><input id="linkFind" placeholder="Find a link" style="margin-bottom:.5rem"><div id="links" style="max-height:60vh;overflow:auto"></div></section>
 
   <div class="chatdock" id="chatDock">
     <div class="chathead" id="chatHead"><b>Chat</b><span class="unread hidden" id="chatUnread"></span><span class="grow"></span><span class="muted small" id="chatToggle">▾</span></div>
@@ -585,8 +585,18 @@
 
   // links
   if (boot.modules.dashboard) {
-    const links = (await api(`/api/dashboard/links?room_id=${roomId}`)).filter((l) => l.room_id === roomId || l.kind === "tool");
-    $("links").innerHTML = links.map((l) => `<a class="tile" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("") || '<p class="muted small">No links for this room yet. An admin adds them in Admin → Links.</p>';
+    const links = (await api(`/api/dashboard/links?room_id=${roomId}`)).filter((l) => l.room_id === roomId || l.kind === "tool" || l.board === "public");
+    const groups = [["This room", (l) => l.room_id === roomId], ["Tools", (l) => l.kind === "tool"], ["Everything else", () => true]];
+    const drawLinks = () => {
+      const q = $("linkFind").value.trim().toLowerCase(), seen = new Set();
+      const html = groups.map(([name, test]) => {
+        const rows = links.filter((l) => !seen.has(l.id) && test(l) && (!q || l.label.toLowerCase().includes(q)));
+        rows.forEach((l) => seen.add(l.id));
+        return rows.length ? `<h4 style="margin:.6rem 0 .3rem">${name}</h4><div class="tiles">${rows.map((l) => `<a class="tile" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("")}</div>` : "";
+      }).join("");
+      $("links").innerHTML = html || '<p class="muted small">No links yet. An admin adds them in Admin → Links, or imports the old Homarr board.</p>';
+    };
+    $("linkFind").oninput = drawLinks; drawLinks();
   }
 
   // help: the red button at the top
