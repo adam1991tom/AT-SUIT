@@ -153,6 +153,8 @@ Overlay laptops are numbered in Admin → Overlay laptops (`targets/1` is the fi
 |---|---|---|
 | Caption test | `/api/captions/3/test` | `{"text": "Caption check"}` |
 | Clear captions | `/api/captions/3/clear` | |
+| Start saving a transcript | `/api/captions/3/transcript/start` | |
+| Stop saving | `/api/captions/3/transcript/stop` | |
 
 ### Screens
 
@@ -162,7 +164,7 @@ Overlay laptops are numbered in Admin → Overlay laptops (`targets/1` is the fi
 | Identify screen 12 | `POST /api/fleet/nodes/12/command` | `{"kind": "identify"}` |
 
 Views: `stage`, `minimal`, `clock`, `backstage`, `hcc`, `bdng`, `overlay`,
-`captions`, `screentest:<pattern>` for a display test pattern (`colorbars`, `grayramp`,
+`captions` (audience screen), `captions:overlay`, `captions:bar` (subtitle bar), `screentest:<pattern>` for a display test pattern (`colorbars`, `grayramp`,
 `rgbramp`, `checker`, `crosshatch`, `sharpness`, `motion`, `overscan`, `ledmap`, `black`,
 `white`, `red`, `green`, `blue`, `gray`), `built:<name>` for views built in Timers → Views, `view:<name>`
 for uploaded ones, or `url:https://...` for any web page.
@@ -235,8 +237,20 @@ admin signed in.
 | GET | `/api/captions/{room_id}/recent` |  | The room's last few captions (no key needed) |
 | POST | `/api/captions/{room_id}/test` | `text`, `final` | Push text to the room's caption screens, to check them before the show |
 | POST | `/api/captions/{room_id}/clear` |  | Clear the room's caption screens |
-| GET | `/api/captions/transcripts` |  | Saved transcripts |
+| GET | `/api/captions/{room_id}/appearance` |  | How the room's caption screens look: `audience`, `overlay`, `bar` (no key needed) |
+| GET | `/api/captions/{room_id}/settings` |  | The room's caption settings: on/off, vocabulary, boost strength, gain, EQ, [MUSIC] and acronym switches, appearance, recording |
+| PUT | `/api/captions/{room_id}/settings` | any of `enabled`, `record`, `vocabulary`, `hotwords_score` (0.5-6, whole server), `gain_db` (±20), `eq_band_gains_db` (8 values, ±12), `eq_bands` (`[{"index", "gain_db"}]`), `music_label`, `join_acronyms`, `appearance` (`{"bar": {"font_size": 64, ...}}`), `reset_appearance` (`audience`, `overlay`, `bar` or `all`) | Change them; caption screens update at once. Any tech |
+| PUT | `/api/captions/rooms/{room_id}` | `enabled`, `vocabulary`, `record` | Older form of the above (now any tech) |
+| GET | `/api/captions/{room_id}/history` |  | The last 200 captions with each word's confidence, newest first |
+| POST | `/api/captions/{room_id}/history/clear` |  | Empty that list |
+| GET | `/api/captions/{room_id}/corrections` |  | Corrections made in this room, newest first |
+| POST | `/api/captions/{room_id}/corrections` | `original`, `corrected` | Log a misheard word and add the right one to the room's vocabulary |
+| POST | `/api/captions/{room_id}/transcript/start` |  | Start saving captions to a new transcript file, now |
+| POST | `/api/captions/{room_id}/transcript/stop` |  | Stop saving |
+| GET | `/api/captions/transcripts` | `room_id` (optional) | Saved transcripts |
 | GET | `/api/captions/transcripts/{tid}` |  | Download a transcript |
+| GET | `/api/captions/transcripts/{tid}/export.srt` |  | The transcript as SRT subtitles (`export.vtt` for WebVTT) |
+| DELETE | `/api/captions/transcripts/{tid}` |  | Delete a transcript that has finished |
 
 ### Overlay laptops
 
@@ -253,6 +267,10 @@ admin signed in.
 | Method | Path | Body or query | What it does |
 |---|---|---|---|
 | GET | `/api/fleet/screen-agent` |  | The current Linux screen agent version |
+| POST | `/api/screens/pair` | `code`, `room_id`, `view`, `name` (optional) | Add the screen showing that pairing code to a room, showing `view` (techs only; not a screen's own key) |
+| GET | `/api/screens/layouts` |  | What a screen can show, grouped: Timer, Captions, Test patterns |
+| POST | `/api/screens/pair/request` | `name`, `info` | (Screens) ask for a pairing code; no key needed |
+| GET | `/api/screens/pair/status` | `secret` | (Screens) waiting, or paired with the screen's key |
 | PUT | `/api/fleet/nodes/{node_id}/screen` | `room_id`, `view` | Route a screen from the dashboard: which room and which view it shows |
 | GET | `/api/fleet/nodes` |  | Tech laptops and screens, online or not |
 | POST | `/api/fleet/nodes/{node_id}/command` | `kind`, `payload` | Send a node a command: set_url, reload, message, identify, restart_browser (reboot, shutdown and update are for admins) |
