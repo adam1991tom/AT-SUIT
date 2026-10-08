@@ -213,6 +213,7 @@
 <script src="/static/previews.js"></script>
 <script src="/static/cuelist.js"></script>
 <script src="/static/desk.js"></script>
+<script src="/static/pairing.js"></script><script src="/static/captions-panel.js"></script><!-- screens2: Add a screen + caption settings -->
 <script>
 (async () => {
   const { esc, api, post, guard, toast } = AT;
@@ -548,6 +549,10 @@
     });
   }
   if (boot.modules.fleet !== false) renderScreens();
+  // ---- screens2: "Add a screen" by pairing code (static/pairing.js) and caption settings (static/captions-panel.js) ----
+  if (boot.modules.fleet !== false && window.ATPairing) ATPairing.mount({ roomId, setViews: (v) => { views = v; renderScreens(); }, onPaired: () => renderScreens() }).catch(() => {});
+  if (boot.modules.captions && window.ATCaptionsPanel) ATCaptionsPanel.attach(roomId);
+  // ---- end screens2 ----
 
   // this room's presenter sessions: who's here, their files, the show files
   const PR_ST = { pending: ["to review", "warn"], approved: ["approved", "good"], rejected: ["rejected", "bad"] };

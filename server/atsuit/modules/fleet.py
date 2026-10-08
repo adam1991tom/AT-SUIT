@@ -335,17 +335,27 @@ def node_me(p: Principal = Depends(require_node)):
         from .timers import list_views
 
         return {"node": node_out(n, c), "room": dict(room) if room else None, "rooms": rooms,
-                "day": work_day(c, n["site_id"]), "views": list_views(c, tests=True) + [{"id": "captions", "name": "Captions", "builtin": True}]}
+                "day": work_day(c, n["site_id"]), "views": list_views(c, tests=True) + caption_views()}
 
 
 # ------------------------------------------------------- remote screens --
+# Caption layouts a screen can show; the room's caption settings (Captions →
+# Settings → Appearance) decide fonts, colours and lines for each.
+CAPTION_LAYOUTS = {"captions": "Captions: audience screen", "captions:overlay": "Captions: overlay (transparent, for a mixer)",
+                   "captions:bar": "Captions: subtitle bar"}
+
+
+def caption_views() -> list[dict]:
+    return [{"id": k, "name": v, "builtin": True, "captions": True} for k, v in CAPTION_LAYOUTS.items()]
+
+
 def check_view(c, view: str) -> str:
     """What a screen shows: a built-in timer view, captions, a view built in
     the console (built:<slug>), an uploaded view (view:<slug>) or any web page (url:https://...). Empty means 'not chosen'."""
     from .timers import view_known
 
     view = (view or "").strip()
-    if view in ("", "captions") or view_known(c, view):
+    if view == "" or view in CAPTION_LAYOUTS or view_known(c, view):
         return view
     if re.match(r"^url:https?://\S{1,1000}$", view):
         return view

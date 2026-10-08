@@ -4,10 +4,13 @@
 # Run it once, as the user who is logged in to the desktop (not root):
 #
 #   curl -fsSL http://SERVER:8180/screen-agent/install.sh | bash -s -- \
-#        --server http://SERVER:8180 --code ABCD-1234-EF56 [--name HD-STAGE-1] [--allow-power]
+#        --server http://SERVER:8180 [--name HD-STAGE-1] [--allow-power] [--code ENROLMENT-CODE]
 #
-# It installs Chromium, xrandr and Python, downloads the screen agent, adds
-# the screen to AT-SUIT and starts the agent every time the desktop logs in.
+# It installs Chromium, xrandr and Python, downloads the screen agent and
+# starts it every time the desktop logs in. Without --code the screen shows a
+# six-digit pairing code: a tech types it into "Add a screen" on their laptop
+# and picks what it shows. With --code (Admin -> Node setup) it is added
+# straight away instead.
 # --allow-power lets the dashboard reboot or shut this screen down (it adds a
 # sudoers rule for exactly those two commands).
 set -euo pipefail
@@ -19,11 +22,11 @@ while [ $# -gt 0 ]; do
     --code) CODE="$2"; shift 2 ;;
     --name) NAME="$2"; shift 2 ;;
     --allow-power) ALLOW_POWER=1; shift ;;
-    -h|--help) sed -n '2,13p' "$0" 2>/dev/null || true; exit 0 ;;
+    -h|--help) sed -n '2,16p' "$0" 2>/dev/null || true; exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
-[ -n "$SERVER" ] && [ -n "$CODE" ] || { echo "Usage: install.sh --server http://SERVER:8180 --code ENROLMENT-CODE [--name NAME] [--allow-power]" >&2; exit 2; }
+[ -n "$SERVER" ] || { echo "Usage: install.sh --server http://SERVER:8180 [--name NAME] [--allow-power] [--code ENROLMENT-CODE]" >&2; exit 2; }
 [ "$(id -u)" -ne 0 ] || { echo "Run this as the desktop user, not root (it uses sudo where it needs to)." >&2; exit 2; }
 
 say() { printf '\n==> %s\n' "$*"; }
@@ -49,10 +52,15 @@ python3 -m py_compile "$AGENT.new"
 mv "$AGENT.new" "$AGENT"
 chmod 755 "$AGENT"
 
-say "Adding this screen to AT-SUIT"
-ENROL=(python3 "$AGENT" --server "$SERVER" --code "$CODE" --re-enrol --once --no-browser --no-displays)
-[ -n "$NAME" ] && ENROL+=(--name "$NAME")
-"${ENROL[@]}"
+if [ -n "$CODE" ]; then
+  say "Adding this screen to AT-SUIT"
+  ENROL=(python3 "$AGENT" --server "$SERVER" --code "$CODE" --re-enrol --save-only)
+  [ -n "$NAME" ] && ENROL+=(--name "$NAME")
+  "${ENROL[@]}"
+else
+  say "This screen will show a pairing code when the agent starts"
+  python3 "$AGENT" --server "$SERVER" --save-only
+fi
 
 FLAGS=""
 if [ "$ALLOW_POWER" = 1 ]; then
@@ -67,6 +75,8 @@ if [ "$ALLOW_POWER" = 1 ]; then
   FLAGS=" --allow-power"
 fi
 
+NAMEFLAG=""
+[ -n "$NAME" ] && NAMEFLAG=" --name $(printf '%q' "$NAME")"
 say "Starting the agent when the desktop logs in"
 mkdir -p "$HOME/.config/autostart"
 cat > "$HOME/.config/autostart/atsuit-screen.desktop" <<EOF
@@ -74,7 +84,7 @@ cat > "$HOME/.config/autostart/atsuit-screen.desktop" <<EOF
 Type=Application
 Name=AT-SUIT screen
 Comment=Shows this screen's AT-SUIT timer or view full screen
-Exec=sh -c 'exec python3 "$AGENT"$FLAGS >> "$DIR/agent.log" 2>&1'
+Exec=sh -c 'exec python3 "$AGENT"$FLAGS$NAMEFLAG >> "$DIR/agent.log" 2>&1'
 X-GNOME-Autostart-enabled=true
 NoDisplay=true
 EOF
@@ -90,7 +100,9 @@ fi
 
 cat <<EOF
 
-Done. Turn on automatic login for $USER so the screen comes back by itself after a power cut.
-The agent starts at the next login; to start it now:  python3 "$AGENT"$FLAGS &
+Done. Unless you used --code, the screen shows a pairing code: type it into
+"Add a screen" on a tech laptop (next to the timer) and pick what it shows.
+Turn on automatic login for $USER so the screen comes back by itself after a power cut.
+The agent starts at the next login; to start it now:  python3 "$AGENT"$FLAGS$NAMEFLAG &
 Log: $DIR/agent.log
 EOF
