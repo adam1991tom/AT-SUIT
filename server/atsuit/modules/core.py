@@ -173,11 +173,15 @@ def setup(body: SetupIn, response: Response):
 class LoginIn(BaseModel):
     username: str
     password: str
+    shared: bool = False  # signing in on a tech laptop: a short session that ends with the browser
 
 
-def _set_cookie(response: Response, token: str) -> None:
+SHARED_MINUTES = 30
+
+
+def _set_cookie(response: Response, token: str, shared: bool = False) -> None:
     response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax",
-                        max_age=config.cfg.session_hours * 3600)
+                        max_age=None if shared else config.cfg.session_hours * 3600)
 
 
 @router.post("/api/auth/login")
@@ -186,9 +190,9 @@ def login(body: LoginIn, response: Response):
         a = c.execute("SELECT * FROM accounts WHERE username=? AND active=1", (body.username.strip(),)).fetchone()
         if not a or not verify_password(body.password, a["password_hash"]):
             raise HTTPException(401, "Wrong username or password")
-        token = create_session(c, a["id"])
-        db.audit(c, a["username"], "auth.login")
-    _set_cookie(response, token)
+        token = create_session(c, a["id"], minutes=SHARED_MINUTES if body.shared else None)
+        db.audit(c, a["username"], "auth.login", "shared computer" if body.shared else "")
+    _set_cookie(response, token, body.shared)
     return {"ok": True, "token": token}
 
 

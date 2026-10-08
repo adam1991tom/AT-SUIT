@@ -159,7 +159,7 @@
         <div style="margin-top:.6rem"><b class="small">Open requests</b><div id="helpList" class="small" style="margin-top:.3rem"></div></div>
       </div></div>
     <button id="laptopBtn" class="hidden">This laptop</button>
-    <a class="btn" href="/#/dashboard" target="_blank">Console</a>
+    <a class="btn hidden" id="consoleBtn" href="/#/dashboard" target="_blank">Console</a>
     <button id="out">Sign out</button>
   </div>
   <div id="laptop" class="panel hidden" style="margin:1rem 1rem 0">
@@ -336,10 +336,14 @@
       const f = $("startForm");
       f.operator.value = node.node.operator || "";
       if (node.node.mode) f.querySelector(`[name=mode][value=${node.node.mode}]`).checked = true;
-      let pick = roomId || node.node.room_id || null;
+      // Once a laptop has its room for the day it keeps it, whoever signs in; only an admin moves it.
+      const locked = roomId;
+      let pick = roomId || null;
       const tiles = () => {
-        $("startRooms").innerHTML = node.rooms.map((r) => `<button type="button" class="tile ${r.id === pick ? "on" : ""}" data-room="${r.id}">${esc(r.name)}</button>`).join("") || '<p class="muted">No rooms yet. An admin adds them in Admin → Sites.</p>';
-        $("startRooms").querySelectorAll("[data-room]").forEach((b) => (b.onclick = () => { pick = +b.dataset.room; tiles(); }));
+        const list = locked ? node.rooms.filter((r) => r.id === locked) : node.rooms;
+        $("startRooms").innerHTML = list.map((r) => `<button type="button" class="tile ${r.id === pick ? "on" : ""}" data-room="${r.id}">${esc(r.name)}</button>`).join("") || '<p class="muted">No rooms yet. An admin adds them in Admin → Sites.</p>';
+        if (locked) $("startRooms").insertAdjacentHTML("beforeend", '<p class="muted small" style="grid-column:1/-1;margin:.3rem 0 0">This laptop is in this room today. An admin can move it from the console (Nodes).</p>');
+        else $("startRooms").querySelectorAll("[data-room]").forEach((b) => (b.onclick = () => { pick = +b.dataset.room; tiles(); }));
       };
       tiles();
       f.onsubmit = async (e) => {
@@ -388,11 +392,14 @@
   }
   const roomName = boot.rooms.find((r) => r.id === roomId)?.name || "";
   $("room").innerHTML = boot.rooms.map((r) => `<option value="${r.id}" ${r.id === roomId ? "selected" : ""}>${esc(r.name)}</option>`).join("");
-  $("room").onchange = async () => {
-    if (techLaptop()) await guard(() => api("/api/nodes/me/room", { method: "PUT", headers: nodeHdr(), body: { room_id: +$("room").value } }));
-    else try { localStorage.setItem("atsuit_room", $("room").value); } catch (_) {}
-    location.reload();
-  };
+  if (techLaptop()) {
+    // A tech laptop stays in the room it started the day in; only an admin moves it.
+    $("room").disabled = true;
+    $("room").title = "This laptop's room for today. An admin can move it from the console (Nodes).";
+  } else $("room").onchange = () => { try { localStorage.setItem("atsuit_room", $("room").value); } catch (_) {} location.reload(); };
+  // The console is for admins. On a tech laptop an admin signs in there for a short session (30 minutes, ends with the browser).
+  if (techLaptop()) { $("consoleBtn").textContent = "Admin"; $("consoleBtn").href = "/?shared=1#/dashboard"; $("consoleBtn").title = "For admins: sign in to the console"; $("consoleBtn").classList.remove("hidden"); }
+  else if (boot.me.role === "admin") $("consoleBtn").classList.remove("hidden");
 
   // This laptop: main or backup PC, and silent pop-ups (Windows app only).
   if (APP && techLaptop()) {
@@ -688,7 +695,7 @@
   async function renderHelp() {
     const rows = (await api("/api/comms/help")).filter((h) => h.status !== "resolved").slice(0, 8);
     const open = rows.filter((h) => h.status === "open").length;
-    $("helpCount").textContent = open; $("helpCount").classList.toggle("hidden", !open);
+    $("helpCount").textContent = open; $("helpCount").classList.toggle("hidden", !open); $("helpTop").classList.toggle("help-alarm", !!open);
     $("helpList").innerHTML = rows.map((h) => `<div class="row" style="margin:.25rem 0"><span class="pill ${h.status === "open" ? "bad" : "warn"}">${esc(h.status)}</span> <b>${esc(h.room_name)}</b> ${esc(h.category)}: ${esc(h.description)} <span class="muted">${esc(h.assigned_to)}</span>` +
       `${h.status === "open" ? `<button class="small" data-h="${h.id}" data-s="acknowledged">On my way</button>` : ""}<button class="small" data-h="${h.id}" data-s="resolved">Resolved</button></div>`).join("") || '<span class="muted">No open requests.</span>';
     $("helpList").querySelectorAll("[data-h]").forEach((b) => b.onclick = () => guard(() => AT.put(`/api/comms/help/${b.dataset.h}`, { status: b.dataset.s })));

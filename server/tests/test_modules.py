@@ -300,11 +300,23 @@ def test_tech_starts_with_name_room_and_main_or_backup(admin, client):
     assert (n["operator"], n["mode"], n["room_id"]) == ("Amy Smith", "main", rid)
     assert client.put("/api/nodes/me/mode", json={"mode": "backup"}).status_code == 200
     assert client.get("/api/nodes/me").json()["node"]["mode"] == "backup"
-    # End of the day: the name and room go, the next tech starts again.
+    # The room is locked for the day: the tech can't move the laptop to another room.
+    other = admin.get("/api/nodes/me", headers=h).json()["rooms"][0]["id"]
+    assert client.put("/api/nodes/me/room", json={"room_id": other}).status_code == 403
+    # Signing out clears the name; the room stays for the day.
     client.post("/api/nodes/me/finish")
     assert client.get("/api/bootstrap").status_code == 401
     me = admin.get("/api/nodes/me", headers=h).json()
-    assert me["room"] is None and me["node"]["operator"] == "" and me["node"]["mode"] == "backup"
+    assert me["room"]["id"] == rid and me["node"]["operator"] == "" and me["node"]["mode"] == "backup"
+    assert client.post("/api/nodes/me/start", headers=h, json={"operator": "Bob", "room_id": other, "mode": "main"}).status_code == 403
+    assert client.post("/api/nodes/me/start", headers=h, json={"operator": "Bob", "room_id": rid, "mode": "main"}).status_code == 200
+    # Only an admin moves it, from the console.
+    assert client.put("/api/fleet/nodes/1", json={"room_id": other}).status_code in (401, 403)
+    client.cookies.clear()
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "correct-horse"}).status_code == 200
+    nid = next(n for n in admin.get("/api/fleet/nodes").json() if n["name"] == "HD-MAIN")["id"]
+    assert admin.put(f"/api/fleet/nodes/{nid}", json={"room_id": other}).status_code == 200
+    assert admin.get("/api/nodes/me", headers=h).json()["room"]["id"] == other
     # A kiosk can't start a day.
     k = admin.post("/api/nodes/enrol", json={"code": code, "name": "foyer", "kind": "kiosk"}).json()["token"]
     assert client.post("/api/nodes/me/start", headers={"Authorization": f"Node {k}"}, json={"operator": "X", "room_id": rid, "mode": "main"}).status_code == 400
@@ -350,3 +362,18 @@ def test_backstage_help_board_is_public_and_live(admin):
     assert board == {"room_id": rid, "calls": [], "open_elsewhere": 1}
     page = admin.get(f"/timer/{rid}?view=backstage").text
     assert "studio" in page and admin.get(f"/timer/{rid}").text != page
+
+
+def test_shared_computer_login_is_short(admin, client):
+    """An admin signing in on a tech laptop gets a 30-minute session and no lasting cookie."""
+    from datetime import datetime, timezone
+    from atsuit import db
+
+    client.cookies.clear()
+    r = client.post("/api/auth/login", json={"username": "admin", "password": "correct-horse", "shared": True})
+    assert r.status_code == 200
+    assert "max-age" not in r.headers["set-cookie"].lower()
+    with db.tx() as c:
+        exp = c.execute("SELECT expires_at FROM sessions ORDER BY rowid DESC LIMIT 1").fetchone()[0]
+    left = datetime.fromisoformat(exp.replace("Z", "+00:00")) - datetime.now(timezone.utc)
+    assert 25 * 60 < left.total_seconds() <= 30 * 60 + 5

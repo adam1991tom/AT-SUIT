@@ -15,8 +15,7 @@ const CueList = (() => {
     let s = null, cues = [], editing = null;
     el.innerHTML = `
       <div class="row" style="justify-content:space-between"><h3>Room timer</h3>
-        <span class="small"><a target="_blank" href="/timer/${roomId}">Standard ↗</a> · <a target="_blank" href="/timer/${roomId}?view=backstage">Backstage ↗</a>
-          <select data-views style="width:auto;padding:.15rem .3rem;font-size:.85rem;margin-left:.3rem"><option value="">More views…</option></select></span></div>
+        <span class="small"><select data-views title="Open a timer view in a new window" style="width:auto;padding:.15rem .3rem;font-size:.85rem"><option value="">Timer views ↗</option></select></span></div>
       <div class="clock bigclock" data-clock>--:--</div>
       <div data-now style="font-weight:600"></div><div class="muted small" data-next></div>
       <div class="row" style="margin-top:.6rem;flex-wrap:wrap">
@@ -110,7 +109,7 @@ const CueList = (() => {
     el.querySelectorAll("[data-sw]").forEach((b) => b.onclick = () => act(b.dataset.sw, {}));
     api("/api/timers-views").then((views) => {
       const sel = $("[data-views]");
-      sel.insertAdjacentHTML("beforeend", views.filter((v) => !["hcc", "backstage"].includes(v.id)).map((v) => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join(""));
+      sel.insertAdjacentHTML("beforeend", views.map((v) => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join(""));
       sel.onchange = () => {
         const v = sel.value;
         if (v) open(v.startsWith("view:") ? `/room/${roomId}/external/${encodeURIComponent(v.slice(5))}/` : `/timer/${roomId}?view=${encodeURIComponent(v)}`, "_blank");

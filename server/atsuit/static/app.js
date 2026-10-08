@@ -6,18 +6,28 @@
 
   await AT.branding();
   try { boot = await api("/api/bootstrap"); } catch (e) { return showLogin(); }
-  if (boot.me.kind === "node") { location.replace("/node"); return; }
-  // Admins and techs open on the room workspace, with the timer first. A #/page link (or the Console button there) opens the console.
-  if (["admin", "tech"].includes(boot.me.role) && !location.hash && boot.rooms.length) { location.replace("/node"); return; }
+  // On a tech laptop the Admin button opens /?shared=1: an admin signs in over the tech's day.
+  if (boot.me.kind === "node") { if (new URLSearchParams(location.search).has("shared")) return showLogin(); location.replace("/node"); return; }
+  // The console is the admin portal: everyone else works in the room workspace.
+  if (boot.me.role !== "admin") { location.replace("/node"); return; }
+  // Admins open on the room workspace too, with the timer first. A #/page link (or the Console button there) opens the console.
+  if (!location.hash && boot.rooms.length) { location.replace("/node"); return; }
   start();
 
   function showLogin() {
     document.getElementById("login").classList.remove("hidden");
+    // Opened from a tech laptop: a short admin session that ends with the browser.
+    const shared = new URLSearchParams(location.search).has("shared");
+    if (shared) document.getElementById("loginErr").insertAdjacentHTML("beforebegin", '<p class="muted small">Admins only. On this laptop you are signed out after 30 minutes, or when the browser closes.</p>');
     const f = document.getElementById("loginForm");
     f.onsubmit = async (e) => {
       e.preventDefault();
-      try { await post("/api/auth/login", { username: f.username.value, password: f.password.value }); location.reload(); }
-      catch (ex) { document.getElementById("loginErr").textContent = ex.message; }
+      try {
+        const r = await post("/api/auth/login", { username: f.username.value, password: f.password.value, shared });
+        const me = await api("/api/auth/me").catch(() => null);
+        if (me && me.role !== "admin") { await post("/api/auth/logout"); throw new Error("The console is for admins. Techs use the workspace on their laptop."); }
+        location.reload();
+      } catch (ex) { document.getElementById("loginErr").textContent = ex.message; }
     };
   }
 
@@ -52,6 +62,7 @@
     helpOpen = open;
     const el = document.getElementById("helpCount");
     el.textContent = open; el.classList.toggle("hidden", !open);
+    el.parentElement.classList.toggle("help-alarm", !!open);
   }
 
   function route() {
@@ -144,9 +155,17 @@
     for (const r of boot.rooms) {
       states[r.id] = await api(`/api/timers/${r.id}`);
       grid.insertAdjacentHTML("beforeend", `<div class="panel" data-room="${r.id}">
-        <div class="row" style="justify-content:space-between"><h2>${esc(r.name)}</h2><span class="small"><a href="/timer/${r.id}" target="_blank">Standard ↗</a> · <a href="/timer/${r.id}?view=backstage" target="_blank">Backstage ↗</a></span></div>
+        <div class="row" style="justify-content:space-between"><h2>${esc(r.name)}</h2><select class="tviews" data-room-views="${r.id}" title="Open a timer view in a new window" style="width:auto;padding:.15rem .3rem;font-size:.85rem"><option value="">Timer views ↗</option></select></div>
         <div class="clock" style="font-size:2.6rem">--:--</div><div class="small now" style="font-weight:600"></div><div class="muted small next"></div></div>`);
     }
+    api("/api/timers-views").then((views) => grid.querySelectorAll("[data-room-views]").forEach((sel) => {
+      const rid = sel.dataset.roomViews;
+      sel.insertAdjacentHTML("beforeend", views.map((v) => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join(""));
+      sel.onchange = () => {
+        const v = sel.value; sel.value = "";
+        if (v) open(v.startsWith("view:") ? `/room/${rid}/external/${encodeURIComponent(v.slice(5))}/` : `/timer/${rid}?view=${encodeURIComponent(v)}`, "_blank");
+      };
+    })).catch(() => {});
     const tick = setInterval(() => {
       if (!document.body.contains(grid)) return clearInterval(tick);
       for (const [id, s] of Object.entries(states)) {

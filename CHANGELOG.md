@@ -4,6 +4,13 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.6.6
+
+- **A tech laptop stays in its room for the day.** Once a tech has picked the room, the start screen only offers that room and the workspace's room picker is locked, even after signing out and in again. The server refuses any other room from a tech laptop (403) until the next working day. Only an admin moves a laptop, from the console (Nodes).
+- **The console is admin-only.** Tech accounts and tech laptops go to the workspace; a tech who signs in on the console is signed straight out. On a tech laptop the Console button is now *Admin*: an admin signs in there with a short session (30 minutes, ended when the browser closes), and the tech's day carries on underneath.
+- **Timer views menu.** The *Standard ↗* and *Backstage ↗* links are gone; the cue list and the console's Timers page have one *Timer views ↗* menu with every view (Standard, Backstage, Clock, Minimal and any imported view).
+- **The Help button flashes** while a help call is open, in the workspace and on the console's *Help requests* link, until someone presses *On my way*.
+
 ## 0.6.5
 
 - **No separate Stage view: the stage screen is Standard.** `/timer/<room>` and the *Standard ↗* links open the Standard view; screens and links still set to `stage` show Standard too. Stage is gone from every view list.

@@ -239,7 +239,8 @@ async function overlayWindows(a) {
 test("the overlay floats over the slides, lets clicks through and never takes focus", async () => {
   app = await launch();
   const page = await mainPage(app);
-  const hd = await roomId("HD");
+  // The laptop is still in CC today (it keeps its room after signing out), and the overlay follows its room.
+  const rid = await roomId("CC");
   // Watch which windows let the mouse through.
   await app.evaluate(({ BrowserWindow }) => {
     globalThis.ignoreMouse = {};
@@ -257,13 +258,13 @@ test("the overlay floats over the slides, lets clicks through and never takes fo
   const before = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id ?? null);
   expect(before).toBe(await app.evaluate(() => globalThis.slides));
 
-  const r = await page.evaluate((id) => window.atsuitApp.overlay({ on: true, room_id: id, position: "bottom-right", size: "small", opacity: 0.8 }), hd);
+  const r = await page.evaluate((id) => window.atsuitApp.overlay({ on: true, room_id: id, position: "bottom-right", size: "small", opacity: 0.8 }), rid);
   expect(r.ok).toBe(true);
-  expect(r.target).toBe(`${env.base}/timer/${hd}?view=overlay`);
+  expect(r.target).toBe(`${env.base}/timer/${rid}?view=overlay`);
   await expect.poll(async () => (await overlayWindows(app)).filter((w) => w.visible).length, { timeout: 10000 }).toBe(1);
   await new Promise((res) => setTimeout(res, 500));
   const [o] = await overlayWindows(app);
-  expect(o.url).toBe(`${env.base}/timer/${hd}?view=overlay`);
+  expect(o.url).toBe(`${env.base}/timer/${rid}?view=overlay`);
   expect(o.onTop).toBe(true);
   expect(o.focusable).toBe(false);
   expect(o.focused).toBe(false);
@@ -300,7 +301,7 @@ test("the overlay floats over the slides, lets clicks through and never takes fo
   // Only http(s) pages.
   const bad = await page.evaluate(() => window.atsuitApp.overlay({ url: "file:///etc/passwd" }));
   expect(bad.ok).toBe(false);
-  expect(bad.target).toBe(`${env.base}/timer/${hd}?view=overlay`);
+  expect(bad.target).toBe(`${env.base}/timer/${rid}?view=overlay`);
   // A tech's own page.
   s = await page.evaluate((u) => window.atsuitApp.overlay({ url: u }), `${env.base}/api/health`);
   expect(s.target).toBe(`${env.base}/api/health`);
@@ -316,8 +317,8 @@ test("the overlay floats over the slides, lets clicks through and never takes fo
   });
   expect(alpha).toBe(0);
   s = await page.evaluate(() => window.atsuitApp.overlay({ url: "" })); // back to the room timer
-  expect(s.target).toBe(`${env.base}/timer/${hd}?view=overlay`);
-  expect(conf().overlay).toMatchObject({ on: true, url: "", position: "top-center", size: "medium", room_id: hd });
+  expect(s.target).toBe(`${env.base}/timer/${rid}?view=overlay`);
+  expect(conf().overlay).toMatchObject({ on: true, url: "", position: "top-center", size: "medium", room_id: rid });
 
   // Off.
   s = await page.evaluate(() => window.atsuitApp.overlay({ on: false }));
@@ -330,8 +331,8 @@ test("the overlay floats over the slides, lets clicks through and never takes fo
 test("an overlay left on comes back after a restart, and the server knows", async () => {
   app = await launch();
   let page = await mainPage(app);
-  const rh = await roomId("RH");
-  const s = await page.evaluate((id) => window.atsuitApp.overlay({ on: true, room_id: id, position: "top-right", size: "medium" }), rh);
+  const rid = await roomId("CC"); // the laptop's room today
+  const s = await page.evaluate((id) => window.atsuitApp.overlay({ on: true, room_id: id, position: "top-right", size: "medium" }), rid);
   expect(s.ok).toBe(true);
   await expect.poll(async () => (await overlayWindows(app)).filter((w) => w.visible).length, { timeout: 10000 }).toBe(1);
   await app.close();
@@ -342,7 +343,7 @@ test("an overlay left on comes back after a restart, and the server knows", asyn
   await expect.poll(async () => (await overlayWindows(app)).filter((w) => w.visible).length, { timeout: 15000 }).toBe(1);
   const [o] = await overlayWindows(app);
   const wa = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().workArea);
-  expect(o.url).toBe(`${env.base}/timer/${rh}?view=overlay`);
+  expect(o.url).toBe(`${env.base}/timer/${rid}?view=overlay`);
   expect(o.bounds).toEqual({ x: wa.x + wa.width - 440 - 16, y: wa.y + 16, width: 440, height: 150 });
   expect(o.focusable).toBe(false);
   expect((await page.evaluate(() => window.atsuitApp.overlayState())).on).toBe(true);
@@ -353,7 +354,7 @@ test("an overlay left on comes back after a restart, and the server knows", asyn
   await expect.poll(async () => {
     const ov = await (await fetch(`${env.base}/api/fleet/nodes/${node.id}/overlay`, { headers: { Cookie: cookie } })).json();
     return ov.state && ov.state.on && ov.state.target;
-  }, { timeout: 10000 }).toBe(`${env.base}/timer/${rh}?view=overlay`);
+  }, { timeout: 10000 }).toBe(`${env.base}/timer/${rid}?view=overlay`);
 
   // Off stays off after a restart.
   await page.evaluate(() => window.atsuitApp.overlay({ on: false }));

@@ -402,11 +402,23 @@ class RoomPick(BaseModel):
     room_id: int | None = None
 
 
+def room_locked(c, n, room_id) -> None:
+    """A tech laptop keeps the room it was given for the whole working day, even if
+    the tech signs out and in again. Only an admin moves it (Nodes in the console)."""
+    if n["kind"] != "tech":
+        return
+    now = current_room_id(c, n)
+    if now and room_id != now:
+        room = c.execute("SELECT name FROM rooms WHERE id=?", (now,)).fetchone()
+        raise HTTPException(403, f"This laptop is in {room['name'] if room else 'its room'} today. Ask an admin to move it.")
+
+
 @router.put("/api/nodes/me/room")
 async def node_pick_room(body: RoomPick, p: Principal = Depends(require_node)):
-    """The tech says which room this laptop is in today."""
+    """The tech says which room this laptop is in today (once: after that only an admin moves it)."""
     with db.tx() as c:
         n = c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone()
+        room_locked(c, n, body.room_id)
         if body.room_id is not None:
             room = c.execute("SELECT * FROM rooms WHERE id=?", (body.room_id,)).fetchone()
             if not room or (n["site_id"] and room["site_id"] != n["site_id"]):
@@ -443,6 +455,7 @@ async def node_start(body: StartIn, request: Request, response: Response, p: Pri
         n = c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone()
         if n["kind"] != "tech":
             raise HTTPException(400, "Only tech laptops start a day")
+        room_locked(c, n, body.room_id)
         room = c.execute("SELECT * FROM rooms WHERE id=? AND enabled=1", (body.room_id,)).fetchone()
         if not room or (n["site_id"] and room["site_id"] != n["site_id"]):
             raise HTTPException(404, "Room not found")
@@ -464,9 +477,10 @@ async def node_mode(body: ModeIn, p: Principal = Depends(require_node)):
 
 @router.post("/api/nodes/me/finish")
 async def node_finish(response: Response, p: Principal = Depends(require_node)):
-    """End of the day: the next tech enters their own name and room."""
+    """Signing out: the next tech enters their own name. The laptop stays in its
+    room until the next working day, or until an admin moves it."""
     with db.tx() as c:
-        c.execute("UPDATE nodes SET operator='', room_day='' WHERE id=? AND kind='tech'", (p.id,))
+        c.execute("UPDATE nodes SET operator='' WHERE id=? AND kind='tech'", (p.id,))
     response.delete_cookie(NODE_COOKIE)
     await hub.publish("fleet", "node.changed", {"id": p.id})
     return {"ok": True}

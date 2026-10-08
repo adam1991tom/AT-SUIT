@@ -97,12 +97,13 @@ class Principal:
         return f"{self.kind}:{self.name}"
 
 
-def create_session(c, account_id: int) -> str:
+def create_session(c, account_id: int, minutes: int | None = None) -> str:
     token = new_token()
     now = datetime.now(timezone.utc)
+    life = timedelta(minutes=minutes) if minutes else timedelta(hours=config.cfg.session_hours)
     c.execute(
         "INSERT INTO sessions(token_hash,account_id,created_at,expires_at) VALUES(?,?,?,?)",
-        (token_hash(token), account_id, now.isoformat(), (now + timedelta(hours=config.cfg.session_hours)).isoformat()),
+        (token_hash(token), account_id, now.isoformat(), (now + life).isoformat()),
     )
     return token
 
