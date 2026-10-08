@@ -232,3 +232,10 @@ def test_screen_test_patterns(admin, client):
     from atsuit.modules.timers import SCREENTEST
     drawn = set(re.findall(r"^    (\w+): \{ name:", page.text, re.M)) | {"white", "red", "green", "blue", "gray"}
     assert drawn == set(SCREENTEST)
+
+
+def test_companion_guide_is_served(client):
+    page = client.get("/guide/companion")
+    assert page.status_code == 200
+    text = client.get("/api/guide/companion")
+    assert text.status_code == 200 and "API" in text.text

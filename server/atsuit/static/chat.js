@@ -115,7 +115,7 @@ const Chat = (() => {
         unread[cid] = (unread[cid] || 0) + 1;
         renderChans();
       }
-      if (evt.type === "message.new" && m.priority === "urgent" && !(me.kind === "account" && m.sender_id === me.id)) {
+      if (!opts.quiet && evt.type === "message.new" && m.priority === "urgent" && !(me.kind === "account" && m.sender_id === me.id)) {
         AT.toast(`Urgent from ${m.sender_name}: ${m.body}`, "bad");
       }
     }

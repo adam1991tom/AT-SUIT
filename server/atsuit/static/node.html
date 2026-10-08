@@ -124,7 +124,7 @@
         <div style="margin-top:.6rem"><b class="small">Open requests</b><div id="helpList" class="small" style="margin-top:.3rem"></div></div>
       </div></div>
     <button id="laptopBtn" class="hidden">This laptop</button>
-    <a class="btn" href="/" target="_blank">Console</a>
+    <a class="btn" href="/#/dashboard" target="_blank">Console</a>
     <button id="out">Sign out</button>
   </div>
   <div id="laptop" class="panel hidden" style="margin:1rem 1rem 0">
@@ -247,8 +247,9 @@
 
   node = await nodeMe();
   if (APP && !node) return; // the app is showing its own set-up screen
-  if (!node && !sessionStorage.getItem("atsuit_skip_enrol")) {
-    try { await api("/api/auth/me"); } catch (_) {}
+  let signedIn = false;
+  if (!node) { try { signedIn = (await api("/api/auth/me")).kind === "account"; } catch (_) {} }
+  if (!node && !signedIn && !sessionStorage.getItem("atsuit_skip_enrol")) {
     $("enrol").classList.remove("hidden");
     $("skip").onclick = (e) => { e.preventDefault(); sessionStorage.setItem("atsuit_skip_enrol", "1"); location.reload(); };
     const f = $("enrolForm");
@@ -570,7 +571,7 @@
   $("chatHead").onclick = () => setDock(!dockOpen);
   if (boot.modules.comms) {
     const chans = await api("/api/comms/channels");
-    chat = Chat.mount($("chat"), { me: boot.me, compact: true, prefer: chans.find((c) => c.room_id === roomId)?.id });
+    chat = Chat.mount($("chat"), { me: boot.me, compact: true, quiet, prefer: chans.find((c) => c.room_id === roomId)?.id });
     setDock(dockOpen);
   } else dock.classList.add("hidden");
 

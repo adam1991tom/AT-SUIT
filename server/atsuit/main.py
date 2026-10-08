@@ -7,8 +7,8 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import VERSION, asr, db
@@ -108,6 +108,18 @@ def create_app() -> FastAPI:
     @app.get("/screen", include_in_schema=False)
     def screen_page():
         return page("screen.html")
+
+    @app.get("/guide/companion", include_in_schema=False)
+    def companion_guide_page():
+        return page("guide.html")
+
+    @app.get("/api/guide/companion", include_in_schema=False)
+    def companion_guide():
+        # One source: docs/COMPANION.md (copied next to the app in the Docker image).
+        for f in (Path(__file__).parent / "companion.md", Path(__file__).resolve().parents[2] / "docs" / "COMPANION.md"):
+            if f.is_file():
+                return PlainTextResponse(f.read_text("utf-8"), media_type="text/markdown; charset=utf-8")
+        raise HTTPException(404, "Guide not found")
 
     @app.get("/screentest", include_in_schema=False)
     def screentest_page():

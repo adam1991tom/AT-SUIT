@@ -22,6 +22,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && if [ "$WITH_ASR" = "1" ]; then pip install --no-cache-dir -r requirements-asr.txt; fi
 
 COPY server/atsuit ./atsuit
+COPY docs/COMPANION.md ./atsuit/companion.md
 COPY node-agent/atsuit_node.py ./atsuit/agent/atsuit_node.py
 COPY screen-agent/atsuit_screen.py screen-agent/install.sh ./atsuit/agent/screen/
 COPY room-sync/atsuit_room_sync.py ./atsuit/agent/atsuit_room_sync.py

@@ -7,6 +7,8 @@
   await AT.branding();
   try { boot = await api("/api/bootstrap"); } catch (e) { return showLogin(); }
   if (boot.me.kind === "node") { location.replace("/node"); return; }
+  // Admins and techs open on the room workspace, with the timer first. A #/page link (or the Console button there) opens the console.
+  if (["admin", "tech"].includes(boot.me.role) && !location.hash && boot.rooms.length) { location.replace("/node"); return; }
   start();
 
   function showLogin() {
@@ -75,10 +77,31 @@
       const key = l.board === "admin" ? "Admin" : l.room ? l.room : ({ device: "Devices", tool: "Tools", buttons: "Buttons", timer: "Timers" }[l.kind] || "Links");
       (groups[key] ||= []).push(l);
     }
-    el.innerHTML = `<div class="row" style="justify-content:space-between"><h1>Dashboard</h1>${boot.me.role === "admin" ? '<a class="btn" href="#/admin/links">Edit links</a>' : ""}</div>` +
+    // The rooms first: every room's timer, live. The tech workspace has the controls, captions and chat dock.
+    const live = {};
+    const rooms = boot.modules.timers ? boot.rooms : [];
+    for (const r of rooms) live[r.id] = await api(`/api/timers/${r.id}`).catch(() => null);
+    const strip = rooms.length ? `<div class="row" style="justify-content:space-between"><h1>Dashboard</h1><span class="row"><a class="btn primary" href="/node">Open the workspace</a>${boot.me.role === "admin" ? '<a class="btn" href="#/admin/links">Edit links</a>' : ""}</span></div>
+      <div class="grid" id="dashRooms" style="margin-top:.6rem">${rooms.map((r) => `<div class="panel" data-room="${r.id}"><div class="row" style="justify-content:space-between"><h2>${esc(r.name)}</h2><span class="small"><a href="/timer/${r.id}" target="_blank">Stage ↗</a></span></div>
+        <div class="clock" style="font-size:2.6rem">--:--</div><div class="small now" style="font-weight:600"></div><div class="muted small next"></div></div>`).join("")}</div>` : "";
+    el.innerHTML = (strip || `<div class="row" style="justify-content:space-between"><h1>Dashboard</h1>${boot.me.role === "admin" ? '<a class="btn" href="#/admin/links">Edit links</a>' : ""}</div>`) + (strip ? '<h2 style="margin-top:1.4rem">Links</h2>' : "") +
       (links.length ? Object.entries(groups).map(([g, ls]) => `<h3 style="margin-top:1.2rem">${esc(g)}</h3><div class="tiles">` +
         ls.map((l) => `<a class="tile" href="${esc(l.url)}" target="_blank" rel="noopener"><span class="dot" data-ping="${l.id}"></span><span class="grow">${esc(l.label)}</span></a>`).join("") + "</div>").join("")
         : '<p class="muted">No links yet. Admins can import the old Homarr board or add links in Admin → Links.</p>');
+    const dash = el.querySelector("#dashRooms");
+    if (dash) {
+      const tick = setInterval(() => {
+        if (!document.body.contains(dash)) return clearInterval(tick);
+        for (const [id, st] of Object.entries(live)) {
+          const card = dash.querySelector(`[data-room="${id}"]`); if (!card || !st) continue;
+          const d = AT.timerDisplay(st), c = card.querySelector(".clock");
+          c.textContent = d.text; c.className = "clock " + d.cls;
+          card.querySelector(".now").textContent = (st.cue?.cue ? st.cue.cue + " · " : "") + (st.title || "") + (st.playback === "pause" ? " (paused)" : "");
+          card.querySelector(".next").textContent = (st.next ? `Next: ${st.next.title}` : "") + (st.message_visible ? `  ·  On stage: ${st.message}` : "");
+        }
+      }, 250);
+      view = { onEvent: (e) => { if (e.type === "timer" && e.data?.room_id in live) live[e.data.room_id] = e.data; } };
+    }
     try {
       const ping = await api("/api/dashboard/ping");
       el.querySelectorAll("[data-ping]").forEach((d) => d.classList.add(ping[d.dataset.ping] ? "on" : "off"));
@@ -483,7 +506,7 @@
       <td><select data-room>${roomOptions(l.room_id, "Whole site")}</select></td><td><select data-board>${["public", "admin"].map((b) => `<option ${b === l.board ? "selected" : ""}>${b}</option>`).join("")}</select></td>
       <td><select data-kind>${kinds.map((k) => `<option ${k === l.kind ? "selected" : ""}>${k}</option>`).join("")}</select></td>
       <td class="row">${l.id ? '<button class="small" data-save>Save</button><button class="small danger" data-del>Delete</button>' : '<button class="small primary" data-save>Add</button>'}</td></tr>`;
-    a.innerHTML = `<div class="panel"><p class="muted small">Room links appear in that room's tech workspace and kiosk picker. Admin-board links are only shown to admins.</p>
+    a.innerHTML = `<div class="panel"><p class="small" style="margin-top:0"><b>What these are:</b> shortcuts to other web pages (a Companion button page, a room's camera control, a tool). Pick <b>Whole site</b> to show a link to everyone on the Dashboard, or pick a <b>room</b> so it appears only in that room's tech workspace, under <b>Links</b>. <b>Admin</b> links are only shown to admins. The <b>kind</b> only decides the heading it is grouped under. You don't have to add any: the workspace works without them.</p>
       <table><tr><th>Label</th><th>URL</th><th>Room</th><th>Board</th><th>Kind</th><th></th></tr>${row()}${links.map(row).join("")}</table></div>`;
     a.querySelectorAll("[data-l]").forEach((tr) => {
       const body = () => ({ label: tr.querySelector("[data-label]").value, url: tr.querySelector("[data-url]").value, board: tr.querySelector("[data-board]").value, kind: tr.querySelector("[data-kind]").value,
@@ -576,7 +599,7 @@
 
   async function admKeys(a) {
     const keys = await api("/api/admin/api-keys");
-    a.innerHTML = `<div class="panel card"><h2>API keys</h2><p class="small muted">For Bitfocus Companion and other automation. Send the key in an <code>X-API-Key</code> header, e.g. <code>POST /api/timers/&lt;room&gt;/toggle</code>. Full API: <a href="/api/docs" target="_blank">/api/docs</a>.</p>
+    a.innerHTML = `<div class="panel card"><h2>API keys</h2><p class="small muted">For Bitfocus Companion and other automation. Send the key in an <code>X-API-Key</code> header, e.g. <code>POST /api/timers/&lt;room&gt;/toggle</code>. <b><a href="/guide/companion" target="_blank">Companion guide</a></b>: set-up steps, ready-made buttons for presets, blink, messages and overlays, and every endpoint a key can call. Full API reference: <a href="/api/docs" target="_blank">/api/docs</a>.</p>
       <table>${keys.map((k) => `<tr><td>${esc(k.name)}</td><td><code>${esc(k.prefix)}…</code></td><td>${when(k.created_at)}</td><td><button class="small danger" data-del="${k.id}">Revoke</button></td></tr>`).join("")}</table>
       <form class="row" id="nk" style="margin-top:.6rem"><input name="name" class="grow" placeholder="Key name, e.g. Companion" required><button class="primary">Create</button></form><p id="newkey"></p></div>`;
     a.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => confirm("Revoke this key?") && guard(() => del(`/api/admin/api-keys/${b.dataset.del}`)).then(() => admKeys(a)));
