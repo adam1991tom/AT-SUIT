@@ -27,6 +27,8 @@ async def housekeeping() -> None:
                 days = int(db.get_setting(c, "message_retention_days", 0) or 0)
                 if days:
                     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+                    from .modules.comms import remove_files  # the files go with their messages
+                    remove_files(c, "m.created_at < ?", (cutoff,))
                     c.execute("DELETE FROM messages WHERE created_at < ?", (cutoff,))
                 c.execute("DELETE FROM node_commands WHERE status!='queued' AND created_at < ?",
                           ((datetime.now(timezone.utc) - timedelta(days=7)).isoformat(),))

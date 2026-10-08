@@ -4,6 +4,12 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.6.2
+
+- **Emoji in chat.** A 😊 button beside the message box opens a picker (faces, hands and show-day signs like 🎤 🔇 ⚠️ 🆘) and drops the emoji where the cursor is. Any message can get a reaction: ☺︎+ offers 👍 ✅ 👀 ❤️ 😂 🙏 or the full picker; tap a reaction again to take it away, hover it to see who.
+- **Better attachments.** Attach several files at once, or paste or drop them onto the chat; they wait under the box (✕ removes one) and go with the next message, with or without text. Pictures show in the chat, other files show their size. Deleting a message deletes its files from the server too, and so does the automatic clear-out of old messages.
+- **Admins can delete direct-message chats.** Admin → Chat lists every direct-message chat (who and how much, never what was said) and deletes one, or all, for both people, with its files and reactions. An admin in a direct-message chat also gets *Delete chat* at the top.
+
 ## 0.6.1
 
 - **GO starts what is loaded.** Pressing a quick timer (with *Start on tap* off) and then GO now starts that timer; before, GO moved past it and every screen went to `--:--`. A cue loaded with *Next* also starts on GO, and GO after that moves on as before.

@@ -1,7 +1,7 @@
 {
   "name": "atsuit-node",
   "productName": "AT-SUIT Node",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "AT-SUIT tech workspace for Windows laptops: chat, room timer, captions mic and silent pop-ups.",
   "main": "src/main.js",
   "private": true,

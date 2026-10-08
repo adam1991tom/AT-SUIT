@@ -2,6 +2,33 @@
 // mount(el, {me, prefer: channelId|null, compact}) returns {onEvent(evt)}.
 const Chat = (() => {
   const { esc, api, post, upload, guard, when, h } = AT;
+  // A short, useful set: faces, hands, and the signs a crew uses on show day.
+  const EMOJI = ["👍", "👎", "👌", "👏", "🙏", "🙌", "👋", "✌️", "🤞", "💪", "👀", "🫡",
+    "😀", "😂", "🙂", "😉", "😊", "😍", "🤔", "😅", "😬", "😮", "😢", "😡", "🥳", "😴", "🤯", "🤦",
+    "✅", "❌", "⚠️", "❗", "❓", "🆘", "⛔", "🔥", "🎉", "❤️", "⭐", "💯",
+    "🎤", "🎧", "🔊", "🔇", "📢", "🎬", "📷", "💡", "🖥️", "💻", "📱", "🔌", "🔋", "🕒", "⏱️", "☕", "🍕"];
+  const QUICK = ["👍", "✅", "👀", "❤️", "😂", "🙏"];
+  const kb = (n) => n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+
+  // One emoji picker for the page, opened next to whatever asked for it.
+  let picker = null, pickDone = null;
+  function pickEmoji(anchor, done) {
+    if (!picker) {
+      picker = document.createElement("div");
+      picker.className = "emoji-pick hidden";
+      picker.innerHTML = EMOJI.map((e) => `<button type="button" data-e="${e}">${e}</button>`).join("");
+      picker.onclick = (e) => { const b = e.target.closest("[data-e]"); if (b) { picker.classList.add("hidden"); pickDone?.(b.dataset.e); } };
+      document.addEventListener("pointerdown", (e) => { if (!picker.contains(e.target) && !e.target.closest("[data-emoji],[data-react]")) picker.classList.add("hidden"); });
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") picker.classList.add("hidden"); });
+      document.body.appendChild(picker);
+    }
+    if (!picker.classList.contains("hidden") && pickDone === done) { picker.classList.add("hidden"); return; }
+    pickDone = done;
+    picker.classList.remove("hidden");
+    const r = anchor.getBoundingClientRect(), pw = picker.offsetWidth, ph = picker.offsetHeight;
+    picker.style.left = Math.max(8, Math.min(r.right - pw, innerWidth - pw - 8)) + "px";
+    picker.style.top = (r.top - ph - 6 > 8 ? r.top - ph - 6 : r.bottom + 6) + "px";
+  }
 
   function mount(el, opts) {
     const me = opts.me;
@@ -15,12 +42,40 @@ const Chat = (() => {
           <form class="compose">
             <select name="priority" style="width:auto"><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select>
             <input name="body" class="grow" placeholder="Message" autocomplete="off">
-            <label class="btn" style="margin:0" title="Attach a file">📎<input type="file" name="file" class="hidden"></label>
+            <button type="button" data-emoji title="Emoji">😊</button>
+            <label class="btn" style="margin:0" title="Attach files (or paste or drop them here)">📎<input type="file" name="file" class="hidden" multiple></label>
             <button class="primary">Send</button>
           </form>
+          <div class="pending-files"></div>
         </div>
       </div>`;
     const chansEl = el.querySelector(".chans"), listEl = el.querySelector(".list"), titleEl = el.querySelector(".title"), form = el.querySelector("form");
+    const pendEl = el.querySelector(".pending-files"), myKey = me.kind === "account" ? `a:${me.id}` : `n:${me.name}`;
+    // Admins can delete a direct-message chat for both people (also in Admin → Chat).
+    const delChat = document.createElement("button");
+    delChat.type = "button"; delChat.className = "small danger hidden"; delChat.textContent = "Delete chat";
+    delChat.title = "Delete this direct-message chat for both people";
+    titleEl.after(delChat);
+    delChat.onclick = () => current && confirm("Delete this whole chat, its files and reactions, for both people?") &&
+      guard(() => AT.del(`/api/admin/comms/dms/${current.id}`)).then(() => load(null), () => {});
+
+    // files waiting to go with the next message: picked, pasted or dropped
+    let files = [];
+    function drawFiles() {
+      pendEl.innerHTML = files.map((f, i) => `<span class="pf">${f.type.startsWith("image/") ? "🖼️" : "📄"} ${esc(f.name)} <span class="muted">${kb(f.size)}</span><button type="button" class="small" data-rm="${i}" title="Remove">✕</button></span>`).join("");
+      pendEl.querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => { files.splice(+b.dataset.rm, 1); drawFiles(); });
+    }
+    const addFiles = (list) => { files.push(...[...list].filter((f) => f.size)); drawFiles(); form.body.focus(); };
+    form.file.onchange = () => { addFiles(form.file.files); form.file.value = ""; };
+    form.body.addEventListener("paste", (e) => { const f = [...(e.clipboardData?.files || [])]; if (f.length) { e.preventDefault(); addFiles(f); } });
+    el.addEventListener("dragover", (e) => { if ([...e.dataTransfer.types].includes("Files")) { e.preventDefault(); el.classList.add("chat-drop"); } });
+    el.addEventListener("dragleave", (e) => { if (!el.contains(e.relatedTarget)) el.classList.remove("chat-drop"); });
+    el.addEventListener("drop", (e) => { if (e.dataTransfer.files.length) { e.preventDefault(); el.classList.remove("chat-drop"); addFiles(e.dataTransfer.files); } });
+    form.querySelector("[data-emoji]").onclick = (e) => pickEmoji(e.currentTarget, (emo) => {
+      const i = form.body.selectionStart ?? form.body.value.length, v = form.body.value;
+      form.body.value = v.slice(0, i) + emo + v.slice(form.body.selectionEnd ?? i);
+      form.body.focus(); form.body.selectionStart = form.body.selectionEnd = i + emo.length;
+    });
 
     function chanLabel(c) { return c.kind === "site" ? `# ${c.name}` : c.kind === "room" ? c.name : `@ ${c.name}`; }
 
@@ -35,15 +90,43 @@ const Chat = (() => {
     }
 
     function msgHtml(m) {
-      const atts = (m.attachments || []).map((a) => `<a class="att" href="/api/comms/attachments/${a.id}" target="_blank">📄 ${esc(a.original_name)}</a>`).join(" ");
+      const atts = (m.attachments || []).map((a) => {
+        const url = `/api/comms/attachments/${a.id}`;
+        return /^image\/(png|jpe?g|gif|webp|bmp)$/.test(a.mime)
+          ? `<a class="att att-img" href="${url}" target="_blank" title="${esc(a.original_name)}"><img src="${url}" alt="${esc(a.original_name)}" loading="lazy"></a>`
+          : `<a class="att" href="${url}" target="_blank">📄 ${esc(a.original_name)} <span class="muted">${kb(a.size)}</span></a>`;
+      }).join(" ");
       const mine = me.kind === "account" && m.sender_id === me.id;
-      const del = (mine || me.role === "admin") && !m.deleted ? `<button class="small" data-del="${m.id}" style="float:right">Delete</button>` : "";
-      return `<div class="msg ${esc(m.priority)}" data-mid="${m.id}">${del}<div class="who">${esc(m.sender_name)} <span class="muted small">${when(m.created_at)}</span></div>` +
-        `<div>${m.deleted ? '<i class="muted">Deleted</i>' : esc(m.body).replace(/\n/g, "<br>")}</div>${atts}</div>`;
+      const del = (mine || me.role === "admin") && !m.deleted ? `<button class="small" data-del="${m.id}" title="Delete this message">Delete</button>` : "";
+      const react = !m.deleted && me.role !== "viewer" ? `<button class="small" data-react="${m.id}" title="React">☺︎+</button>` : "";
+      const reactions = (m.reactions || []).map((r) => `<button type="button" class="rx ${r.who.includes(myKey) ? "mine" : ""}" data-rx="${m.id}" data-e="${esc(r.emoji)}" title="${esc(r.names.join(", "))}">${esc(r.emoji)} ${r.count}</button>`).join("");
+      return `<div class="msg ${esc(m.priority)}" data-mid="${m.id}"><span class="msg-tools">${react}${del}</span><div class="who">${esc(m.sender_name)} <span class="muted small">${when(m.created_at)}</span></div>` +
+        `${m.deleted ? '<div><i class="muted">Deleted</i></div>' : m.body ? `<div>${esc(m.body).replace(/\n/g, "<br>")}</div>` : ""}${m.deleted ? "" : atts}` +
+        `${reactions ? `<div class="rxs">${reactions}</div>` : ""}</div>`;
     }
 
+    const toggle = (id, emoji) => guard(() => post(`/api/comms/messages/${id}/reactions`, { emoji })).then((m) => replace(m), () => {});
+    function replace(m) {
+      const existing = listEl.querySelector(`[data-mid="${m.id}"]`);
+      if (existing) { existing.outerHTML = msgHtml(m); wireDeletes(listEl); }
+    }
     function wireDeletes(scope) {
       scope.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => guard(() => AT.del(`/api/comms/messages/${b.dataset.del}`)));
+      scope.querySelectorAll("[data-rx]").forEach((b) => b.onclick = () => toggle(+b.dataset.rx, b.dataset.e));
+      scope.querySelectorAll("[data-react]").forEach((b) => b.onclick = () => {
+        // the six most used straight away, everything else from the picker
+        const id = +b.dataset.react, row = b.closest(".msg");
+        row.querySelector(".rx-quick")?.remove();
+        const q = document.createElement("div");
+        q.className = "rx-quick";
+        q.innerHTML = QUICK.map((e) => `<button type="button" data-q="${e}">${e}</button>`).join("") + '<button type="button" data-more title="More emoji">…</button>';
+        q.onclick = (e) => {
+          const t = e.target.closest("button"); if (!t) return;
+          if (t.dataset.q) { q.remove(); toggle(id, t.dataset.q); }
+          else pickEmoji(t, (emo) => { q.remove(); toggle(id, emo); });
+        };
+        row.appendChild(q);
+      });
     }
 
     async function open(id) {
@@ -52,6 +135,7 @@ const Chat = (() => {
       unread[current.id] = 0;
       renderChans();
       titleEl.textContent = chanLabel(current);
+      delChat.classList.toggle("hidden", !(current.kind === "dm" && me.role === "admin"));
       const msgs = await api(`/api/comms/channels/${current.id}/messages`);
       listEl.innerHTML = msgs.map(msgHtml).join("") || '<p class="muted">No messages yet.</p>';
       wireDeletes(listEl);
@@ -82,20 +166,21 @@ const Chat = (() => {
 
     form.onsubmit = async (e) => {
       e.preventDefault();
-      const body = form.body.value.trim(), file = form.file.files[0];
-      if (!body && !file) return;
+      const body = form.body.value.trim(), send = files;
+      if (!body && !send.length) return;
       const m = await guard(() => post(`/api/comms/channels/${current.id}/messages`, { body, priority: form.priority.value }));
-      if (file) await guard(() => upload(`/api/comms/messages/${m.id}/attachments`, file));
-      form.body.value = ""; form.file.value = ""; form.priority.value = "normal";
+      form.body.value = ""; form.priority.value = "normal"; files = []; drawFiles();
+      for (const f of send) await guard(() => upload(`/api/comms/messages/${m.id}/attachments`, f)).catch(() => {});
     };
 
     async function load(preferId) {
       channels = await api("/api/comms/channels");
       renderChans();
-      await open(preferId ?? opts.prefer ?? current?.id ?? channels[0]?.id);
+      await open(preferId ?? opts.prefer ?? (channels.some((c) => c.id === current?.id) ? current.id : channels[0]?.id));
     }
 
     function onEvent(evt) {
+      if (evt.type === "channel.deleted") { load(current?.id === evt.data.channel_id ? null : current?.id); return; }
       if (!evt.type || !evt.type.startsWith("message.")) return;
       const m = evt.data, cid = m.channel_id;
       if (!channels.find((c) => c.id === cid)) { load(current?.id); return; }

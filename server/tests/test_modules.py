@@ -37,6 +37,49 @@ def test_dm_privacy(admin):
     assert admin.get(f"/api/comms/channels/{dm}/messages").json()[0]["body"] == "secret"
 
 
+def test_reactions_files_and_file_only_messages(admin):
+    from atsuit import config
+    ch = next(c for c in admin.get("/api/comms/channels").json() if c["kind"] == "room")["id"]
+    m = admin.post(f"/api/comms/channels/{ch}/messages", json={"body": ""}).json()  # a picture on its own
+    admin.post(f"/api/comms/messages/{m['id']}/attachments", files={"file": ("cue.png", b"\x89PNG fake", "image/png")})
+    r = admin.post(f"/api/comms/messages/{m['id']}/reactions", json={"emoji": "👍"}).json()
+    assert r["reactions"] == [{"emoji": "👍", "count": 1, "who": [r["reactions"][0]["who"][0]], "names": [r["reactions"][0]["names"][0]]}]
+    assert r["attachments"][0]["mime"] == "image/png"
+    assert admin.post(f"/api/comms/messages/{m['id']}/reactions", json={"emoji": "👍"}).json()["reactions"] == []  # again takes it away
+    assert admin.post(f"/api/comms/messages/{m['id']}/reactions", json={"emoji": "<b>"}).status_code == 400
+    admin.post(f"/api/comms/messages/{m['id']}/reactions", json={"emoji": "✅"})
+    stored = list(config.cfg.uploads.iterdir())
+    assert len(stored) == 1
+    admin.delete(f"/api/comms/messages/{m['id']}")
+    assert not stored[0].exists()  # deleting a message deletes its files
+    assert admin.get(f"/api/comms/channels/{ch}/messages").json()[-1]["reactions"] == []
+
+
+def test_admin_deletes_dm_chats(admin):
+    from atsuit import config
+    admin.post("/api/admin/accounts", json={"username": "amy", "password": "password1", "display_name": "Amy", "role": "tech"})
+    admin.post("/api/admin/accounts", json={"username": "ben", "password": "password1", "display_name": "Ben", "role": "tech"})
+    admin.post("/api/auth/login", json={"username": "amy", "password": "password1"})
+    ppl = {p["display_name"]: p["id"] for p in admin.get("/api/comms/people").json()}
+    dm = admin.post("/api/comms/dm", json={"account_id": ppl["Ben"]}).json()["id"]
+    m = admin.post(f"/api/comms/channels/{dm}/messages", json={"body": "private"}).json()
+    admin.post(f"/api/comms/messages/{m['id']}/attachments", files={"file": ("a.txt", b"x", "text/plain")})
+    assert admin.get("/api/admin/comms/dms").status_code == 403  # techs can't
+    amy = admin.get("/api/bootstrap").json()["me"]["id"]
+    with admin.websocket_connect(f"/ws?topics=dm:{amy}") as ws:  # Amy's open chat hears about it
+        assert ws.receive_json()["type"] == "hello"
+        admin.post("/api/auth/login", json={"username": "admin", "password": "correct-horse"})
+        rows = admin.get("/api/admin/comms/dms").json()
+        assert rows == [{"id": dm, "members": ["Amy", "Ben"], "member_ids": rows[0]["member_ids"], "messages": 1, "files": 1, "last_at": rows[0]["last_at"]}]
+        assert "private" not in str(rows)  # admins see who and how much, not what
+        assert admin.delete(f"/api/admin/comms/dms/{dm}").json() == {"ok": True}
+        evt = ws.receive_json()
+        assert evt["type"] == "channel.deleted" and evt["data"] == {"channel_id": dm}
+    assert admin.get("/api/admin/comms/dms").json() == []
+    assert list(config.cfg.uploads.iterdir()) == []
+    assert admin.delete(f"/api/admin/comms/dms/{dm}").status_code == 404
+
+
 def test_help_requests(admin):
     rid = rooms(admin)["CC"]
     h = admin.post("/api/comms/help", json={"room_id": rid, "description": "Clicker dead"}).json()

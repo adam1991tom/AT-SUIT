@@ -143,3 +143,23 @@ a.btn.primary { background: var(--accent); border-color: var(--accent); color: v
 /* the gear shows until the page knows what to show */
 body:has(> .center:not(.hidden):not(#boot), > #shell:not(.hidden), > #ws:not(.hidden), > #kiosk:not(.hidden)) > #boot { display: none; }
 #boot { min-height: 100%; justify-content: center; }
+/* chat: emoji, reactions, pictures and files waiting to send */
+.msg { position: relative; }
+.msg-tools { float: right; display: flex; gap: .25rem; margin-left: .4rem; }
+.msg-tools [data-react] { opacity: .55; }
+.msg:hover .msg-tools [data-react] { opacity: 1; }
+.rxs { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .3rem; }
+.rx { padding: .05rem .4rem; font-size: .85rem; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
+.rx.mine { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--panel)); }
+.rx-quick { display: flex; flex-wrap: wrap; gap: .2rem; margin-top: .3rem; }
+.rx-quick button, .emoji-pick button { padding: .1rem .3rem; font-size: 1.15rem; line-height: 1.2; background: transparent; border: 1px solid transparent; }
+.rx-quick button:hover, .emoji-pick button:hover { border-color: var(--line); background: var(--panel); }
+.emoji-pick { position: fixed; z-index: 3000; display: grid; grid-template-columns: repeat(8, 2.1rem); gap: .1rem; padding: .4rem; max-height: 16rem; overflow: auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+.emoji-pick.hidden { display: none; }
+.msg .att-img { display: block; max-width: 100%; }
+.msg .att-img img { display: block; max-width: min(100%, 320px); max-height: 220px; border-radius: 6px; margin-top: .3rem; object-fit: contain; background: #0003; }
+.pending-files { display: flex; flex-wrap: wrap; gap: .3rem; }
+.pending-files:not(:empty) { margin-top: .4rem; }
+.pending-files .pf { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .3rem .15rem .5rem; font-size: .8rem; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; max-width: 100%; overflow: hidden; }
+.chat-drop { outline: 2px dashed var(--accent); outline-offset: -4px; }

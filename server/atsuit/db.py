@@ -143,6 +143,11 @@ MIGRATIONS: list[str] = [
     ALTER TABLE timers ADD COLUMN sec_remaining_ms INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE timers ADD COLUMN sec_started_at REAL;
     """,
+    # 8: emoji reactions on chat messages
+    """
+    CREATE TABLE message_reactions(message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+        who TEXT NOT NULL, name TEXT NOT NULL, emoji TEXT NOT NULL, PRIMARY KEY(message_id, who, emoji));
+    """,
 ]
 
 

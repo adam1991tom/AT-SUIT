@@ -378,10 +378,10 @@
   async function admin(el, sub = "general") {
     if (boot.me.role !== "admin") { el.innerHTML = '<p class="muted">Admins only.</p>'; return; }
     if (sub === "import" || sub === "audit") sub = "data";
-    const tabs = { general: "General", info: "Info", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", data: "Import, backup & audit" };
+    const tabs = { general: "General", info: "Info", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", chat: "Chat", data: "Import, backup & audit" };
     el.innerHTML = `<h1>Admin</h1><div class="tabs">${Object.entries(tabs).map(([k, v]) => `<button class="${k === sub ? "on" : ""}" onclick="location.hash='#/admin/${k}'">${v}</button>`).join("")}</div><div id="adm"></div>`;
     const a = el.querySelector("#adm");
-    ({ general: admGeneral, info: admInfo, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, data: admData }[sub] || admGeneral)(a);
+    ({ general: admGeneral, info: admInfo, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, chat: admChat, data: admData }[sub] || admGeneral)(a);
   }
 
   const copyText = async (text, what = "Copied") => {
@@ -619,6 +619,21 @@
     a.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => confirm("Revoke this key?") && guard(() => del(`/api/admin/api-keys/${b.dataset.del}`)).then(() => admKeys(a)));
     const f = a.querySelector("#nk");
     f.onsubmit = async (e) => { e.preventDefault(); const r = await guard(() => post("/api/admin/api-keys", { name: f.name.value })); await admKeys(a); a.querySelector("#newkey").innerHTML = `Copy this key now, it won't be shown again:<br><code>${esc(r.key)}</code>`; };
+  }
+
+  // Direct-message chats: who and how much, never what was said. Deleting removes the chat, its files and reactions for both people.
+  async function admChat(a) {
+    const dms = boot.modules.comms ? await api("/api/admin/comms/dms") : [];
+    a.innerHTML = `<div class="panel card"><h2>Direct messages</h2><p class="small muted">Every direct-message chat between two people. You see who and how much, not what was said. Deleting a chat removes its messages, files and reactions for both people, straight away. Older messages in every chat can also go automatically: <i>General → Delete chat messages older than</i>.</p>
+      ${dms.length ? `<table><tr><th>Between</th><th>Messages</th><th>Files</th><th>Last message</th><th></th></tr>${dms.map((d) => `<tr><td>${d.members.map(esc).join(" &amp; ")}</td><td>${d.messages}</td><td>${d.files}</td><td>${d.last_at ? when(d.last_at) : '<span class="muted">none</span>'}</td><td><button class="small danger" data-del="${d.id}">Delete chat</button></td></tr>`).join("")}</table>
+        ${dms.length > 1 ? `<div class="row" style="margin-top:.6rem"><button class="danger" data-all>Delete all ${dms.length} direct-message chats</button></div>` : ""}`
+        : `<p class="muted">${boot.modules.comms ? "No direct-message chats yet." : "Chat is switched off for this site."}</p>`}</div>`;
+    a.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => confirm("Delete this chat for both people? This can't be undone.") && guard(() => del(`/api/admin/comms/dms/${b.dataset.del}`)).then(() => admChat(a)));
+    a.querySelector("[data-all]")?.addEventListener("click", async () => {
+      if (!confirm(`Delete all ${dms.length} direct-message chats? This can't be undone.`)) return;
+      for (const d of dms) await guard(() => del(`/api/admin/comms/dms/${d.id}`)).catch(() => {});
+      admChat(a);
+    });
   }
 
   async function admData(a) {
