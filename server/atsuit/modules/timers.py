@@ -35,8 +35,12 @@ public = APIRouter()  # custom views and the Ontime-compatible feed (module chec
 
 TIMER_TYPES = ("count-down", "count-up", "clock", "none")
 END_ACTIONS = ("none", "stop", "load-next", "play-next")
+# "hcc" is the Standard view (the id stays so existing links and screens keep working).
 BUILTIN_VIEWS = {"stage": "Stage timer", "minimal": "Minimal timer", "clock": "Clock", "backstage": "Backstage (cue list)",
-                 "hcc": "HCC venue clock", "bdng": "BDNG sponsor clock", "overlay": "Overlay window"}
+                 "hcc": "Standard", "overlay": "Overlay window"}
+# Views that used to be built in. BDNG is now an imported HTML view (docs/views/bdng.html):
+# view=bdng shows the imported "bdng" view if there is one, else the Standard view.
+LEGACY_VIEWS = {"bdng": "hcc"}
 MAX_DURATION = 24 * 3600 * 1000
 
 
@@ -111,8 +115,21 @@ def state(c, r, room_name: str = "") -> dict:
         "clock_ms": _clock_ms(c, r["room_id"]),
         "cue": cue_out(current) if current else None, "next": cue_out(nxt) if nxt else None,
         "cue_index": [q["id"] for q in cues].index(current["id"]) if current else None, "cue_count": len(cues),
+        "secondary": secondary_out(r, now),
         "server_time": now,
     }
+
+
+def sec_left(r, at: float | None = None) -> int:
+    if r["sec_started_at"] is not None:
+        return int(r["sec_remaining_ms"] - ((at or time.time()) - r["sec_started_at"]) * 1000)
+    return int(r["sec_remaining_ms"])
+
+
+def secondary_out(r, now: float | None = None) -> dict:
+    """The second line under the timer: a text, or a countdown of its own."""
+    return {"mode": r["sec_mode"], "visible": bool(r["sec_visible"]), "text": r["sec_text"],
+            "duration_ms": r["sec_duration_ms"], "remaining_ms": sec_left(r, now), "running": r["sec_started_at"] is not None}
 
 
 def _clock_ms(c, room_id: int) -> int:
@@ -310,6 +327,108 @@ async def message_show(room_id: int, body: MessageShow | None = None, p: Princip
 @router.post("/api/timers/{room_id}/message/hide")
 async def message_hide(room_id: int, p: Principal = Depends(require_tech)):
     return await timer_action(room_id, "message", TimerAction(message_visible=False), p)
+
+
+# ------------------------------------------------------- secondary line --
+# A smaller second line under the main timer on the stage views: a second
+# countdown (e.g. "Q&A in 5:00") or a short text. Ontime views see it as the
+# secondary message or aux timer 1, which is what the venue's views read.
+class SecondaryIn(BaseModel):
+    text: str | None = Field(default=None, max_length=200)
+    minutes: float | None = Field(default=None, gt=0, le=24 * 60)
+    duration_ms: int | None = Field(default=None, ge=0, le=MAX_DURATION)
+    delta_ms: int | None = Field(default=None, ge=-MAX_DURATION, le=MAX_DURATION)
+    start: bool = True
+
+
+SECONDARY_ACTIONS = ("text", "timer", "start", "pause", "toggle", "reset", "add", "show", "hide")
+
+
+@router.post("/api/timers/{room_id}/secondary/{action}")
+async def secondary(room_id: int, action: str, body: SecondaryIn | None = None, p: Principal = Depends(require_tech)):
+    """text {text}: show a line of text. timer {minutes or duration_ms, start}:
+    a second countdown. start, pause, toggle, reset and add {delta_ms} work on
+    that countdown; show and hide the line without losing it."""
+    body = body or SecondaryIn()
+    if action not in SECONDARY_ACTIONS:
+        raise HTTPException(404, f"Use one of {', '.join(SECONDARY_ACTIONS)}")
+    now = time.time()
+    with db.tx() as c:
+        room_or_404(c, room_id, p)
+        r = _row(c, room_id)
+        left, running = sec_left(r, now), r["sec_started_at"] is not None
+        if action == "text":
+            if body.text is None or not body.text.strip():
+                raise HTTPException(400, "Give the text to show")
+            _update(c, room_id, sec_mode="text", sec_text=body.text.strip(), sec_visible=1)
+        elif action == "timer":
+            ms = int(body.minutes * 60000) if body.minutes else body.duration_ms
+            if not ms:
+                raise HTTPException(400, "Give minutes or duration_ms")
+            _update(c, room_id, sec_mode="timer", sec_duration_ms=ms, sec_remaining_ms=ms, sec_visible=1,
+                    sec_started_at=now if body.start else None)
+        elif action in ("start", "toggle") and not running:
+            _update(c, room_id, sec_mode="timer", sec_visible=1, sec_started_at=now, sec_remaining_ms=left)
+        elif action in ("pause", "toggle") and running:
+            _update(c, room_id, sec_started_at=None, sec_remaining_ms=left)
+        elif action == "reset":
+            _update(c, room_id, sec_started_at=None, sec_remaining_ms=r["sec_duration_ms"])
+        elif action == "add":
+            _update(c, room_id, sec_remaining_ms=left + (body.delta_ms or 0), sec_started_at=now if running else None)
+        elif action in ("show", "hide"):
+            _update(c, room_id, sec_visible=int(action == "show"))
+    return await publish(room_id)
+
+
+@router.post("/api/timers/{room_id}/secondary/timer/{minutes}")
+async def secondary_minutes(room_id: int, minutes: float, start: bool = True, p: Principal = Depends(require_tech)):
+    """A second countdown of so many minutes, with no body (for a button)."""
+    if not 0 < minutes <= 24 * 60:
+        raise HTTPException(400, "Minutes must be between 0 and 1440")
+    return await secondary(room_id, "timer", SecondaryIn(minutes=minutes, start=start), p)
+
+
+# ------------------------------------------------------- quick messages --
+DEFAULT_QUICK_MESSAGES = [
+    "Please wrap up", "5 minutes", "2 minutes", "1 minute", "Time is up", "Please come off stage",
+    "Stand behind the mic", "Please speak into the mic", "Mic closer please", "Please slow down", "Louder please",
+    "There is an issue, please wait", "Slides are coming", "Questions from the room next", "Last question",
+    "Please turn your phone off", "Please repeat the question", "Look at the camera",
+]
+
+
+def quick_messages(c) -> list[str]:
+    got = db.get_setting(c, "quick_messages", None)
+    return got if isinstance(got, list) else DEFAULT_QUICK_MESSAGES
+
+
+class QuickMessagesIn(BaseModel):
+    messages: list[str] = Field(max_length=60)
+
+
+@router.get("/api/timers-quick-messages")
+def get_quick_messages(p: Principal = Depends(require_tech)):
+    """The ready-made stage messages in the tech workspace (one tap shows one)."""
+    with db.ro() as c:
+        return {"messages": quick_messages(c), "default": DEFAULT_QUICK_MESSAGES,
+                "can_edit": p.kind == "account" and p.role == "admin"}
+
+
+@router.put("/api/timers-quick-messages")
+def set_quick_messages(body: QuickMessagesIn, p: Principal = Depends(require_admin)):
+    msgs = list(dict.fromkeys(m.strip()[:120] for m in body.messages if m.strip()))
+    with db.tx() as c:
+        db.set_setting(c, "quick_messages", msgs)
+        db.audit(c, p.name, "timers.quick_messages", f"{len(msgs)} messages")
+    return {"messages": msgs}
+
+
+@router.delete("/api/timers-quick-messages")
+def reset_quick_messages(p: Principal = Depends(require_admin)):
+    with db.tx() as c:
+        c.execute("DELETE FROM settings WHERE key='quick_messages'")
+        db.audit(c, p.name, "timers.quick_messages", "back to the defaults")
+    return {"messages": DEFAULT_QUICK_MESSAGES}
 
 
 async def switch(room_id: int, what: str, state: str, p: Principal = Depends(require_tech)):
@@ -590,7 +709,7 @@ def list_views(c, tests: bool = False) -> list[dict]:
 
 def view_known(c, view: str) -> bool:
     """A view a screen can be routed to: built in, built in the console, or uploaded."""
-    if view in BUILTIN_VIEWS:
+    if view in BUILTIN_VIEWS or view in LEGACY_VIEWS:
         return True
     if view.startswith("screentest:"):
         return view[11:] in SCREENTEST
@@ -612,15 +731,18 @@ def get_views(screens: bool = False):
 async def upload_view(name: str, file: UploadFile, p: Principal = Depends(require_admin)):
     """A custom timer view: a single .html file, or a .zip with index.html and
     its css/js/images (the same folder you'd put in Ontime's external/)."""
+    return _install_view(name, file.filename or "", await file.read(30 * 1024 * 1024), p)
+
+
+def _install_view(name: str, filename: str, data: bytes, p: Principal) -> dict:
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40]
     if not SLUG.match(slug or ""):
         raise HTTPException(400, "Give the view a name with letters or numbers")
-    data = await file.read(30 * 1024 * 1024)
     target = views_dir() / slug
     tmp = views_dir() / f".{slug}.tmp"
     shutil.rmtree(tmp, ignore_errors=True)
     tmp.mkdir()
-    fname = (file.filename or "").lower()
+    fname = filename.lower()
     if fname.endswith(".zip"):
         try:
             z = zipfile.ZipFile(io.BytesIO(data))
@@ -654,6 +776,30 @@ async def upload_view(name: str, file: UploadFile, p: Principal = Depends(requir
     return {"id": f"view:{slug}", "slug": slug, "url": f"/room/<room>/external/{slug}/"}
 
 
+# Ready-to-import views shipped with AT-SUIT (docs/views/, copied next to the app in the image).
+SAMPLE_VIEWS = {"bdng": "BDNG"}
+
+
+def _sample_file(name: str) -> Path:
+    for d in (Path(__file__).resolve().parents[1] / "views-samples", Path(__file__).resolve().parents[3] / "docs" / "views"):
+        f = d / f"{name}.html"
+        if name in SAMPLE_VIEWS and f.is_file():
+            return f
+    raise HTTPException(404, "No such ready-made view")
+
+
+@router.get("/api/timers-views/samples/{name}.html")
+def sample_view(name: str):
+    """Download a ready-made view (e.g. BDNG) to import, or to keep."""
+    return FileResponse(_sample_file(name), media_type="text/html", filename=f"{name}.html")
+
+
+@router.post("/api/timers-views/samples/{name}/import")
+def import_sample_view(name: str, p: Principal = Depends(require_admin)):
+    """Import a ready-made view as an uploaded view (view:<name>), like uploading the file."""
+    return _install_view(SAMPLE_VIEWS.get(name, name), f"{name}.html", _sample_file(name).read_bytes(), p)
+
+
 @router.delete("/api/timers-views/{slug}")
 def delete_view(slug: str, p: Principal = Depends(require_admin)):
     if not SLUG.match(slug):
@@ -666,12 +812,23 @@ def delete_view(slug: str, p: Principal = Depends(require_admin)):
 
 
 # -------------------------------------------- branded and console-built views --
-# HCC and BDNG take their logos from the site's branding, or a logo uploaded
+# Standard (id hcc) takes its logo from the site's branding, or a logo uploaded
+# for the view; the imported BDNG view reads its two logos and text from here.
 # for the view (kept in the data folder). Views built in the console store
 # their look as JSON and are served by timer.html like the built-in ones.
 LOGO_SLOTS = {"hcc": ("top",), "bdng": ("top", "bottom")}
 LOGO_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml", ".webp": "image/webp"}
-LOOK_DEFAULTS = {"hcc": {}, "bdng": {"bottom_text": "Official timekeeping"}}
+LOOK_DEFAULTS = {"hcc": {}, "bdng": {"bottom_text": "BDNG Official Timekeeping Sponsor"}}
+# The Ontime-style status bar along the bottom (time of day, state, cue, start
+# and end): on for the full-screen views, off for the minimal and overlay ones.
+# Imported (uploaded) views get it as a strip over their bottom edge, off unless switched on.
+STATUS_BAR_DEFAULT = {"stage": True, "minimal": False, "clock": True, "backstage": True, "hcc": True, "overlay": False}
+
+
+def _look_options(c, view: str) -> dict:
+    saved = (db.get_setting(c, "timer_view_looks", {}) or {}).get(view, {})
+    return {**LOOK_DEFAULTS.get(view, {}), "status_bar": STATUS_BAR_DEFAULT.get(view, not view.startswith("view:")),
+            **{k: v for k, v in saved.items() if k in LOOK_DEFAULTS.get(view, {}) or k == "status_bar"}}
 
 
 def logos_dir() -> Path:
@@ -707,7 +864,9 @@ def get_look(view: str):
             site_logo = {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {})}.get("logo_url", "")
             logos = {slot: _logo_url(f"{view}-{slot}") for slot in LOGO_SLOTS[view]}
             return {"view": view, "logos": logos, "site_logo": site_logo, "uses_site_logo": not logos["top"] and bool(site_logo),
-                    "options": {**LOOK_DEFAULTS[view], **(db.get_setting(c, "timer_view_looks", {}) or {}).get(view, {})}}
+                    "options": _look_options(c, view)}
+        if view in BUILTIN_VIEWS or (view.startswith("view:") and view_known(c, view)):
+            return {"view": view, "logos": {}, "options": _look_options(c, view)}
         if view.startswith("built:"):
             r = c.execute("SELECT * FROM timer_designs WHERE slug=?", (view[6:],)).fetchone()
             if r:
@@ -717,16 +876,20 @@ def get_look(view: str):
 
 
 class LookIn(BaseModel):
-    bottom_text: str = Field(default="", max_length=120)
+    bottom_text: str | None = Field(default=None, max_length=120)
+    status_bar: bool | None = None
 
 
 @router.put("/api/timers-views/look/{view}")
 def set_look(view: str, body: LookIn, p: Principal = Depends(require_admin)):
-    if view not in LOOK_DEFAULTS:
-        raise HTTPException(404, "No such view")
+    """A view's options: the status bar for the built-in and imported views, and the
+    BDNG view's bottom text (read by the imported BDNG view)."""
     with db.tx() as c:
+        if not (view in BUILTIN_VIEWS or view in LOOK_DEFAULTS or (view.startswith("view:") and view_known(c, view))):
+            raise HTTPException(404, "No such view")
         looks = db.get_setting(c, "timer_view_looks", {}) or {}
-        looks[view] = {k: v for k, v in body.model_dump().items() if k in LOOK_DEFAULTS[view]} if LOOK_DEFAULTS[view] else {}
+        sent = {k: v for k, v in body.model_dump(exclude_none=True).items() if k in LOOK_DEFAULTS.get(view, {}) or k == "status_bar"}
+        looks[view] = {**looks.get(view, {}), **sent}
         db.set_setting(c, "timer_view_looks", looks)
         db.audit(c, p.name, "timers.view_look", view)
     return {"ok": True}
@@ -781,10 +944,12 @@ class Design(BaseModel):
     title_size: int = Field(default=4, ge=1, le=12)
     show_logo: bool = False
     show_title: bool = True
-    show_next: bool = True
+    show_next: bool = False
     show_progress: bool = True
     show_clock: bool = False
     show_message: bool = True
+    show_status: bool = True  # the Ontime-style status bar along the bottom
+    show_secondary: bool = True
 
 
 def _design_slug(c, name: str) -> str:
@@ -837,7 +1002,9 @@ def delete_design(slug: str, p: Principal = Depends(require_admin)):
     return {"ok": True}
 
 
-SHIM = '<script src="/static/ontime-shim.js"></script>'
+# The shim points the view at the room's Ontime feed; viewbar.js adds the AT-SUIT
+# status bar when it is switched on for the view.
+SHIM = '<script src="/static/ontime-shim.js"></script><script src="/static/viewbar.js" defer></script>'
 
 
 @public.get("/room/{room_id}/external/{slug}", include_in_schema=False)
@@ -934,6 +1101,12 @@ def ontime_runtime(c, room_id: int) -> dict:
     def of_day(t):
         return int(clock - (now - t) * 1000) % 86400000 if t else None
     idle = {"current": 0, "duration": 0, "playback": "stop", "direction": "count-down"}
+    # The secondary line: Ontime views show message.secondary or aux timer 1 under the timer.
+    sec_source = None
+    if r["sec_visible"]:
+        sec_source = "aux1" if r["sec_mode"] == "timer" else "secondary" if r["sec_text"] else None
+    aux1 = {"current": sec_left(r, now), "duration": r["sec_duration_ms"], "direction": "count-down",
+            "playback": "play" if r["sec_started_at"] is not None else "pause"} if r["sec_mode"] == "timer" and r["sec_duration_ms"] else idle
     now_event = ontime_event(current) if current else (
         {"type": "event", "id": "manual", "cue": "", "title": r["title"], "note": "", "duration": r["duration_ms"],
          "timerType": r["timer_type"], "endAction": "none", "colour": "", "timeStart": 0, "timeEnd": 0,
@@ -952,7 +1125,8 @@ def ontime_runtime(c, room_id: int) -> dict:
             "startedAt": of_day(r["first_started_at"]),
         },
         "message": {"timer": {"text": r["message"], "visible": bool(r["message_visible"]), "blink": bool(r["message_blink"]),
-                              "blackout": bool(r["blackout"]), "secondarySource": None}, "secondary": ""},
+                              "blackout": bool(r["blackout"]), "secondarySource": sec_source},
+                    "secondary": r["sec_text"] if sec_source == "secondary" else ""},
         "rundown": {"selectedEventIndex": [q["id"] for q in cues].index(current["id"]) if current else None,
                     "numEvents": len(cues), "plannedStart": _hhmm_to_ms(cues[0]["time_start"]) if cues else None,
                     "plannedEnd": None, "actualStart": of_day(r["first_started_at"]),
@@ -962,7 +1136,7 @@ def ontime_runtime(c, room_id: int) -> dict:
         "eventNow": now_event,
         "eventNext": ontime_event(nxt),
         "eventFlag": None, "groupNow": None,
-        "auxtimer1": idle, "auxtimer2": idle, "auxtimer3": idle,
+        "auxtimer1": aux1, "auxtimer2": idle, "auxtimer3": idle,
         "ping": 0,
     }
 

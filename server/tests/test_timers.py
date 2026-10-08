@@ -240,7 +240,8 @@ def test_clock_button_and_back(admin):
 def test_branded_views_logos_and_builder(admin, client):
     rid = room(admin)
     ids = {v["id"] for v in client.get("/api/timers-views").json()}
-    assert {"hcc", "bdng", "overlay"} <= ids
+    assert {"hcc", "overlay"} <= ids and "bdng" not in ids  # BDNG is an imported view now
+    assert next(v["name"] for v in client.get("/api/timers-views").json() if v["id"] == "hcc") == "Standard"
     admin.put("/api/admin/settings", json={"branding": {"logo_url": "/static/site-logo.png"}})
     look = client.get("/api/timers-views/look/hcc").json()
     assert look["logos"] == {"top": ""} and look["site_logo"] == "/static/site-logo.png" and look["uses_site_logo"]
@@ -278,3 +279,128 @@ def test_branded_views_logos_and_builder(admin, client):
     assert client.get("/api/timers-views/look/built:green-room").status_code == 404
     page = client.get(f"/timer/{rid}?view=hcc")
     assert page.status_code == 200 and "v-hcc" in page.text
+
+
+def test_secondary_line_api_and_ontime_feed(admin, client):
+    rid = room(admin)
+    k = _apikey(admin)
+    client.cookies.clear()
+    s = client.get(f"/api/timers/{rid}").json()["secondary"]
+    assert s == {"mode": "text", "visible": False, "text": "", "duration_ms": 0, "remaining_ms": 0, "running": False}
+    assert client.post(f"/api/timers/{rid}/secondary/text", json={"text": "Q&A next"}).status_code == 401
+    s = client.post(f"/api/timers/{rid}/secondary/text", headers=k, json={"text": " Q&A next "}).json()["secondary"]
+    assert s["mode"] == "text" and s["visible"] and s["text"] == "Q&A next"
+    assert client.post(f"/api/timers/{rid}/secondary/text", headers=k, json={"text": " "}).status_code == 400
+    with client.websocket_connect(f"/ontime/{rid}/ws") as ws:  # Ontime views (HCC, BDNG) show it as the secondary message
+        ws.receive_json()
+        p = ws.receive_json()["payload"]
+        assert p["message"]["timer"]["secondarySource"] == "secondary" and p["message"]["secondary"] == "Q&A next"
+    s = client.post(f"/api/timers/{rid}/secondary/hide", headers=k).json()["secondary"]
+    assert not s["visible"] and s["text"] == "Q&A next"
+    assert client.post(f"/api/timers/{rid}/secondary/show", headers=k).json()["secondary"]["visible"]
+    # A second countdown, with or without a body.
+    s = client.post(f"/api/timers/{rid}/secondary/timer", headers=k, json={"minutes": 5}).json()["secondary"]
+    assert s["mode"] == "timer" and s["running"] and s["duration_ms"] == 300000 and 299000 < s["remaining_ms"] <= 300000
+    s = client.post(f"/api/timers/{rid}/secondary/timer/2?start=false", headers=k).json()["secondary"]
+    assert not s["running"] and s["remaining_ms"] == 120000
+    assert client.post(f"/api/timers/{rid}/secondary/timer/0", headers=k).status_code == 400
+    assert client.post(f"/api/timers/{rid}/secondary/timer", headers=k, json={}).status_code == 400
+    s = client.post(f"/api/timers/{rid}/secondary/add", headers=k, json={"delta_ms": 60000}).json()["secondary"]
+    assert s["remaining_ms"] == 180000
+    assert client.post(f"/api/timers/{rid}/secondary/toggle", headers=k).json()["secondary"]["running"]
+    assert not client.post(f"/api/timers/{rid}/secondary/pause", headers=k).json()["secondary"]["running"]
+    assert client.post(f"/api/timers/{rid}/secondary/start", headers=k).json()["secondary"]["running"]
+    s = client.post(f"/api/timers/{rid}/secondary/reset", headers=k).json()["secondary"]
+    assert not s["running"] and s["remaining_ms"] == 120000
+    assert client.post(f"/api/timers/{rid}/secondary/sideways", headers=k).status_code == 404
+    with client.websocket_connect(f"/ontime/{rid}/ws") as ws:  # ... and the countdown as aux timer 1
+        ws.receive_json()
+        p = ws.receive_json()["payload"]
+        assert p["message"]["timer"]["secondarySource"] == "aux1" and p["auxtimer1"]["current"] == 120000
+        assert p["auxtimer1"]["playback"] == "pause"
+    client.post(f"/api/timers/{rid}/secondary/hide", headers=k)
+    with client.websocket_connect(f"/ontime/{rid}/ws") as ws:
+        ws.receive_json()
+        assert ws.receive_json()["payload"]["message"]["timer"]["secondarySource"] is None
+    # The main timer is left alone.
+    assert client.get(f"/api/timers/{rid}").json()["playback"] == "stop"
+
+
+def test_quick_messages(admin, client):
+    r = admin.get("/api/timers-quick-messages").json()
+    assert "Stand behind the mic" in r["messages"] and r["can_edit"] and r["messages"] == r["default"]
+    r = admin.put("/api/timers-quick-messages", json={"messages": [" Wrap up ", "", "Wrap up", "Mic please"]})
+    assert r.status_code == 200 and r.json()["messages"] == ["Wrap up", "Mic please"]
+    # A tech laptop reads them but can't change them; an API key can read them too.
+    code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
+    tok = admin.post("/api/nodes/enrol", json={"code": code, "name": "lap", "kind": "tech"}).json()["token"]
+    k = _apikey(admin)
+    admin.cookies.clear()
+    h = {"Authorization": f"Node {tok}"}
+    r = client.get("/api/timers-quick-messages", headers=h).json()
+    assert r["messages"] == ["Wrap up", "Mic please"] and not r["can_edit"]
+    assert client.put("/api/timers-quick-messages", headers=h, json={"messages": ["x"]}).status_code == 403
+    assert client.put("/api/timers-quick-messages", headers=k, json={"messages": ["x"]}).status_code == 403
+    assert client.get("/api/timers-quick-messages").status_code == 401
+    client.post("/api/auth/login", json={"username": "admin", "password": "correct-horse"})
+    assert client.delete("/api/timers-quick-messages").json()["messages"][0] == "Please wrap up"
+    assert client.get("/api/timers-quick-messages").json()["messages"][0] == "Please wrap up"
+
+
+def test_status_bar_setting_and_view_defaults(admin, client):
+    rid = room(admin)
+    assert client.get("/api/timers-views/look/stage").json()["options"] == {"status_bar": True}
+    assert client.get("/api/timers-views/look/overlay").json()["options"] == {"status_bar": False}
+    assert client.get("/api/timers-views/look/hcc").json()["options"]["status_bar"]
+    assert admin.put("/api/timers-views/look/hcc", json={"status_bar": False}).status_code == 200
+    assert client.get("/api/timers-views/look/hcc").json()["options"] == {"status_bar": False}
+    # The imported BDNG view's text: kept when something else changes, and the other way round.
+    assert client.get("/api/timers-views/look/bdng").json()["options"]["bottom_text"] == "BDNG Official Timekeeping Sponsor"
+    admin.put("/api/timers-views/look/bdng", json={"status_bar": False})
+    admin.put("/api/timers-views/look/bdng", json={"bottom_text": "Sponsor"})
+    assert client.get("/api/timers-views/look/bdng").json()["options"] == {"bottom_text": "Sponsor", "status_bar": False}
+    assert admin.put("/api/timers-views/look/nope", json={"status_bar": False}).status_code == 404
+    # Views built in the console: status bar and second line on, next cue off, unless chosen.
+    admin.post("/api/timers-designs", json={"name": "Green room"})
+    d = client.get("/api/timers-views/look/built:green-room").json()["design"]
+    assert d["show_status"] and d["show_secondary"] and not d["show_next"]
+    page = client.get(f"/timer/{rid}?view=stage").text
+    assert 'id="status"' in page and 'id="sec"' in page
+
+
+def test_bdng_is_an_imported_view(admin, client):
+    rid = room(admin)
+    # Before it's imported, view=bdng still works (screens set to it keep a timer): the Standard view.
+    code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
+    n = admin.post("/api/nodes/enrol", json={"code": code, "name": "scr", "kind": "kiosk"}).json()
+    assert admin.put(f"/api/fleet/nodes/{n['node_id']}/screen", json={"room_id": rid, "view": "bdng"}).status_code == 200
+    page = client.get(f"/timer/{rid}?view=bdng").text
+    assert 'view === "bdng"' in page and 'view = "hcc"' in page
+    # The shipped file: the Ontime original, no logos inside, downloadable and importable in one step.
+    html = client.get("/api/timers-views/samples/bdng.html")
+    assert html.status_code == 200 and "ONTIME_SPONSOR_CONFIG" in html.text and "connectSocket" in html.text
+    assert ".png" not in html.text.replace("assets/top-logo.png", "").replace("assets/bottom-logo.png", "")
+    assert client.get("/api/timers-views/samples/nope.html").status_code == 404
+    r = admin.post("/api/timers-views/samples/bdng/import").json()
+    assert r["id"] == "view:bdng"
+    assert "view:bdng" in {v["id"] for v in client.get("/api/timers-views").json()}
+    served = client.get(f"/room/{rid}/external/bdng/")
+    assert served.status_code == 200 and "/static/ontime-shim.js" in served.text and "/static/viewbar.js" in served.text
+    assert served.text.replace(timers_shim(), "") == html.text  # the file itself runs unchanged
+    # Imported views: status bar off unless switched on.
+    assert client.get("/api/timers-views/look/view:bdng").json()["options"] == {"status_bar": False}
+    assert admin.put("/api/timers-views/look/view:bdng", json={"status_bar": True}).status_code == 200
+    assert client.get("/api/timers-views/look/view:bdng").json()["options"] == {"status_bar": True}
+    assert client.get("/api/timers-views/look/view:nope").status_code == 404
+    assert admin.put("/api/timers-views/look/view:nope", json={"status_bar": True}).status_code == 404
+    # It reads the room's timer from the Ontime feed, like on Ontime.
+    admin.post(f"/api/timers/{rid}/preset/5")
+    with client.websocket_connect(f"/ontime/{rid}/ws") as ws:
+        ws.receive_json()
+        assert ws.receive_json()["payload"]["timer"]["playback"] == "play"
+    assert client.get(f"/ontime/{rid}/data/settings").json()["timeFormat"] in ("12", "24")
+
+
+def timers_shim():
+    from atsuit.modules.timers import SHIM
+    return SHIM

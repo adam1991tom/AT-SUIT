@@ -119,6 +119,34 @@ The message covers the timer on the stage screens until it is hidden.
 | Show the last message again | `/api/timers/3/message/show` | |
 | Hide message | `/api/timers/3/message/hide` | |
 
+The tech workspace has the same as one-tap **quick messages** (Please wrap up,
+5/2/1 minutes, Time is up, Please come off stage, Stand behind the mic, Please
+speak into the mic, There is an issue, please wait, Please slow down, Questions
+from the room next, Please turn your phone off ...). Admins change the list
+there (Edit) or with `PUT /api/timers-quick-messages`; `GET` reads it. The
+Companion module has each one as a preset that hides the message on a second
+press.
+
+### Second line under the timer
+
+A smaller second line under the main timer on the stage views (Standard,
+stage, minimal, overlay): either a second countdown or a short text. Imported
+Ontime views such as BDNG show it too (as Ontime's secondary message or aux
+timer 1). Hidden, it changes nothing on screen.
+
+| Button | POST | Body |
+|---|---|---|
+| Second countdown, 5 min | `/api/timers/3/secondary/timer/5` | |
+| Second countdown, loaded not started | `/api/timers/3/secondary/timer/5?start=false` | |
+| Second countdown, any length | `/api/timers/3/secondary/timer` | `{"duration_ms": 90000, "start": true}` |
+| Text | `/api/timers/3/secondary/text` | `{"text": "Q&A next"}` |
+| Start / pause the countdown | `/api/timers/3/secondary/toggle` | |
+| Start / Pause | `/api/timers/3/secondary/start`, `/secondary/pause` | |
+| Reset the countdown | `/api/timers/3/secondary/reset` | |
+| +1 min on the countdown | `/api/timers/3/secondary/add` | `{"delta_ms": 60000}` |
+| Hide the line | `/api/timers/3/secondary/hide` | |
+| Show it again | `/api/timers/3/secondary/show` | |
+
 ### AT Overlay on a tech laptop
 
 The AT-SUIT Node app can float the room timer over a tech laptop's screen
@@ -160,20 +188,24 @@ Overlay laptops are numbered in Admin → Overlay laptops (`targets/1` is the fi
 
 | Button | Method and path | Body |
 |---|---|---|
-| Screen 12 to the HCC view of room 3 | `PUT /api/fleet/nodes/12/screen` | `{"room_id": 3, "view": "hcc"}` |
+| Screen 12 to the Standard view of room 3 | `PUT /api/fleet/nodes/12/screen` | `{"room_id": 3, "view": "hcc"}` |
+| Screen 12 to the imported BDNG view | `PUT /api/fleet/nodes/12/screen` | `{"room_id": 3, "view": "view:bdng"}` |
 | Identify screen 12 | `POST /api/fleet/nodes/12/command` | `{"kind": "identify"}` |
 
-Views: `stage`, `minimal`, `clock`, `backstage`, `hcc`, `bdng`, `overlay`,
+Views: `stage`, `minimal`, `clock`, `backstage`, `hcc` (shown as "Standard"), `overlay`, `view:<slug>` (imported, e.g. `view:bdng`),
 `captions` (audience screen), `captions:overlay`, `captions:bar` (subtitle bar), `screentest:<pattern>` for a display test pattern (`colorbars`, `grayramp`,
 `rgbramp`, `checker`, `crosshatch`, `sharpness`, `motion`, `overscan`, `ledmap`, `black`,
 `white`, `red`, `green`, `blue`, `gray`), `built:<name>` for views built in Timers → Views, `view:<name>`
-for uploaded ones, or `url:https://...` for any web page.
+for uploaded ones (the BDNG view is `view:bdng` once imported in Admin → Timers;
+the old `bdng` still works and shows it, or the Standard view if it isn't
+imported), or `url:https://...` for any web page.
 
 ### Reading values back into Companion
 
 `GET /api/timers/3` (no key needed) returns the room's timer as JSON:
 `remaining_ms`, `running`, `playback`, `title`, `message`, `message_visible`,
-`message_blink`, `show_clock`, `blackout`, the cue loaded and the next one.
+`message_blink`, `show_clock`, `blackout`, the cue loaded and the next one,
+and `secondary` (`mode` timer or text, `visible`, `text`, `remaining_ms`, `running`).
 Companion's Generic HTTP module can poll it into a variable.
 
 ## 4. Timer actions
@@ -219,13 +251,16 @@ admin signed in.
 | POST | `/api/timers/{room_id}/preset/{minutes}` | `?start=` | The same with the minutes in the address, so a button needs no body |
 | POST | `/api/timers/{room_id}/message/show` | `text`, `blink` | Show the stage message (with new text if given) |
 | POST | `/api/timers/{room_id}/message/hide` |  | Hide the stage message |
+| POST | `/api/timers/{room_id}/secondary/{action}` | `text`, `minutes`, `duration_ms`, `delta_ms`, `start` | The second line under the timer. Actions: text, timer, start, pause, toggle, reset, add, show, hide |
+| POST | `/api/timers/{room_id}/secondary/timer/{minutes}` | `?start=` | A second countdown of so many minutes, with no body (for a button) |
+| GET | `/api/timers-quick-messages` |  | The ready-made stage messages in the tech workspace |
 | POST | `/api/timers/{room_id}/cues` | `cue`, `title`, `note`, `duration_ms`, `time_start`, `timer_type`, `end_action`, `skip`, `colour`, `warn_ms`, `danger_ms`, `custom`, `after_id` | Add a cue |
 | PUT | `/api/timers/{room_id}/cues/{cue_id}` | `cue`, `title`, `note`, `duration_ms`, `time_start`, `timer_type`, `end_action`, `skip`, `colour`, `warn_ms`, `danger_ms`, `custom`, `after_id` | Change a cue |
 | DELETE | `/api/timers/{room_id}/cues/{cue_id}` |  | Delete a cue |
 | POST | `/api/timers/{room_id}/cues/reorder` | `ids` | Put the cues in a new order (send every cue id once) |
 | POST | `/api/timers/{room_id}/cues/import` | file upload; `?replace=` | Bring in a room's running order from an Ontime project file (db.json) |
 | GET | `/api/timers-views` |  | Every timer view: built in, built in the console and uploaded (no key needed) |
-| GET | `/api/timers-views/look/{view}` |  | What a branded or console-built view needs: logos, text and colours (no key needed) |
+| GET | `/api/timers-views/look/{view}` |  | What a view needs: logos, text, colours and whether the status bar shows (no key needed) |
 | GET | `/api/timers-designs` |  | Views built in the console (Timers → Views) (no key needed) |
 | POST | `/api/timers/{room_id}/{what}/{state}` |  | Blink, clock or blackout: /on, /off or /toggle, with no body |
 
