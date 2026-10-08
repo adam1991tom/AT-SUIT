@@ -17,14 +17,18 @@ const Desk = (() => {
       const id = w.dataset.win;
       const head = document.createElement("div");
       head.className = "win-head";
-      head.innerHTML = `<b>${esc(w.dataset.title)}</b><span class="grow"></span><button type="button" class="small" data-x title="Close">✕</button>`;
+      head.innerHTML = `<b>${esc(w.dataset.title)}</b><span class="grow"></span><span class="pin-tools"><button type="button" class="small" data-l title="Move earlier">◀</button><button type="button" class="small" data-r title="Move later">▶</button><button type="button" class="small" data-w title="Make wider or narrower">↔</button></span><button type="button" class="small" data-pin title="Pin to the dashboard">📌</button><button type="button" class="small" data-x title="Close">✕</button>`;
       w.prepend(head);
       const btn = document.createElement("button");
       btn.type = "button"; btn.className = "small"; btn.dataset.open = id;
       btn.innerHTML = `${esc(w.dataset.title)}<span class="unread hidden"></span>`;
       bar.appendChild(btn);
       const st = (state[id] ||= { open: !!defaults[id], x: null, y: null, w: null, h: null });
+      const grid = () => document.getElementById("pinGrid");
       const place = () => {
+        if (st.pin && grid()) { dock(); return; }
+        if (w.parentElement === grid()) document.body.appendChild(w);
+        w.classList.remove("pinned"); w.style.gridColumn = "";
         const W = window.innerWidth, H = window.innerHeight;
         const ww = Math.min(st.w || +w.dataset.w || 440, W - 16), hh = st.h || null;
         w.style.width = ww + "px";
@@ -32,6 +36,15 @@ const Desk = (() => {
         const x = st.x ?? W - ww - 24 - (i % 3) * 30, y = st.y ?? 80 + (i % 4) * 36;
         w.style.left = Math.max(0, Math.min(x, W - 120)) + "px";
         w.style.top = Math.max(56, Math.min(y, H - 48)) + "px";
+      };
+      // A pinned window lives in the dashboard grid instead of floating.
+      const dock = () => {
+        const g = grid(), tiles = [...g.children];
+        if (w.parentElement !== g) g.appendChild(w);
+        w.classList.add("pinned");
+        w.style.width = w.style.height = w.style.left = w.style.top = "";
+        w.style.gridColumn = `span ${st.span || 1}`;
+        w.style.order = st.order ?? 0;
       };
       const raise = () => { w.style.zIndex = ++top; };
       const show = (open, keep) => {
@@ -41,10 +54,25 @@ const Desk = (() => {
         if (open) { place(); raise(); }
       };
       btn.onclick = () => show(!st.open);
+      head.querySelector("[data-pin]").onclick = () => {
+        st.pin = !st.pin; if (st.pin) { st.order = Date.now() % 1e9; st.span = st.span || 1; st.open = true; }
+        head.querySelector("[data-pin]").classList.toggle("on", !!st.pin); show(st.open);
+      };
+      const shift = (d) => {
+        const mates = Object.entries(state).filter(([, v]) => v.pin).sort((a, b) => (a[1].order ?? 0) - (b[1].order ?? 0)).map(([k]) => k);
+        const i = mates.indexOf(id), j = i + d;
+        if (i < 0 || j < 0 || j >= mates.length) return;
+        [mates[i], mates[j]] = [mates[j], mates[i]];
+        mates.forEach((k, n) => { state[k].order = n; const o = document.querySelector(`.win[data-win="${k}"]`); if (o) o.style.order = n; });
+        save();
+      };
+      head.querySelector("[data-l]").onclick = () => shift(-1);
+      head.querySelector("[data-r]").onclick = () => shift(1);
+      head.querySelector("[data-w]").onclick = () => { st.span = (st.span || 1) % 3 + 1; w.style.gridColumn = `span ${st.span}`; save(); };
       head.querySelector("[data-x]").onclick = () => show(false);
       w.addEventListener("pointerdown", raise);
       head.addEventListener("pointerdown", (e) => {
-        if (e.target.closest("button") || window.innerWidth < 900) return;
+        if (e.target.closest("button") || window.innerWidth < 900 || st.pin) return;
         const r = w.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
         head.setPointerCapture(e.pointerId);
         const move = (m) => { st.x = m.clientX - dx; st.y = m.clientY - dy; place(); };
@@ -65,6 +93,7 @@ const Desk = (() => {
         available(yes) { w.dataset.off = yes ? "" : "1"; btn.classList.toggle("hidden", !yes); show(st.open, true); },
         badge(n) { const u = btn.querySelector(".unread"); u.textContent = n; u.classList.toggle("hidden", !n); },
       };
+      head.querySelector("[data-pin]").classList.toggle("on", !!st.pin);
       show(st.open, true);
     });
     window.addEventListener("resize", () => Object.values(wins).forEach((x) => x.isOpen() && !x.el.classList.contains("hidden") && x.open()));

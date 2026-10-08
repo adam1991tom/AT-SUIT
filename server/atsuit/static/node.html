@@ -61,6 +61,23 @@
   .opt span { display: block; color: var(--muted); font-size: .82rem; margin-top: .25rem; }
   .opt:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   #startRooms .tile.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+  /* windows pinned to the dashboard sit in a grid under the timer */
+  .pingrid { display: grid; gap: 1rem; padding: 0 1rem 5rem; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; }
+  .pingrid:empty { display: none; }
+  .win.pinned { position: static; resize: vertical; max-height: 70vh; box-shadow: none; width: auto; min-width: 0; }
+  .win.pinned .win-head { cursor: default; }
+  .win:not(.pinned) .pin-tools { display: none; }
+  [data-pin].on { background: var(--accent); color: var(--accent-ink, #0B1020); }
+  /* previews: live thumbnails of the room's outputs */
+  .pv-grid { display: grid; gap: .7rem; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .pv { margin: 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .pv-frame { position: relative; width: 100%; background: #000; overflow: hidden; }
+  .pv-frame iframe { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; border: 0; transform-origin: 0 0; pointer-events: none; }
+  .pv-none { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: .8rem; }
+  .pv figcaption { display: flex; align-items: center; gap: .3rem; padding: .35rem .5rem; font-size: .85rem; }
+  .pv-big { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.75); display: grid; place-items: center; }
+  .pv-bigbox { width: min(92vw, 1200px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .8rem; }
+  .pv-bigframe { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; } .pv-bigframe iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 </style>
 </head>
 <body>
@@ -148,6 +165,7 @@
       <section class="panel mini hidden" id="sessMini"></section>
     </aside>
   </main>
+  <div id="pinGrid" class="pingrid"></div>
 
   <section class="win" data-win="captions" data-title="Captions" data-w="480">
     <div class="cap-live" id="capText"><span class="muted">Captions for this room appear here.</span></div>
@@ -176,6 +194,8 @@
     <div id="scrList"></div>
   </section>
 
+  <section class="win" data-win="previews" data-title="Screens preview" data-w="640"><div id="pvBox"></div></section>
+
   <section class="win" data-win="overlays" data-title="Overlays" data-w="480"><div id="atOv"></div><div id="ovList"></div></section>
 
   <section class="win" data-win="links" data-title="Links" data-w="560"><input id="linkFind" placeholder="Find a link" style="margin-bottom:.5rem"><div id="links" style="max-height:60vh;overflow:auto"></div></section>
@@ -190,6 +210,7 @@
 
 <script src="/static/common.js"></script>
 <script src="/static/chat.js"></script>
+<script src="/static/previews.js"></script>
 <script src="/static/cuelist.js"></script>
 <script src="/static/desk.js"></script>
 <script>
@@ -378,7 +399,7 @@
   }
 
   // Windows over the timer, opened and closed from the top bar.
-  const wins = Desk.windows($("winBar"), { captions: false, sessions: false, screens: false, overlays: false, links: false });
+  const wins = Desk.windows($("winBar"), { captions: false, sessions: false, screens: false, previews: false, overlays: false, links: false });
   document.querySelectorAll("[data-openwin]").forEach((b) => (b.onclick = () => wins[b.dataset.openwin].open()));
   wins.captions.available(!!boot.modules.captions);
   wins.links.available(!!boot.modules.dashboard);
@@ -498,12 +519,15 @@
 
   // this room's Linux screens: what each shows, or any web page
   let views = node?.views || [];
+  let pv = null;
   async function renderScreens() {
     let all = [];
     try { all = await api("/api/fleet/nodes"); } catch (_) { return; }
     if (!views.length) try { views = await api("/api/timers-views?screens=1"); } catch (_) {}
     const screens = all.filter((n) => n.kind === "kiosk" && n.room_id === roomId);
     wins.screens.available(screens.length > 0);
+    if (!pv) pv = Previews.mount($("pvBox"), { roomId });
+    pv.update({ views, screens });
     const label = (v) => (v.startsWith("url:") ? v.slice(4) : views.find((x) => x.id === v)?.name || v || "nothing yet");
     $("scrList").innerHTML = screens.map((n) => `<div class="scr" data-s="${n.id}"><div class="row"><span class="dot ${n.online ? "on" : "off"}"></span><b class="grow">${esc(n.name)}</b>
         <span class="muted small">${esc(label(n.screen_view || ""))}</span></div>
