@@ -494,6 +494,16 @@
   const OV_SIZE = [["small", "Small"], ["medium", "Medium"], ["large", "Large"]];
   let atOvCount = 0, lvOvCount = 0;
   const ovAvail = () => wins.overlays.available(atOvCount + lvOvCount > 0);
+  // Say so when a laptop can't do what was asked: an app too old for Top centre, or the window somewhere else.
+  const older = (v, than) => { const a = String(v || "").split(".").map(Number), b = than.split(".").map(Number); for (let i = 0; i < 3; i++) { if ((a[i] || 0) !== b[i]) return (a[i] || 0) < b[i]; } return false; };
+  function ovNote(r, w, st, on) {
+    const name = (k) => (OV_POS.find(([x]) => x === k) || [k, k])[1].toLowerCase();
+    if (r.app && r.app_version && w.position === "top-center" && older(r.app_version, "0.6.0"))
+      return `<p class="small" style="color:var(--warn);margin:.4rem 0 0">This laptop's AT-SUIT app (${esc(r.app_version)}) is too old for top centre and puts the overlay ${name(st?.position || "bottom-right")}. Quit the app from its tray icon and start it again to finish its update, or install it again from Admin → Node setup.</p>`;
+    if (on && st?.position && st.position !== w.position)
+      return `<p class="small" style="color:var(--warn);margin:.4rem 0 0">Asked for ${name(w.position)}, the laptop is showing it ${name(st.position)}. Press Apply to send it again.</p>`;
+    return "";
+  }
   async function renderAtOverlay() {
     let rows = [];
     try { rows = await api(`/api/rooms/${roomId}/overlays`); } catch (_) { rows = []; }
@@ -511,7 +521,7 @@
         return `<div class="ov" data-ov="${r.id}"><div class="row" style="justify-content:space-between"><b>${who}</b><span class="row" style="gap:.3rem">${r.mode ? `<span class="pill">${r.mode === "main" ? "Main" : "Backup"}</span>` : ""}${pill}</span></div>
           <div class="row" style="margin-top:.4rem;flex-wrap:wrap"><button class="small ${on ? "" : "primary"}" data-on="1">Turn on</button><button class="small" data-on="0">Turn off</button>
             <select data-o="position" style="width:auto">${opts(OV_POS, w.position)}</select><select data-o="size" style="width:auto">${opts(OV_SIZE, w.size)}</select>${disp}</div>
-          <div class="row" style="margin-top:.4rem"><input data-o="url" class="grow" placeholder="Room timer (or paste a web address)" value="${esc(w.url || "")}"><button class="small" data-apply>Apply</button></div></div>`;
+          <div class="row" style="margin-top:.4rem"><input data-o="url" class="grow" placeholder="Room timer (or paste a web address)" value="${esc(w.url || "")}"><button class="small" data-apply>Apply</button></div>${ovNote(r, w, st, on)}</div>`;
       }).join("") + (lvOvCount ? '<hr style="border:0;border-top:1px solid var(--line);margin:.8rem 0">' : "");
     $("atOv").querySelectorAll("[data-ov]").forEach((card) => {
       const id = +card.dataset.ov;

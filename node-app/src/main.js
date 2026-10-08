@@ -371,6 +371,11 @@ function openOverlay(c, target) {
       if (isMain && code !== -3) setTimeout(() => !w.isDestroyed() && overlayUrl && w.loadURL(overlayUrl).catch(() => {}), 5000);
     });
     w.once("ready-to-show", () => !w.isDestroyed() && w.showInactive());
+    // Windows can put a new frameless, transparent window where it likes when it first shows;
+    // put it back where it was asked to go, and again once the page has loaded.
+    const settle = () => { if (!w.isDestroyed() && conf.overlay) { w.setBounds(overlayBounds(overlayConf({}, conf.overlay))); reportOverlay(); } };
+    w.on("show", () => { settle(); setTimeout(settle, 400); });
+    w.webContents.on("did-finish-load", () => setTimeout(settle, 200));
     w.on("closed", () => { if (overlayWin === w) { overlayWin = null; overlayUrl = ""; } });
     overlayWin = w;
   }
@@ -406,6 +411,7 @@ function reportOverlay(error = "") {
   const s = overlayState();
   nodeFetch("PUT", "/api/nodes/me/overlay", {
     on: s.on, url: s.url, target: s.target, position: s.position, size: s.size, display: s.display, opacity: s.opacity, room_id: s.room_id, error,
+    bounds: s.bounds, version: app.getVersion(),
   }).catch(() => {});
 }
 

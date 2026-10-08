@@ -289,6 +289,11 @@ test("the overlay floats over the slides, lets clicks through and never takes fo
   s = await page.evaluate(() => window.atsuitApp.overlay({ position: "bottom-bar", display: 5 })); // no 6th display: the main one
   expect(s.bounds).toEqual({ x: wa.x, y: wa.y + wa.height - 110, width: wa.width, height: 110 });
   expect(s.displays.length).toBeGreaterThanOrEqual(1);
+  // Top centre (the default), and it stays there once the window has shown and loaded.
+  s = await page.evaluate(() => window.atsuitApp.overlay({ position: "top-center", size: "medium", display: 0 }));
+  expect(s.bounds).toEqual({ x: wa.x + Math.round((wa.width - 440) / 2), y: wa.y + 16, width: 440, height: 150 });
+  await new Promise((res) => setTimeout(res, 1000));
+  expect((await overlayWindows(app))[0].bounds).toEqual(s.bounds);
   expect((await overlayWindows(app)).map((w) => w.id)).toEqual([o.id]);
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id ?? null)).toBe(before);
 
@@ -312,7 +317,7 @@ test("the overlay floats over the slides, lets clicks through and never takes fo
   expect(alpha).toBe(0);
   s = await page.evaluate(() => window.atsuitApp.overlay({ url: "" })); // back to the room timer
   expect(s.target).toBe(`${env.base}/timer/${hd}?view=overlay`);
-  expect(conf().overlay).toMatchObject({ on: true, url: "", position: "bottom-bar", size: "large", room_id: hd });
+  expect(conf().overlay).toMatchObject({ on: true, url: "", position: "top-center", size: "medium", room_id: hd });
 
   // Off.
   s = await page.evaluate(() => window.atsuitApp.overlay({ on: false }));

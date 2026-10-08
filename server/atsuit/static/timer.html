@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Stage timer</title>
+<title>Timer</title>
 <link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
 <link rel="stylesheet" href="/static/app.css">
 <style>
@@ -69,7 +69,10 @@
   .v-minimal #title, .v-minimal #next, .v-minimal #bar { display: none; }
   .v-minimal { --tsize: 32vw; }
   /* clock: time of day */
-  .v-clock #next, .v-clock #bar { display: none; }
+  /* clock: only the time of day with a small "Current time" over it, and the stage message when there is one */
+  .v-clock #next, .v-clock #bar, .v-clock #room, .v-clock #sec, .v-clock #status, .v-clock .logo { display: none !important; }
+  .v-clock #title { font-size: clamp(14px, 1.6vw, 36px); min-height: 0; color: color-mix(in srgb, var(--tfg) 55%, var(--tbg)); font-weight: 700; letter-spacing: .3em; text-transform: uppercase; margin-bottom: 1vh; }
+  .v-clock #alert { display: none; }
   /* backstage: timer on the left, running order on the right */
   .v-backstage .stage { flex-direction: row; gap: 3vw; }
   .v-backstage .main { flex: 1.3; align-items: flex-start; text-align: left; }
@@ -141,9 +144,11 @@
 <script src="/static/common.js"></script>
 <script>
 (async () => {
-  // /timer/<room>?view=stage|minimal|clock|backstage|hcc (Standard)|overlay, or built:<name> from Timers → Views
+  // /timer/<room>?view=hcc (Standard, the default)|minimal|clock|overlay, or built:<name> from Timers → Views.
+  // The old Stage view is the Standard view now. Backstage is backstage.html.
   const roomId = location.pathname.split("/")[2];
-  let view = new URLSearchParams(location.search).get("view") || "stage";
+  let view = new URLSearchParams(location.search).get("view") || "hcc";
+  if (view === "stage") view = "hcc";
   if (view === "bdng") {
     // BDNG used to be built in; it is now an imported view. Show that if it's there, else the Standard view.
     const views = await AT.api("/api/timers-views").catch(() => []);
@@ -152,7 +157,7 @@
     view = "hcc";
   }
   const KINDS = ["stage", "minimal", "clock", "backstage", "hcc", "overlay"];
-  const kind = view.startsWith("built:") ? "design" : KINDS.includes(view) ? view : "stage";
+  const kind = view.startsWith("built:") ? "design" : KINDS.includes(view) ? view : "hcc";
   const $ = (id) => document.getElementById(id);
   document.body.className = document.documentElement.className = "v-" + kind;
   // Standard shows "--:--" until a timer starts, as the venue's own Ontime view did.
@@ -189,7 +194,8 @@
 
   if (q.has("status")) statusOn = !["0", "false", "off", "no"].includes(q.get("status").toLowerCase());
   if (kind !== "overlay") document.body.classList.toggle("has-status", statusOn);
-  if (kind === "overlay") statusOn = false;
+  if (kind === "overlay" || kind === "clock") statusOn = false;
+  if (kind === "clock") document.body.classList.remove("has-status");
 
   let s = await AT.api(`/api/timers/${roomId}`), cues = [];
   const got = (x) => { x._rx = Date.now(); s = x; };
@@ -286,7 +292,7 @@
     t.className = phase + (s.message_blink ? " blink" : "");
     $("tod").textContent = todText();
     $("tod").style.visibility = clock ? "hidden" : "";
-    if (kind === "clock") $("title").textContent = s.room;
+    if (kind === "clock") $("title").textContent = "Current time";
     else {
       $("title").textContent = s.title || "";
       $("next").textContent = s.next ? `Next: ${s.next.title}` : "";

@@ -163,7 +163,7 @@
   }
 
   function openPicker(cancellable) {
-    pickRoom = me.node.room_id; pickView = me.node.screen_view || "stage";
+    pickRoom = me.node.room_id; pickView = me.node.screen_view || "hcc";
     $("pickSub").textContent = `${me.node.name}. You can also change this from the AT-SUIT dashboard (Timers → Screens).`;
     $("pickCancel").classList.toggle("hidden", !cancellable);
     const draw = () => {

@@ -83,7 +83,7 @@ def test_screen_pick_and_route(admin):
     n, hdr = _kiosk(admin)
     rooms = admin.get("/api/bootstrap").json()["rooms"]
     me = admin.get("/api/nodes/me", headers=hdr).json()
-    assert me["node"]["screen_view"] == "" and {"stage", "captions"} <= {v["id"] for v in me["views"]}
+    assert me["node"]["screen_view"] == "" and {"hcc", "captions"} <= {v["id"] for v in me["views"]}
     # Picked on the screen itself.
     assert admin.put("/api/nodes/me/screen", headers=hdr, json={"room_id": rooms[1]["id"], "view": "backstage"}).status_code == 200
     beat = admin.post("/api/nodes/heartbeat", headers=hdr, json={"info": {"page": "screen-web-0.2.0"}, "current_url": "http://x/timer/2"}).json()

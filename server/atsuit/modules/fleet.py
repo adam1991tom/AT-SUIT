@@ -777,6 +777,8 @@ class OverlayReport(BaseModel):
     opacity: float = 1.0
     room_id: int | None = None
     error: str = Field("", max_length=300)
+    bounds: dict[str, int] | None = None  # where the window really is, to spot a laptop putting it elsewhere
+    version: str = Field("", max_length=40)
 
 
 def _info(n) -> dict:
@@ -794,7 +796,8 @@ def overlay_out(c, n) -> dict:
     info = _info(n)
     return {"id": n["id"], "name": n["name"], "operator": n["operator"] or "", "mode": n["mode"] or "",
             "online": bool(n["last_seen"] and time.time() - n["last_seen"] < ONLINE_SECONDS),
-            "app": str(n["version"] or "").startswith("app-"), "room_id": current_room_id(c, n),
+            "app": str(n["version"] or "").startswith("app-"), "app_version": str(n["version"] or "").removeprefix("app-"),
+            "room_id": current_room_id(c, n),
             "want": {**OVERLAY_DEFAULT, **(info.get("overlay_want") or {})}, "state": info.get("overlay")}
 
 

@@ -47,7 +47,7 @@
     let groups = [];
     try { groups = (await api("/api/screens/layouts")).groups; } catch (_) { groups = []; }
     const flat = groups.flatMap((g) => g.views);
-    let last = "stage";
+    let last = "hcc";
     try { last = localStorage.getItem("atsuit_pair_view") || last; } catch (_) {}
     $("pairView").innerHTML = groups.map((g) => `<optgroup label="${esc(g.name)}">${g.views.map((v) => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join("")}</optgroup>`).join("") +
       `<optgroup label="Other"><option value="url:">A web page…</option></optgroup>`;

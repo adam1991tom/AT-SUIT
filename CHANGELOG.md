@@ -4,6 +4,12 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.6.5
+
+- **No separate Stage view: the stage screen is Standard.** `/timer/<room>` and the *Standard ↗* links open the Standard view; screens and links still set to `stage` show Standard too. Stage is gone from every view list.
+- **The Clock view is just the clock.** The time of day with a small *Current time* above it, and the stage message when one is showing. No room name, no status bar, no second line, no progress bar.
+- **The overlay stays where it was put.** The app puts the overlay window back in its place once it has shown and loaded (Windows can move a new transparent window), and tells the server where it really is. In the workspace's Overlays window, a laptop whose app is too old for top centre (before 0.6.0, which put it bottom right) says so, as does a laptop showing it somewhere other than asked.
+
 ## 0.6.4
 
 - **Backstage is a studio clock.** `/timer/<room>?view=backstage` (and any screen set to Backstage) is now a radio-studio style screen: a big clock with sixty second dots filling round the face and the site's time in the middle, an outer ring showing how much of the stage timer is left (amber, then red), and an ON STAGE / PAUSED / OVERTIME lamp. Beside it: exactly what the stage screen is showing (the timer in the Standard style and colours, when it started and ends, and any message, second line, blink, clock or blackout), now and next with planned times, the running order, and the room's help calls. A new help call shows straight away in red with who asked and when, the screen's edge flashes for its first two minutes, and it turns amber once someone is on it; calls open in other rooms are counted underneath. No sign-in needed, like the other timer screens.

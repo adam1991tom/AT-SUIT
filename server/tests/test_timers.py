@@ -349,7 +349,7 @@ def test_quick_messages(admin, client):
 
 def test_status_bar_setting_and_view_defaults(admin, client):
     rid = room(admin)
-    assert client.get("/api/timers-views/look/stage").json()["options"] == {"status_bar": True}
+    assert client.get("/api/timers-views/look/clock").json()["options"] == {"status_bar": False}  # the clock is just the clock
     assert client.get("/api/timers-views/look/overlay").json()["options"] == {"status_bar": False}
     assert client.get("/api/timers-views/look/hcc").json()["options"]["status_bar"]
     assert admin.put("/api/timers-views/look/hcc", json={"status_bar": False}).status_code == 200
@@ -421,3 +421,12 @@ def test_go_starts_a_loaded_quick_timer(admin):
     assert s["cue"]["id"] == a and s["running"]
     s = admin.post(f"/api/timers/{rid}/go").json()  # running: GO moves on
     assert s["title"] == "B" and s["running"]
+
+
+def test_stage_is_the_standard_view_now(admin):
+    from atsuit.modules.timers import view_known
+    from atsuit import db
+    ids = [v["id"] for v in admin.get("/api/timers-views").json()]
+    assert "stage" not in ids and ids[0] == "hcc"
+    with db.ro() as c:
+        assert view_known(c, "stage")  # screens already set to it keep working (they show Standard)

@@ -95,7 +95,7 @@ def test_layouts_for_the_picker(admin):
     names = [x["name"] for x in g]
     assert names == ["Timer", "Captions", "Test patterns"]
     ids = {v["id"] for x in g for v in x["views"]}
-    assert {"stage", "captions", "captions:overlay", "captions:bar", "screentest:ledmap"} <= ids
+    assert {"hcc", "captions", "captions:overlay", "captions:bar", "screentest:ledmap"} <= ids
 
 
 def test_tech_laptop_can_pair(admin, client):

@@ -82,7 +82,7 @@
     const rooms = boot.modules.timers ? boot.rooms : [];
     for (const r of rooms) live[r.id] = await api(`/api/timers/${r.id}`).catch(() => null);
     const strip = rooms.length ? `<div class="row" style="justify-content:space-between"><h1>Dashboard</h1><span class="row"><a class="btn primary" href="/node">Open the workspace</a>${boot.me.role === "admin" ? '<a class="btn" href="#/admin/links">Edit links</a>' : ""}</span></div>
-      <div class="grid" id="dashRooms" style="margin-top:.6rem">${rooms.map((r) => `<div class="panel" data-room="${r.id}"><div class="row" style="justify-content:space-between"><h2>${esc(r.name)}</h2><span class="small"><a href="/timer/${r.id}" target="_blank">Stage ↗</a></span></div>
+      <div class="grid" id="dashRooms" style="margin-top:.6rem">${rooms.map((r) => `<div class="panel" data-room="${r.id}"><div class="row" style="justify-content:space-between"><h2>${esc(r.name)}</h2><span class="small"><a href="/timer/${r.id}" target="_blank">Standard ↗</a></span></div>
         <div class="clock" style="font-size:2.6rem">--:--</div><div class="small now" style="font-weight:600"></div><div class="muted small next"></div></div>`).join("")}</div>` : "";
     el.innerHTML = (strip || `<div class="row" style="justify-content:space-between"><h1>Dashboard</h1>${boot.me.role === "admin" ? '<a class="btn" href="#/admin/links">Edit links</a>' : ""}</div>`) + (strip ? '<h2 style="margin-top:1.4rem">Links</h2>' : "") +
       (links.length ? Object.entries(groups).map(([g, ls]) => `<h3 style="margin-top:1.2rem">${esc(g)}</h3><div class="tiles">` +
@@ -144,7 +144,7 @@
     for (const r of boot.rooms) {
       states[r.id] = await api(`/api/timers/${r.id}`);
       grid.insertAdjacentHTML("beforeend", `<div class="panel" data-room="${r.id}">
-        <div class="row" style="justify-content:space-between"><h2>${esc(r.name)}</h2><span class="small"><a href="/timer/${r.id}" target="_blank">Stage ↗</a> · <a href="/timer/${r.id}?view=backstage" target="_blank">Backstage ↗</a></span></div>
+        <div class="row" style="justify-content:space-between"><h2>${esc(r.name)}</h2><span class="small"><a href="/timer/${r.id}" target="_blank">Standard ↗</a> · <a href="/timer/${r.id}?view=backstage" target="_blank">Backstage ↗</a></span></div>
         <div class="clock" style="font-size:2.6rem">--:--</div><div class="small now" style="font-weight:600"></div><div class="muted small next"></div></div>`);
     }
     const tick = setInterval(() => {
