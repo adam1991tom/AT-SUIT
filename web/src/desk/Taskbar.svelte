@@ -51,7 +51,7 @@
   </div>
   <div class="dk-items">
     {#each items as id (id)}
-      <button type="button" class="dk-item {state(id)}" onclick={() => click(id)} title={state(id) === "closed" ? "Open" : state(id) === "popped" ? "In its own window" : ""}>
+      <button type="button" class="dk-item {state(id)}" class:dk-new={!!desk.panes[id].badge} onclick={() => click(id)} title={state(id) === "closed" ? "Open" : state(id) === "popped" ? "In its own window" : ""}>
         {desk.panes[id].title}{#if desk.panes[id].badge}<span class="unread">{desk.panes[id].badge}</span>{/if}
       </button>
     {/each}

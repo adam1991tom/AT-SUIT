@@ -25,7 +25,7 @@ to install.
 On the server:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/main/get.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/HEAD/get.sh | sudo bash
 ```
 
 It installs Docker if it's missing, puts AT-SUIT in `/opt/at-suit` and starts
@@ -83,10 +83,13 @@ In the console:
 
 ## Keeping it running
 
-- **Updates**: `sudo /opt/at-suit/update.sh`. It saves a backup first, starts
-  the new version and checks it is healthy; if it isn't, it puts the old
-  version and the data back by itself. Laptops update when their app next
-  closes.
+- **Updates**: by itself. The server checks GitHub for a new release and,
+  when no timer is running, updates itself: backup first, health check, and
+  back to the old version and data if it isn't healthy. **Settings → Updates**
+  switches this to "tell me only" or off, and holds the GitHub token a private
+  repository needs. By hand: `sudo /opt/at-suit/update.sh`. Laptops update
+  from the server as their app starts or closes, or when the tech presses
+  **Update now** in This laptop.
 - **Backups**: `sudo /opt/at-suit/backup.sh` (add it to cron for a nightly
   copy) or the **Backups** page. `restore.sh` puts one back.
 - **Support**: **Settings → About → Download diagnostics** gives support

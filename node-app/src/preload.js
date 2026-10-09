@@ -14,6 +14,12 @@ contextBridge.executeInMainWorld({
 
 contextBridge.exposeInMainWorld("atsuitApp", {
   version: () => ipcRenderer.invoke("app:version"),
+  // Updates from this venue's server: updateState() → { state, current, version, percent, error,
+  // checked_at, on_launch }; state is off|idle|checking|none|downloading|ready|installing|error.
+  updateState: () => ipcRenderer.invoke("app:update-state"),
+  checkUpdate: () => ipcRenderer.invoke("app:update-check"),
+  installUpdate: () => ipcRenderer.invoke("app:update-install"),
+  onUpdate: (cb) => ipcRenderer.on("app:update", (_e, st) => cb(st)),
   nodeToken: () => ipcRenderer.invoke("app:node-token"),
   getSettings: () => ipcRenderer.invoke("app:get-settings"),
   setSettings: (s) => ipcRenderer.invoke("app:set-settings", s),

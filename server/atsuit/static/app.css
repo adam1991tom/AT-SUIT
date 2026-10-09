@@ -86,6 +86,10 @@ th { color: var(--muted); font-weight: 500; font-size: .85rem; }
 .msg { background: var(--panel2); border-radius: 8px; padding: .45rem .7rem; }
 .msg .who { font-weight: 600; font-size: .85rem; }
 .msg.urgent { border-left: 4px solid var(--bad); } .msg.important { border-left: 4px solid var(--warn); }
+/* a message that has just arrived from someone else: an accent bar and a glow that fade after a few seconds */
+.msg.fresh { animation: msg-new 7s ease-out; }
+@keyframes msg-new { 0%, 30% { background: color-mix(in srgb, var(--accent) 32%, var(--panel2)); box-shadow: inset 4px 0 0 var(--accent); } 100% { background: var(--panel2); box-shadow: inset 4px 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .msg.fresh { animation: none; } }
 .msg .att { display: inline-block; margin-top: .3rem; font-size: .85rem; }
 .compose { display: flex; gap: .5rem; margin-top: .6rem; }
 .unread { background: var(--accent); color: var(--accent-ink); border-radius: 99px; font-size: .75rem; padding: 0 .45rem; }
@@ -148,6 +152,10 @@ a.btn.primary { background: var(--accent); border-color: var(--accent); color: v
 /* AT-SUIT logo */
 .brand-stacked { display: block; width: 150px; max-width: 60%; margin: 0 auto 1rem; }
 .brand-mark { height: 28px; width: auto; }
+/* the Windows app's version in the workspace top bar; it turns the accent colour when an update is ready */
+.top .ver { background: transparent; border-color: transparent; color: var(--muted); padding: .1rem .4rem; font-size: .75rem; }
+.top .ver:hover { border-color: var(--line); color: var(--strong); }
+.top .ver.ready { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
 /* brand touches: the orange stripe, the gear while loading, cards that open a page */
 .brand-stripe { height: 3px; background: linear-gradient(90deg, var(--ember), var(--accent) 40%, var(--glow)); }

@@ -94,11 +94,42 @@
   @keyframes glow { 0%, 100% { box-shadow: 0 0 0 rgba(255, 45, 45, 0); } 50% { box-shadow: 0 0 2.4vw rgba(255, 45, 45, .6); } }
   @keyframes edge { 0%, 100% { border-width: 0; } 50% { border-width: 1.2vw; } }
 
+  /* Speaker preview (?view=preview): the clock on the left; every help call on the site and the crew's
+     important messages on the right, big enough to read across the room. No stage timer. */
+  #pv { display: none; }
+  .preview .col, .preview .lamp, .preview #arc { display: none; }
+  .preview .bs { grid-template-columns: minmax(0, 46fr) minmax(0, 54fr); }
+  .preview #pv { display: grid; gap: 1.6vh; min-height: 0; grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr); }
+  .preview #pv .box { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .preview .lab { font-size: 1.05vw; }
+  #pvHelp .ok { color: var(--green); font-size: 1.8vw; font-weight: 800; margin-top: 1vh; }
+  #pvHelp .call { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 1.2vw; align-items: center; margin-top: 1vh; padding: 1.3vh 1.1vw;
+    border-radius: .6vw; background: #2a0b0b; border: 2px solid var(--red); }
+  #pvHelp .call.acknowledged { background: #2a2208; border-color: var(--amber); }
+  #pvHelp .call .k { font-size: 1.05vw; font-weight: 900; letter-spacing: .12em; color: var(--red); white-space: nowrap; }
+  #pvHelp .call.acknowledged .k { color: var(--amber); }
+  #pvHelp .call .r { min-width: 0; }
+  #pvHelp .call .r b { display: block; font-size: 1.9vw; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #pvHelp .call .r span { display: block; color: #cbd5e1; font-weight: 600; font-size: 1.4vw; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+  #pvHelp .call .w { font-size: 1.15vw; color: var(--dim); text-align: right; white-space: nowrap; }
+  #pvHelp .more, #pvNotes .more { font-size: 1.15vw; color: var(--dim); margin-top: .8vh; }
+  #pvHelp.alarm { border-color: var(--red); animation: glow 1s ease-in-out infinite; }
+  #pvNotes .n { margin-top: 1vh; padding: 1vh 1vw; border-radius: .5vw; background: #141922; border-left: .4vw solid var(--amber); }
+  #pvNotes .n.urgent { border-left-color: var(--red); background: #1f0d0f; }
+  #pvNotes .n .h { font-size: 1.05vw; color: var(--dim); display: flex; gap: .8vw; }
+  #pvNotes .n .h b { color: var(--fg); } #pvNotes .n .h .grow { flex: 1; }
+  #pvNotes .n.urgent .h .p { color: var(--red); font-weight: 900; letter-spacing: .1em; }
+  #pvNotes .n .t { font-size: 1.6vw; font-weight: 700; margin-top: .3vh; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+  #pvNotes .none { color: var(--dim); font-size: 1.4vw; margin-top: 1vh; }
+
   /* portrait or small screens: stack */
   @media (max-aspect-ratio: 1/1) {
     .bs { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0, 1fr); overflow: auto; }
     #studio { width: min(58vw, 28vh); }
     .top .room { font-size: 5vw; } .top .date, .lamp { font-size: 3vw; }
+    .preview .bs { grid-template-columns: 1fr; } .preview .lab { font-size: 2.6vw; }
+    #pvHelp .call .r b { font-size: 4vw; } #pvHelp .call .r span { font-size: 3.2vw; } #pvHelp .call .k, #pvHelp .call .w, #pvNotes .n .h, #pvHelp .more, #pvNotes .more { font-size: 2.6vw; }
+    #pvNotes .n .t { font-size: 3.6vw; } #pvHelp .ok, #pvNotes .none { font-size: 3.4vw; }
     #timer { font-size: 15vw; } .facts, .tag, #list .q, #help .call .d { font-size: 3.2vw; } .lab { font-size: 2.6vw; } .nn .t { font-size: 4vw; } .nn .m { font-size: 2.8vw; }
   }
 </style>
@@ -131,12 +162,18 @@
     <div class="box" style="display:flex;flex-direction:column;min-height:0"><div class="lab"><span>Running order</span><span class="grow"></span><span id="count"></span></div><div id="list"></div></div>
     <div class="box calm" id="help"><div class="lab"><span>Help calls</span></div><div id="helpBody"><div class="ok">● All clear</div></div></div>
   </div>
+  <div id="pv">
+    <div class="box calm" id="pvHelp"><div class="lab"><span>Help calls</span><span class="grow"></span><span id="pvCount"></span></div><div id="pvHelpBody"><div class="ok">● All clear</div></div></div>
+    <div class="box" id="pvNotes"><div class="lab"><span>Notifications</span></div><div id="pvNotesBody"></div></div>
+  </div>
 </div>
 <div id="flash"></div>
 <script src="/static/common.js"></script>
 <script>
 (async () => {
   const roomId = location.pathname.split("/")[2];
+  const preview = new URLSearchParams(location.search).get("view") === "preview";
+  document.body.classList.toggle("preview", preview);
   const $ = (id) => document.getElementById(id), esc = AT.esc;
   const pad = (n) => String(n).padStart(2, "0");
   let s = await AT.api(`/api/timers/${roomId}`), cues = [], board = { calls: [], open_elsewhere: 0 };
@@ -145,7 +182,7 @@
   setInterval(() => AT.api(`/api/timers/${roomId}`).then(got).catch(() => {}), 300000);
   got(s);
   $("room").textContent = s.room;
-  document.title = `Backstage · ${s.room}`;
+  document.title = `${preview ? "Speaker preview" : "Backstage"} · ${s.room}`;
 
   // the studio clock: sixty second dots filling round the face, twelve hour marks inside
   const NS = "http://www.w3.org/2000/svg", dots = [];
@@ -268,19 +305,53 @@
       + (board.open_elsewhere ? `<div class="more">${board.open_elsewhere} open in other rooms</div>` : "");
   }
 
+  // Speaker preview, a command-centre monitor: every room's help calls, open ones first, and the
+  // crew's important and urgent messages to all crew or any room. No room is singled out.
+  let pv = { calls: [], notices: [] }, pvTimer = 0;
+  function drawPreview() {
+    const calls = pv.calls || [], open = calls.filter((h) => h.status === "open");
+    $("pvHelp").className = "box " + (open.length ? "alarm" : calls.length ? "" : "calm");
+    $("flash").classList.toggle("on", open.some((h) => Date.now() - new Date(h.created_at) < 120000));
+    $("pvCount").textContent = calls.length ? `${open.length} open${calls.length > open.length ? ` · ${calls.length - open.length} on it` : ""}` : "";
+    const shown = 6;
+    $("pvHelpBody").innerHTML = calls.length ? calls.slice(0, shown).map((h) => `<div class="call ${esc(h.status)}">` +
+      `<span class="k">${h.status === "open" ? "HELP NEEDED" : "ON IT"}</span>` +
+      `<span class="r"><b>${esc(h.room_name)}</b><span>${esc(h.description ? `${h.category}: ${h.description}` : h.category)}</span></span>` +
+      `<span class="w">${h.status === "open" ? esc(h.requested_by) : esc(h.assigned_to || "")} · ${ago(h.created_at)}</span></div>`).join("")
+      + (calls.length > shown ? `<div class="more">and ${calls.length - shown} more</div>` : "")
+      : '<div class="ok">● All clear across the venue</div>';
+    const notes = pv.notices || [];
+    $("pvNotesBody").innerHTML = notes.length ? notes.slice(0, 4).map((n) => `<div class="n ${esc(n.priority)}">` +
+      `<div class="h">${n.priority === "urgent" ? '<span class="p">URGENT</span>' : ""}<b>${esc(n.sender_name)}</b><span>to ${esc(n.to)}</span><span class="grow"></span><span>${ago(n.created_at)}</span></div>` +
+      `<div class="t">${esc(n.body)}</div></div>`).join("")
+      + (notes.length > 4 ? `<div class="more">and ${notes.length - 4} more</div>` : "")
+      : '<div class="none">Important and urgent crew messages show here.</div>';
+  }
+  const loadPreview = () => AT.api(`/api/comms/help/preview/${roomId}`).then((b) => { pv = b; drawPreview(); }).catch(() => {});
+  // several changes at once (a call answered and resolved) read the board once
+  const previewSoon = () => { clearTimeout(pvTimer); pvTimer = setTimeout(loadPreview, 300); };
+
   const loadBoard = () => AT.api(`/api/comms/help/board/${roomId}`).then((b) => { board = b; drawHelp(); }).catch(() => { $("help").style.display = "none"; });
-  cues = await AT.api(`/api/timers/${roomId}/cues`).catch(() => []);
-  drawCues(); loadBoard();
-  setInterval(() => { drawClock(); drawStage(); }, 100);
-  setInterval(drawHelp, 15000); // keeps "3 min ago" and the edge flash up to date
-  drawClock(); drawStage();
+  if (preview) {
+    loadPreview();
+    setInterval(loadPreview, 30000); // keeps "3 min ago" and the edge flash up to date, and catches anything missed
+    setInterval(drawClock, 100);
+    drawClock();
+  } else {
+    cues = await AT.api(`/api/timers/${roomId}/cues`).catch(() => []);
+    drawCues(); loadBoard();
+    setInterval(() => { drawClock(); drawStage(); }, 100);
+    setInterval(drawHelp, 15000); // keeps "3 min ago" and the edge flash up to date
+    drawClock(); drawStage();
+  }
   AT.socket([`timer:${roomId}`], (e) => {
-    if (e.type === "timer") { got(e.data); drawCues(); }
+    if (e.type === "timer") { got(e.data); if (!preview) drawCues(); }
+    if (preview) { if (e.type === "help" || e.type === "preview") previewSoon(); return; }
     if (e.type === "cues") { cues = e.data.cues; drawCues(); }
     if (e.type === "help") { board = e.data; drawHelp(); }
   }, (up) => {
     $("off").classList.toggle("hidden", up);
-    if (up) { AT.api(`/api/timers/${roomId}`).then((x) => { got(x); drawCues(); }); loadBoard(); }
+    if (up) { AT.api(`/api/timers/${roomId}`).then((x) => { got(x); if (!preview) drawCues(); }); if (preview) loadPreview(); else loadBoard(); }
   });
 })();
 </script>

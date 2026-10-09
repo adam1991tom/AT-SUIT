@@ -12,7 +12,8 @@
 //   - web notifications are denied, and alert/confirm/prompt are replaced in
 //     the page, because native dialogs can play the system sound
 //   - pop-ups are off unless a tech turns them on for this laptop (the backup)
-//   - no tray balloons, no taskbar flashing, updates install only on quit
+//   - no tray balloons, no taskbar flashing; updates install when the app starts
+//     (if the tech left that on), when they press Update now, or when the app quits
 //   - the overlay (the room timer over the slides) is click-through, never
 //     focusable and shown without activating, so it can't take the keyboard
 const path = require("path");
@@ -475,10 +476,14 @@ function fromMain(e) {
 function ipc() {
   ipcMain.handle("app:version", () => app.getVersion());
   ipcMain.handle("app:node-token", (e) => (fromMain(e) ? config.getToken(conf) : ""));
-  ipcMain.handle("app:get-settings", (e) => (fromMain(e) ? { popups: !!conf.popups, name: conf.name, server: conf.server } : {}));
+  ipcMain.handle("app:get-settings", (e) => (fromMain(e) ? { popups: !!conf.popups, name: conf.name, server: conf.server, update_on_launch: conf.update_on_launch !== false } : {}));
+  ipcMain.handle("app:update-state", (e) => (fromMain(e) ? updateState() : {}));
+  ipcMain.handle("app:update-check", (e) => (fromMain(e) ? checkUpdates() : {}));
+  ipcMain.handle("app:update-install", (e) => (fromMain(e) ? installUpdate() : false));
   ipcMain.handle("app:set-settings", (e, s) => {
     if (!fromMain(e)) return false;
     if (typeof s?.popups === "boolean") conf.popups = s.popups;
+    if (typeof s?.update_on_launch === "boolean") conf.update_on_launch = s.update_on_launch;
     config.save(conf);
     makeTray();
     return true;
@@ -547,12 +552,19 @@ function makeTray() {
   img.addRepresentation({ scaleFactor: 2, buffer: require("fs").readFileSync(path.join(__dirname, "..", "build", "tray-32.png")) });
   if (!tray) {
     tray = new Tray(img);
-    tray.setToolTip("AT-SUIT Node");
+    tray.setToolTip(`AT-SUIT Node ${app.getVersion()}`);
     tray.on("click", () => openMain());
   }
   const login = app.getLoginItemSettings().openAtLogin;
+  const upItem = upd.state === "ready" ? { label: `Restart to update to ${upd.version}`, click: () => installUpdate() }
+    : upd.state === "downloading" ? { label: `Downloading ${upd.version}…`, enabled: false }
+    : upd.state === "installing" ? { label: "Updating…", enabled: false }
+    : { label: "Check for updates", enabled: !!updater, click: () => checkUpdates() };
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "Open workspace", click: () => openMain() },
+    { type: "separator" },
+    { label: `AT-SUIT Node ${app.getVersion()}`, enabled: false },
+    upItem,
     { type: "separator" },
     // Set in the workspace when the tech starts: Main PC never pops up, Backup PC pops up silently.
     { label: conf.popups ? "Backup PC: silent pop-ups" : "Main PC: no pop-ups", enabled: false },
@@ -576,24 +588,81 @@ function makeTray() {
 }
 
 // ------------------------------------------------------------- updates --
+// Updates come from this venue's AT-SUIT server (which fetches each release's app from GitHub,
+// or an admin uploads it in Laptops & screens), so laptops need no internet; only when the server
+// has no app at all does a laptop try GitHub itself. The app checks a few seconds after it starts and every few hours; a newer
+// version downloads quietly. It installs:
+//   - straight away when it is found as the app starts (update_on_launch, on unless the
+//     tech turns it off), so a laptop switched on in the morning is up to date before the show;
+//   - when the tech presses Update now (This laptop, or the tray);
+//   - otherwise when the app next quits, never in the middle of a show.
+let updater = null;
+const LAUNCH_WINDOW_MS = 3 * 60 * 1000;
+const startedAt = Date.now();
+const upd = { state: "off", version: "", percent: 0, error: "", checked_at: 0, source: "the server" };
+
+function updateState() {
+  return { ...upd, current: app.getVersion(), on_launch: conf.update_on_launch !== false };
+}
+
+function setUpd(patch, quiet) {
+  Object.assign(upd, patch);
+  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send("app:update", updateState());
+  if (!quiet) makeTray(); // not on every download-progress tick
+}
+
 function startUpdates() {
   if (!app.isPackaged || process.env.ATSUIT_NODE_NO_UPDATES) return;
-  let autoUpdater;
-  try { ({ autoUpdater } = require("electron-updater")); } catch (_) { return; }
-  // Updates come from this venue's AT-SUIT server (Laptops & screens → Add laptops), not
-  // the internet. They download quietly and install when the app next quits,
-  // never in the middle of a show.
-  autoUpdater.setFeedURL({ provider: "generic", url: `${conf.server}/api/nodes/app/` });
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.logger = null;
-  autoUpdater.on("error", () => {});
-  // CI's update test sets these: check after a few seconds, and quit as soon
-  // as the update is downloaded so it installs straight away.
-  if (process.env.ATSUIT_NODE_QUIT_TO_UPDATE) autoUpdater.on("update-downloaded", () => { quitting = true; app.quit(); });
-  const check = () => autoUpdater.checkForUpdates().catch(() => {});
-  setTimeout(check, (Number(process.env.ATSUIT_NODE_UPDATE_CHECK_S) || 60) * 1000);
-  setInterval(check, 4 * 60 * 60 * 1000);
+  try { ({ autoUpdater: updater } = require("electron-updater")); } catch (_) { return; }
+  updater.setFeedURL({ provider: "generic", url: `${conf.server}/api/nodes/app/` });  // pickFeed() may change it
+  updater.autoDownload = true;
+  updater.autoInstallOnAppQuit = true;
+  updater.logger = null;
+  updater.on("checking-for-update", () => setUpd({ state: "checking", error: "" }));
+  updater.on("update-not-available", () => setUpd({ state: "none", checked_at: Date.now() }));
+  updater.on("update-available", (i) => setUpd({ state: "downloading", version: i.version, percent: 0, checked_at: Date.now() }));
+  updater.on("download-progress", (p) => setUpd({ percent: Math.round(p.percent || 0) }, true));
+  updater.on("error", (e) => setUpd({ state: "error", error: String((e && e.message) || e).split("\n")[0].slice(0, 200) }));
+  updater.on("update-downloaded", (i) => {
+    setUpd({ state: "ready", version: i.version, percent: 100 });
+    if (conf.update_on_launch !== false && Date.now() - startedAt < LAUNCH_WINDOW_MS) installUpdate(5000);
+  });
+  setUpd({ state: "idle" });
+  const first = Number(process.env.ATSUIT_NODE_UPDATE_CHECK_S);
+  setTimeout(checkUpdates, (first > 0 ? first : 5) * 1000);
+  setInterval(checkUpdates, 4 * 60 * 60 * 1000);
+}
+
+// Where the update comes from: this venue's server, or, when the server has no app published
+// and updates are on there, the newest GitHub release (laptops with internet only).
+async function pickFeed() {
+  let info = null;
+  try {
+    const r = await net.fetch(`${conf.server}/api/nodes/app`, { cache: "no-store" });
+    if (r.ok) info = await r.json();
+  } catch (_) { /* server unreachable: try it anyway, the check reports the error */ }
+  const github = info && !info.version && /^[\w.-]+\/[\w.-]+$/.test(info.github || "") ? info.github : "";
+  const url = github ? `https://github.com/${github}/releases/latest/download/` : `${conf.server}/api/nodes/app/`;
+  updater.setFeedURL({ provider: "generic", url });
+  upd.source = github ? "GitHub" : "the server";
+}
+
+function checkUpdates() {
+  if (!updater) return Promise.resolve(updateState());
+  if (["checking", "downloading", "ready", "installing"].includes(upd.state)) return Promise.resolve(updateState());
+  return pickFeed().then(() => updater.checkForUpdates()).then(() => updateState(), (e) => {
+    setUpd({ state: "error", error: String((e && e.message) || e).split("\n")[0].slice(0, 200) });
+    return updateState();
+  });
+}
+
+// Install the downloaded update and start the new version. The workspace shows a notice for
+// `afterMs` first, so the tech knows why the app is about to close and come back.
+function installUpdate(afterMs = 1500) {
+  if (!updater || upd.state !== "ready") return false;
+  setUpd({ state: "installing" });
+  setTimeout(() => { quitting = true; updater.quitAndInstall(true, true); }, afterMs);
+  return true;
 }
 
 module.exports = { showPopup, applyOverlay };

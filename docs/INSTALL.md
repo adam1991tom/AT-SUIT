@@ -17,7 +17,7 @@
 The quickest way, on a fresh server (installs Docker too if it's missing):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/main/get.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/HEAD/get.sh | sudo bash
 # options for install.sh go after -s --, e.g.  | sudo bash -s -- --port 8180 --tls
 ```
 
@@ -131,6 +131,34 @@ server answers healthy five times in a row. If it doesn't, it prints the
 server's log, restores the backup and starts the previous version again, so
 the venue is never left without a working server. Fix the cause, then run
 `./update.sh` again.
+
+### Automatic updates from GitHub
+
+The server checks the newest GitHub release every half hour. **Settings →
+Updates** decides what happens: **Install by itself** (the default), **Tell me
+only** (an admin presses **Install now**) or **Off**. Nothing ever installs
+while a show is on, meaning a timer that is running or paused in any room.
+
+The install itself runs on the host, not in the container: `install.sh` sets
+up a systemd timer, `atsuit-update.timer`, that runs `./update.sh --auto`
+every 10 minutes. That asks the server whether to install and, when it says
+yes, does the same safe update as above with the release's tag. It then tells
+the server how it went, so Settings → Updates shows the result. A version that
+failed and was rolled back isn't tried again by itself; Install now tries
+again. For an install from before 1.0.2, run `sudo ./install.sh --updater`
+once, or let the next `sudo ./update.sh` set it up. `journalctl -u
+atsuit-update` shows what it did.
+
+Once the server runs a new version, it also fetches that release's Windows app
+(`.exe`, `.blockmap`, `latest.yml`) and publishes it for the laptops. Laptops
+keep updating from the server, so they need no internet. A laptop only goes to
+GitHub itself when the server has no app published.
+
+The repository is private, so the server needs a **GitHub token** (Settings
+→ Updates) to read its releases: a fine-grained token with *Contents: read* on
+the repository, plus *read:packages* for an install that uses the published
+image. The token stays on the server and is never sent to laptops. A laptop's
+own GitHub fallback only works with public releases.
 
 Admins can also download a backup zip from the Backups page. A backup
 contains the encryption key, so store it somewhere safe.

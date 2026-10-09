@@ -1,8 +1,50 @@
 # Changelog
 
 Versions follow [semantic versioning](https://semver.org). To release, set
-`VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
-release workflow publishes the image and the GitHub release.
+`VERSION`, add a section here, merge to `ATSUIT`, then push a tag `vX.Y.Z` (or
+publish that release on GitHub); the release workflow publishes the image and
+the GitHub release.
+
+## 1.0.3
+
+**Speaker preview**
+- It's a command-centre monitor now: every room's help calls are treated the same (open ones first, newest first), each labelled with its room. The "This room" badge is gone.
+- Notifications show important and urgent messages to all crew and to any room, not only the screen's own room.
+
+**Chat**
+- A message that arrives while a chat is opening no longer goes missing until the next reload.
+
+**Releases and updates**
+- The server checks GitHub every half hour (was every three hours), so a new release shows up soon after it's published.
+- Settings → Updates says **Ahead of GitHub** when the server runs a newer version than the newest release, instead of "Up to date".
+- The default branch is now `ATSUIT`. Checks, builds and the install script follow it; with no release yet, `get.sh` and `update.sh` take the default branch whatever its name.
+- A release published on GitHub's Releases page builds and attaches the Windows app and release notes by itself.
+- A server installed from a git checkout updates to a release even when that release isn't straight ahead of its copy (for example after a squash merge), as long as nobody has edited its files by hand.
+
+## 1.0.2
+
+**The Windows app shows its version and updates on start**
+- The version is in the workspace top bar, in **This laptop** and in the tray menu.
+- **This laptop** says whether the app is up to date and has **Check for updates**, then **Update now** once a new version has downloaded. The tray menu has the same.
+- When the app starts and finds a newer version on the server, it installs it and restarts once, with a notice, before the day's work. A tech can turn this off in This laptop. A version found later still waits for Update now or for the app to close, never interrupting a show.
+- CI's update test now checks the real thing: the app finds the new version as it starts, installs it and comes back by itself.
+
+**The server updates itself from GitHub**
+- The server checks the newest GitHub release every half hour. **Settings → Updates** chooses **Install by itself** (the default), **Tell me only** (with an **Install now** button) or **Off**, and shows the newest release, what's new and how the last update went.
+- It never installs while a show is on, meaning a timer that is running or paused in any room.
+- Installing is done on the host by `update.sh --auto`, run every 10 minutes by a systemd timer that `install.sh` sets up (`sudo ./install.sh --updater` for an existing install). It is the same safe update: backup, health check and roll back. A version that failed isn't retried by itself.
+- After updating, the server fetches the same release's Windows app and publishes it, so laptops keep updating from the server without internet. A laptop only goes to GitHub itself when the server has no app.
+- A private repository needs a read-only GitHub token in Settings → Updates. It stays on the server.
+
+## 1.0.1
+
+**From the first show-day test**
+- The overlay timer fills its box. The time of day, the cue title and the second line sit small in the corners; across a bar, the title and second line are on the left and the clock on the right.
+- A new screen view, **Speaker preview**: the studio clock on the left; every help call on the site (this room's first) and the crew's important and urgent messages on the right. No stage timer. Pick it like any view, or open `/timer/<room>?view=preview`. Backstage is unchanged.
+- A new chat message stands out in the workspace: the Chat window glows, the message lights up for a few seconds, and while it's unread the Chat tab and taskbar button turn the accent colour and pulse.
+
+**Fixes**
+- The Help button sends one call per press. It waits for the server before it can be pressed again, a held Enter key doesn't repeat it, and the server treats the same call from the same person within 30 seconds as the one already sent.
 
 ## 1.0.0
 

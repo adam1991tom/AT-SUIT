@@ -192,7 +192,7 @@ Overlay laptops are numbered in Laptops & screens → Overlay laptops (`targets/
 | Screen 12 to the imported BDNG view | `PUT /api/fleet/nodes/12/screen` | `{"room_id": 3, "view": "view:bdng"}` |
 | Identify screen 12 | `POST /api/fleet/nodes/12/command` | `{"kind": "identify"}` |
 
-Views: `stage`, `minimal`, `clock`, `backstage`, `hcc` (shown as "Standard"), `overlay`, `view:<slug>` (imported, e.g. `view:bdng`),
+Views: `stage`, `minimal`, `clock`, `backstage`, `preview` (speaker preview), `hcc` (shown as "Standard"), `overlay`, `view:<slug>` (imported, e.g. `view:bdng`),
 `captions` (audience screen), `captions:overlay`, `captions:bar` (subtitle bar), `screentest:<pattern>` for a display test pattern (`colorbars`, `grayramp`,
 `rgbramp`, `checker`, `crosshatch`, `sharpness`, `motion`, `overscan`, `ledmap`, `black`,
 `white`, `red`, `green`, `blue`, `gray`), `built:<name>` for views built in Timers → Views, `view:<name>`

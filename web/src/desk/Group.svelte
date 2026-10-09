@@ -29,14 +29,14 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<section class="dk-win" aria-label={desk.panes[active]?.title} class:float={!!float} class:max class:focus={desk.focus === g.id}
+<section class="dk-win" aria-label={desk.panes[active]?.title} class:float={!!float} class:max class:focus={desk.focus === g.id} class:dk-flash={tabs.some((id) => desk.panes[id]?.flash)}
   data-gid={g.id} style={style} onpointerdown={() => focus(g.id)}>
   <!-- Dragging by the title bar is pointer-only, as on Windows; the taskbar and buttons work from the keyboard. -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <header class="dk-head" onpointerdown={headDown} ondblclick={(e) => !e.target.closest(".dk-btns") && set(T.setMax(desk.layout, g.id))}>
     <div class="dk-tabs" role="tablist">
       {#each tabs as id (id)}
-        <button type="button" role="tab" class="dk-tab" class:on={id === active} aria-selected={id === active}
+        <button type="button" role="tab" class="dk-tab" class:on={id === active} class:dk-new={!!desk.panes[id].badge} aria-selected={id === active}
           onpointerdown={(e) => { e.stopPropagation(); tabDown(e, id); }}>
           {desk.panes[id].title}{#if desk.panes[id].badge}<span class="unread">{desk.panes[id].badge}</span>{/if}
         </button>

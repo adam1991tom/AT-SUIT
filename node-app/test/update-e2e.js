@@ -99,19 +99,19 @@ const exeIn = (dir, re) => fs.readdirSync(dir).find((f) => re.test(f));
       const n = nodes.find((x) => String(x.name).toLowerCase() === "update-test");
       return n ? n.version || "enrolled" : null;
     };
-    const env = { ...process.env, ATSUIT_NODE_UPDATE_CHECK_S: "5", ATSUIT_NODE_QUIT_TO_UPDATE: "1" };
+    // As a tech would: start A and leave it. It checks the server as it starts, finds B, downloads
+    // it and (update on launch is on by default) installs it and starts B by itself.
+    const env = { ...process.env, ATSUIT_NODE_UPDATE_CHECK_S: "5" };
     app = spawn(exe, [], { env, detached: true, stdio: "ignore" });
-    // A may download B and quit before its page first reports in, so enrolment is enough here.
+    // A may download B and restart before its page first reports in, so enrolment is enough here.
     await until("A to enrol", async () => !!(await nodeVersion()), 120);
     log("A enrolled, reporting", await nodeVersion());
 
-    // A finds B, downloads it, quits and installs it.
     await until("B to be installed", async () => installed()?.version === B, 300);
     log("updated to", B);
-
-    app = spawn(exe, [], { env: { ...process.env, ATSUIT_NODE_NO_UPDATES: "1" }, detached: true, stdio: "ignore" });
-    await until("B to report in", async () => (await nodeVersion()) === `app-${B}`, 120);
-    log("PASS: the app updated itself from", A, "to", B, "and reports", B);
+    // Nobody starts it again: the update restarts the app.
+    await until("B to start by itself and report in", async () => (await nodeVersion()) === `app-${B}`, 180);
+    log("PASS: the app updated itself on launch from", A, "to", B, ", restarted and reports", B);
   } finally {
     try { execFileSync("taskkill", ["/IM", "AT-SUIT Node.exe", "/F", "/T"], { stdio: "ignore" }); } catch (_) {}
     server.kill();

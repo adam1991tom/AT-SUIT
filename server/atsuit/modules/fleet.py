@@ -284,7 +284,12 @@ def app_release() -> dict:
 
 @router.get("/api/nodes/app")
 def app_info():
-    return app_release()
+    """The published app, and where laptops look on GitHub when this server has none (updates on)."""
+    from .. import updates
+
+    with db.ro() as c:
+        cf = updates.conf(c)
+    return {**app_release(), "github": cf["repo"] if cf["mode"] != "off" else None}
 
 
 @router.get("/api/nodes/app/{filename}")
@@ -306,7 +311,7 @@ async def upload_app(files: list[UploadFile], p: Principal = Depends(require_adm
     given = [os.path.basename(f.filename or "") for f in files]
     if "latest.yml" not in given or not any(n.lower().endswith(".exe") for n in given):
         raise HTTPException(400, "Upload the Setup .exe and latest.yml together (and the .blockmap if there is one), all from the same release")
-    names = []
+    parts = {}
     for file in files:
         name = os.path.basename(file.filename or "")
         if not APP_FILE.match(name):
@@ -315,15 +320,22 @@ async def upload_app(files: list[UploadFile], p: Principal = Depends(require_adm
         with tmp.open("wb") as out:
             while chunk := await file.read(1024 * 1024):
                 out.write(chunk)
-        tmp.replace(app_dir() / name)
-        names.append(name)
+        parts[name] = tmp
+    return publish_app_files(parts, p.name)
+
+
+def publish_app_files(parts: dict, actor: str) -> dict:
+    """Put downloaded release files (name → temporary path) in place, latest.yml last so a laptop
+    never sees it before its installer, and drop the previous release's files."""
+    for name in sorted(parts, key=lambda n: n == "latest.yml"):
+        parts[name].replace(app_dir() / name)
     rel = app_release()
     keep = {"latest.yml", rel.get("file"), f"{rel.get('file')}.blockmap"}
     for old in app_dir().iterdir():
         if old.is_file() and old.name not in keep and not old.name.startswith("."):
             old.unlink()
     with db.tx() as c:
-        db.audit(c, p.name, "fleet.app_release", rel.get("version") or ",".join(names))
+        db.audit(c, actor, "fleet.app_release", rel.get("version") or ",".join(parts))
     return rel
 
 

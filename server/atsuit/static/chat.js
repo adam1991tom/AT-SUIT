@@ -33,6 +33,9 @@ const Chat = (() => {
   function mount(el, opts) {
     const me = opts.me;
     let channels = [], current = null, unread = {}, people = [];
+    // Messages for the channel being opened that arrive while its history is still loading;
+    // they're played back once it's drawn, so a message sent at that moment isn't lost.
+    let opening = null, early = [];
     el.innerHTML = `
       <div class="${opts.compact ? "" : "chat"}" style="${opts.compact ? "display:flex;flex-direction:column;height:100%;gap:.5rem" : ""}">
         <div class="chans ${opts.compact ? "tabs" : "panel"}"></div>
@@ -136,11 +139,18 @@ const Chat = (() => {
       renderChans();
       titleEl.textContent = chanLabel(current);
       delChat.classList.toggle("hidden", !(current.kind === "dm" && me.role === "admin"));
-      const msgs = await api(`/api/comms/channels/${current.id}/messages`);
+      const cid = current.id;
+      opening = cid; early = [];
+      let msgs;
+      try { msgs = await api(`/api/comms/channels/${cid}/messages`); }
+      finally { if (opening === cid) opening = null; }
+      if (current?.id !== cid) return; // another channel was opened meanwhile
       listEl.innerHTML = msgs.map(msgHtml).join("") || '<p class="muted">No messages yet.</p>';
       wireDeletes(listEl);
       listEl.scrollTop = listEl.scrollHeight;
-      if (msgs.length) post(`/api/comms/channels/${current.id}/read`, { up_to: msgs[msgs.length - 1].id }).catch(() => {});
+      if (msgs.length) post(`/api/comms/channels/${cid}/read`, { up_to: msgs[msgs.length - 1].id }).catch(() => {});
+      const late = early; early = [];
+      late.forEach(onEvent);
     }
 
     async function pickDm() {
@@ -185,6 +195,7 @@ const Chat = (() => {
       if (!evt.type || !evt.type.startsWith("message.")) return;
       const m = evt.data, cid = m.channel_id;
       if (!channels.find((c) => c.id === cid)) { load(current?.id); return; }
+      if (opening === cid) { early.push(evt); return; }
       if (current && cid === current.id) {
         const existing = listEl.querySelector(`[data-mid="${m.id}"]`);
         if (evt.type === "message.deleted") {
@@ -193,6 +204,8 @@ const Chat = (() => {
         else {
           listEl.querySelector("p.muted")?.remove();
           listEl.insertAdjacentHTML("beforeend", msgHtml(m));
+          // someone else's new message lights up for a few seconds so it catches the eye
+          if (evt.type === "message.new" && !(me.kind === "account" ? m.sender_id === me.id : !m.sender_id && m.sender_name === me.name)) listEl.lastElementChild.classList.add("fresh");
           listEl.scrollTop = listEl.scrollHeight;
           post(`/api/comms/channels/${cid}/read`, { up_to: m.id }).catch(() => {});
         }

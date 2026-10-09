@@ -25,7 +25,7 @@ kiosks, and AT-LiveCaption's speech engine.
 One command on a fresh Linux server (installs Docker if needed):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/main/get.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/HEAD/get.sh | sudo bash
 ```
 
 Or from a clone:
@@ -53,7 +53,7 @@ backups and updates, and [docs/ADMIN.md](docs/ADMIN.md) for day-to-day setup.
 |---|---|---|
 | `/` | admins, techs | console: dashboard, chat, help, timer preview and screens, presenters, captions, nodes, admin |
 | `/node` | techs on their laptop | the tech workspace |
-| `/timer/<room>` | stage screens | full-screen countdown, no sign-in (`?view=minimal`, `clock`, `backstage`, `hcc` (Standard), `overlay`, `built:<name>`; imported Ontime views such as BDNG at `/room/<room>/external/<name>/`) |
+| `/timer/<room>` | stage screens | full-screen countdown, no sign-in (`?view=minimal`, `clock`, `backstage`, `preview` (speaker preview), `hcc` (Standard), `overlay`, `built:<name>`; imported Ontime views such as BDNG at `/room/<room>/external/<name>/`) |
 | `/screentest` | anyone | display test patterns (colour bars, gradients, checkerboard, geometry, sharpness, motion, overscan, LED tile map) for any screen; no sign-in. Screens can be sent to a pattern from the workspace or Timers → Screens |
 | `/screen` | Linux screens | display-only screen: shows the room and view picked on it or routed from the console |
 | `/room/<room>/external/<view>/` | screens, OBS | custom Ontime-style views uploaded in Timers → Views |
@@ -78,9 +78,10 @@ docs/DESIGN.md        architecture, module map, migration and build order
 
 ## Releases
 
-`main` is always releasable and publishes `ghcr.io/adam1991tom/at-suit:edge`.
-To release, bump `VERSION`, add a section to [CHANGELOG.md](CHANGELOG.md),
-merge, and push a tag `vX.Y.Z`. CI then publishes `:X.Y.Z` and `:latest` and
+`ATSUIT` (the default branch) is always releasable and publishes
+`ghcr.io/adam1991tom/at-suit:edge`. To release, bump `VERSION`, add a section
+to [CHANGELOG.md](CHANGELOG.md), merge, then push a tag `vX.Y.Z` or publish a
+release `vX.Y.Z` from the `ATSUIT` branch on GitHub. CI then publishes `:X.Y.Z` and `:latest` and
 creates the GitHub release with the Windows app installer and the node agent
 attached. See
 [CONTRIBUTING.md](CONTRIBUTING.md).

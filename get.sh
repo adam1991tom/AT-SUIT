@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-step install of AT-SUIT on a fresh Linux server (Ubuntu, Debian and similar):
-#   curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/main/get.sh | sudo bash
+#   curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/HEAD/get.sh | sudo bash
 #   curl -fsSL .../get.sh | sudo bash -s -- --port 8180 --tls      (install.sh options pass through)
 # It installs Docker if it's missing, puts AT-SUIT in /opt/at-suit (or $ATSUIT_DIR)
 # and runs install.sh. Run it again any time: it updates the files and keeps the data.
@@ -21,9 +21,9 @@ if ! command -v docker >/dev/null || ! docker compose version >/dev/null 2>&1; t
 fi
 
 if [ -z "$REF" ]; then
-  # The newest release; main if there isn't one yet.
+  # The newest release; the default branch (HEAD) if there isn't one yet.
   REF="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
-  REF="${REF:-main}"
+  REF="${REF:-HEAD}"
 fi
 
 say "Getting AT-SUIT ${REF}…"

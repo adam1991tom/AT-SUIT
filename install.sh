@@ -5,8 +5,44 @@
 #   ./install.sh --tls           also serve https (needed for browser microphones)
 #   ./install.sh --no-asr        smaller image without captions
 #   ./install.sh --pull [TAG]    use the published image from GHCR instead of building (default tag: latest)
+#   ./install.sh --updater       only set up the automatic updater (a systemd timer, needs root)
 set -euo pipefail
 cd "$(dirname "$0")"
+
+# The automatic updater: every 10 minutes systemd runs ./update.sh --auto, which installs a new
+# release only when Settings → Updates says so and no show is on.
+updater() {
+  if [ "$(id -u)" != 0 ] || ! command -v systemctl >/dev/null || [ ! -d /run/systemd/system ]; then
+    echo "  For automatic updates, run sudo ./install.sh --updater once (it adds a systemd timer)."; return 0
+  fi
+  cat > /etc/systemd/system/atsuit-update.service <<UNIT
+[Unit]
+Description=AT-SUIT automatic update (Settings → Updates decides)
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=$PWD
+ExecStart=/usr/bin/env bash $PWD/update.sh --auto
+UNIT
+  cat > /etc/systemd/system/atsuit-update.timer <<UNIT
+[Unit]
+Description=Ask AT-SUIT every 10 minutes whether to install an update
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable --now atsuit-update.timer >/dev/null
+  echo "  Automatic updates: set up (Settings → Updates decides when)."
+}
+if [ "${1:-}" = "--updater" ]; then updater; exit 0; fi
 
 PORT="" TLS=0 ASR="" HOST="" PULL=""
 while [ $# -gt 0 ]; do
@@ -61,3 +97,4 @@ echo "AT-SUIT is running."
 echo "  Open http://${IP:-SERVER-IP}:${ATSUIT_PORT}/ to finish setup in the browser."
 [ "$TLS" = 1 ] && echo "  https: https://${HOST:-SERVER-IP}:${ATSUIT_TLS_PORT}/ (install the root certificate on laptops; see docs/INSTALL.md)"
 echo "  Tech laptops: open /node on the same address."
+updater

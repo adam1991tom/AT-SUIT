@@ -20,6 +20,7 @@ router = APIRouter(dependencies=[Depends(require_module("comms"))])
 
 PRIORITIES = ("normal", "important", "urgent")
 HELP_STATUSES = ("open", "acknowledged", "resolved")
+HELP_REPEAT_S = 30  # the same help call again within this many seconds is not sent twice
 
 
 def channel_topic(ch) -> str:
@@ -181,6 +182,8 @@ async def post_message(channel_id: int, body: MessageIn, p: Principal = Depends(
         )
         m = message_out(c, c.execute("SELECT * FROM messages WHERE id=?", (cur.lastrowid,)).fetchone())
     await publish_channel(ch, "message.new", m)
+    if m["priority"] in NOTICE_PRIORITIES and ch["kind"] != "dm":
+        await publish_preview(ch["site_id"])
     return m
 
 
@@ -197,6 +200,8 @@ async def delete_message(message_id: int, p: Principal = Depends(require_tech)):
         remove_files(c, "m.id=?", (message_id,))
         c.execute("DELETE FROM message_reactions WHERE message_id=?", (message_id,))
     await publish_channel(ch, "message.deleted", {"id": message_id, "channel_id": ch["id"]})
+    if m["priority"] in NOTICE_PRIORITIES and ch["kind"] != "dm":
+        await publish_preview(ch["site_id"])
     return {"ok": True}
 
 
@@ -329,6 +334,16 @@ async def request_help(body: HelpIn, p: Principal = Depends(require_tech)):
         raise HTTPException(400, "Unknown priority")
     with db.tx() as c:
         r = room_or_404(c, body.room_id, p)
+        # The same call again within a few seconds (a double-click, a held Enter key, a retry on a slow
+        # network) is the call already made, not a new one: nobody gets four alarms for one problem.
+        since = datetime.fromtimestamp(time.time() - HELP_REPEAT_S, timezone.utc).isoformat(timespec="seconds")
+        same = c.execute(
+            "SELECT * FROM help_requests WHERE room_id=? AND requested_by=? AND category=? AND description=? "
+            "AND status='open' AND created_at>=? ORDER BY id DESC LIMIT 1",
+            (r["id"], p.name, body.category, body.description, since),
+        ).fetchone()
+        if same:
+            return dict(same)
         cur = c.execute(
             "INSERT INTO help_requests(site_id,room_id,room_name,requested_by,category,description,priority,created_at) "
             "VALUES(?,?,?,?,?,?,?,?)",
@@ -361,7 +376,50 @@ async def publish_board(room_id: int | None) -> None:
         return
     with db.ro() as c:
         board = help_board(c, room_id)
+        site = c.execute("SELECT site_id FROM rooms WHERE id=?", (room_id,)).fetchone()
     await hub.publish(f"timer:{room_id}", "help", board)
+    if site:
+        await publish_preview(site["site_id"])
+
+
+# The speaker preview screen: every help call on the site that isn't resolved (its own room's first), and the
+# crew's important and urgent messages to the whole site or that room from the last few hours.
+NOTICE_PRIORITIES = ("important", "urgent")
+NOTICE_HOURS = 8
+PREVIEW_CALLS = 12
+PREVIEW_NOTICES = 8
+
+
+def preview_board(c, room_id: int) -> dict:
+    room = c.execute("SELECT id, site_id FROM rooms WHERE id=?", (room_id,)).fetchone()
+    if not room:
+        raise HTTPException(404, "Room not found")
+    calls = c.execute(
+        "SELECT * FROM help_requests WHERE site_id IS ? AND status!='resolved' "
+        "ORDER BY (status='open') DESC, id DESC LIMIT ?",
+        (room["site_id"], PREVIEW_CALLS),
+    ).fetchall()
+    since = datetime.fromtimestamp(time.time() - NOTICE_HOURS * 3600, timezone.utc).isoformat(timespec="seconds")
+    notes = c.execute(
+        "SELECT m.id, m.sender_name, m.body_enc, m.priority, m.created_at, ch.kind, ch.name FROM messages m "
+        "JOIN channels ch ON ch.id=m.channel_id WHERE ch.site_id IS ? AND ch.kind IN ('site', 'room') "
+        "AND m.priority IN (?, ?) AND m.deleted_at IS NULL AND m.created_at>=? ORDER BY m.id DESC LIMIT ?",
+        (room["site_id"], *NOTICE_PRIORITIES, since, PREVIEW_NOTICES),
+    ).fetchall()
+    return {
+        "room_id": room_id,
+        "calls": [{k: h[k] for k in BOARD_FIELDS} for h in calls],
+        "notices": [{"id": n["id"], "sender_name": n["sender_name"], "body": decrypt(n["body_enc"]), "priority": n["priority"],
+                     "created_at": n["created_at"], "to": "All crew" if n["kind"] == "site" else n["name"]} for n in notes],
+    }
+
+
+async def publish_preview(site_id: int | None) -> None:
+    """Tell every room's screens on the site that the preview board changed; a preview screen reads it again."""
+    with db.ro() as c:
+        rooms = [r["id"] for r in c.execute("SELECT id FROM rooms WHERE site_id IS ?", (site_id,))]
+    for rid in rooms:
+        await hub.publish(f"timer:{rid}", "preview", {"room_id": rid})
 
 
 @router.get("/api/comms/help/board/{room_id}")
@@ -369,6 +427,13 @@ def get_help_board(room_id: int):
     """Public, like the timer: the backstage screen shows the room's help calls without signing in."""
     with db.ro() as c:
         return help_board(c, room_id)
+
+
+@router.get("/api/comms/help/preview/{room_id}")
+def get_preview_board(room_id: int):
+    """Public, like the backstage board: the speaker preview screen shows it without signing in."""
+    with db.ro() as c:
+        return preview_board(c, room_id)
 
 
 @router.get("/api/comms/help")
