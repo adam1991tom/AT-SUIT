@@ -7,6 +7,9 @@ the GitHub release.
 
 ## 1.0.3
 
+**Chat**
+- A message that arrives while a chat is opening no longer goes missing until the next reload.
+
 **Releases and updates**
 - The default branch is now `ATSUIT`. Checks, builds and the install script follow it; with no release yet, `get.sh` and `update.sh` take the default branch whatever its name.
 - A release published on GitHub's Releases page builds and attaches the Windows app and release notes by itself.
