@@ -8,6 +8,6 @@ labels: bug
 
 **What you expected**
 
-**Where**: page or screen (e.g. `/node`, Admin → Import), room, laptop name
+**Where**: page or screen (e.g. `/node`, Backups & import), room, laptop name
 
-**Version**: shown in Admin → Audit & backup → Diagnostics
+**Version**: shown in Settings → About

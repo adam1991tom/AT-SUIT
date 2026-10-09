@@ -60,9 +60,16 @@ th { color: var(--muted); font-weight: 500; font-size: .85rem; }
 .side a:hover { background: var(--panel2); }
 .side a.active { background: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: inset 3px 0 0 var(--accent); color: var(--strong); }
 .side .spacer { flex: 1; }
+.side .navh { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: .9rem .7rem .25rem; }
+.side .brand + .navh { padding-top: 0; }
+/* a section's own tabs: an underlined strip, so tabs inside the page still read as buttons */
+.tabs.sect { gap: 0; border-bottom: 1px solid var(--line); margin-bottom: 1rem; flex-wrap: nowrap; overflow-x: auto; }
+.tabs.sect a.btn { background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; margin-bottom: -1px; color: var(--muted); white-space: nowrap; }
+.tabs.sect a.btn:hover { color: var(--strong); }
+.tabs.sect a.btn.on { border-bottom-color: var(--accent); color: var(--strong); font-weight: 600; }
 .main { overflow-y: auto; padding: 1.4rem; }
 .banner { background: var(--banner); border: 1px solid var(--warn); color: var(--warn-ink); padding: .5rem .8rem; border-radius: 8px; margin-bottom: 1rem; }
-@media (max-width: 760px) { .shell { grid-template-columns: 1fr; } .side { flex-direction: row; overflow-x: auto; padding: .4rem; } .side .brand, .side .spacer { display: none; } }
+@media (max-width: 760px) { .shell { grid-template-columns: 1fr; } .side { flex-direction: row; overflow-x: auto; padding: .4rem; } .side .brand, .side .spacer, .side .navh { display: none; } .side a { white-space: nowrap; } }
 
 /* links */
 .tile { display: flex; gap: .6rem; align-items: center; padding: .65rem .8rem; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; color: var(--text); text-decoration: none; }

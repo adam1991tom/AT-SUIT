@@ -3,7 +3,7 @@
 Spreadsheets and CSV files with recognisable column headings (Room, Session,
 Start, End, Speaker...) are read directly. Anything else (PDF, Word, a
 spreadsheet without headings) goes to a local AI model through Ollama, if one
-is set up in Admin → Presenter; nothing leaves the venue network.
+is set up in Presenters; nothing leaves the venue network.
 """
 from __future__ import annotations
 
@@ -208,7 +208,7 @@ JSON array:"""
 def with_ai(text: str, url: str, model: str, event: str, starts: str, rooms: list[str]) -> list[dict]:
     if not url:
         raise ScheduleError("This file needs the schedule AI, which isn't set up. Use a spreadsheet or CSV with column "
-                            "headings (Room, Session, Start, End, Speaker), or set up Ollama in Admin → Presenter.")
+                            "headings (Room, Session, Start, End, Speaker), or set up Ollama in Presenters.")
     prompt = PROMPT.format(event=event or "this event", starts=starts or "unknown", rooms=", ".join(rooms) or "none yet",
                            text=text[:20000])
     try:

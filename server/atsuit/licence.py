@@ -118,7 +118,7 @@ def parse(key: str) -> Licence:
 
 
 def details(key: str) -> dict:
-    """Everything about an installed key for Admin → Licence, including what
+    """Everything about an installed key for Licence, including what
     an expired licence said. Admins only: it holds the raw key."""
     key = (key or "").strip()
     raw, source = _vendor_raw()

@@ -4,19 +4,31 @@
 
 Everything here is done in the browser. Nothing needs a file edited.
 
+The console's side bar has three groups:
+
+- **Live**: Dashboard, Chat, Help requests, Timers, Presenters, Captions.
+- **Venue**: Rooms, Laptops & screens, People, Links. Managers and admins.
+- **Site**: Settings (General, Look, Chat, API keys, About), Licence, Servers,
+  Backups and the Audit log. Admins only, except the Audit log, which
+  managers can read too.
+
+A manager sees only the Live and Venue pages and the Audit log; a page they
+can't use is not in their side bar. Old bookmarks to `#/admin/...` still open
+the right page.
+
 1. **Setup wizard** (first visit): organisation, venue, rooms, first admin,
    licence key (optional).
-2. **Admin → People**: add an account for each tech. Techs can chat, run
+2. **People**: add an account for each tech. Techs can chat, run
    timers, send captions and control nodes. Viewers can only read. An
    account can be limited to one site.
-3. **Admin → Sites & rooms**: rename, reorder or add rooms. Add a second site
+3. **Rooms**: rename, reorder or add rooms. Add a second site
    (venue) if your licence allows it; each site has its own rooms, chat and
    enrolment code.
-4. **Admin → Links**: the dashboard. Room links (Companion buttons, Ontime
+4. **Links**: the dashboard. Room links (Companion buttons, Ontime
    views, kiosk pages) show up in that room's tech workspace. Admin-board
-   links only show to admins. Admin → Import, backup & audit brings in the
+   links only show to admins. The Backups page imports the
    old Homarr board and Device Suite `rooms.txt`.
-5. **Admin → Node setup**: the enrolment code (with Copy and New code) at
+5. **Laptops & screens → Add laptops**: the enrolment code (with Copy and New code) at
    the top, then one tab per kind of machine, each with its download:
    *Windows tech app* (installer, install steps, `node.json` for IT, publish
    a new version), *Linux screens* (the one-line install command,
@@ -29,9 +41,9 @@ Everything here is done in the browser. Nothing needs a file edited.
    room and chooses **Main PC** or **Backup PC**; no password, the laptop's
    enrolment signs them in, and chat and help calls show their name. It
    resets every morning at 05:00 (site time), or when they press Sign out.
-   Nodes in the console shows who is on each laptop and whether it's main
+   **Laptops & screens** shows who is on each laptop and whether it's main
    or backup. Kiosks can still use `http://SERVER/node` in a browser; give
-   them a room in Nodes and they keep it.
+   them a room in Laptops & screens and they keep it.
    **Main PC** (the one on the projector): no pop-ups and no notifications
    of any kind. **Backup PC**: chat for the tech's room, crew-wide messages,
    urgent messages and help calls appear bottom-right, on top of everything
@@ -54,26 +66,27 @@ Everything here is done in the browser. Nothing needs a file edited.
    file). It shows at `/external/<view>/?room=<room id>` with the room's live
    timer, and appears in every screen's view list.
 8. **Screens** (Linux laptops and all-in-ones): see *Remote screens* below.
-9. **Overlays**: in Admin → Overlay laptops, add each laptop running AT
+9. **Overlays**: in Laptops & screens → Overlay laptops, add each laptop running AT
    LiveOverlay with its room, address (`http://IP:8765`) and the API token
    from its tray menu → Remote Control. Techs then show, hide and switch
    that room's overlays from their workspace.
-10. **Admin → General**: product name, organisation, colour, which modules
+10. **Settings → General**: product name, organisation, colour, which modules
    are on, chat retention, and whether old kiosk agents are accepted.
-11. **Admin → Info**: everything about this install in one place: version,
+11. **Settings → About**: everything about this install in one place: version,
    build number and commit, this server (name, addresses, uptime, time
    zone), nodes online by kind and main/backup PCs, apps published, rooms,
    accounts, modules, captions engine, storage and disk space, and the last
    backup. **Download diagnostics** saves it as JSON for a support ticket,
    or **Copy** it; neither includes passwords, keys or tokens.
-12. **Admin → Licence** (admins only): who it's licensed to, edition,
+12. **Licence** (admins only): who it's licensed to, edition,
    serial, issue and expiry dates with days left, modules, sites and nodes
    used against the limits, whether the signature checks out, the vendor
    key and the key itself to copy. Techs never see licence details.
-13. **Admin → Import, backup & audit**: download a backup (database,
-   uploads and encryption key), import from the old tools, and the audit
-   log of who changed what.
-14. **Admin → API keys**: a key for Companion.
+13. **Backups**: download a backup (database, uploads and encryption key)
+   and import from the old tools.
+14. **Settings → API keys**: a key for Companion.
+15. **Servers**: add helper servers to share the work (see INSTALL.md).
+16. **Audit log**: who changed what, with a filter. Managers can read it.
 
 ## The tech workspace
 
@@ -155,7 +168,7 @@ with Identify, Restart (the browser), Update and Reboot buttons.
 
 **AT-SUIT Node (Windows app).** Each release on GitHub has
 `AT-SUIT-Node-Setup-X.Y.Z.exe`, its `.blockmap` and `latest.yml`. Upload all
-three in Admin → Node setup → Windows app release. Laptops download it in
+three in Laptops & screens → Add laptops → Windows app release. Laptops download it in
 the background and install it the next time the app closes, never during a
 show. For a silent roll-out, put
 `{"server": "http://SERVER:PORT", "enrol_code": "CODE"}` in
@@ -166,7 +179,7 @@ code-signed yet, so Windows SmartScreen asks once ("More info → Run anyway").
 **Node agent (Python).**
 
 Laptops running the node agent update themselves: when the server has a newer
-agent (a new AT-SUIT release, or one uploaded in Admin → Node setup), each
+agent (a new AT-SUIT release, or one uploaded in Laptops & screens → Add laptops), each
 agent downloads it on its next heartbeat, checks it and restarts. Start an
 agent with `--no-self-update` to pin it.
 
@@ -200,7 +213,7 @@ buttons (timer presets 3 to 60 minutes, +/−1, blink, messages, clock,
 overlays, captions) and every endpoint a key can call:
 **[COMPANION.md](COMPANION.md)**.
 
-Every request is a POST with the header `X-API-Key: <key>` (Admin → API
+Every request is a POST with the header `X-API-Key: <key>` (Settings → API
 keys). Room 3 here; the room number is in its stage screen address
 (`/timer/3`).
 
@@ -220,6 +233,6 @@ The vendor key pair already exists: its public half is in
 never in the repo; keep it offline and backed up, because losing it means no
 new licences can be issued for existing installs. Pass it with `--key`.
 `tools/licence.py issue --key <private key> --licensee "Venue Ltd" --nodes 40 --sites 2 --days 365`
-(use 0 for unlimited) prints a key the customer pastes into Admin → Licence. Licences are checked
+(use 0 for unlimited) prints a key the customer pastes into Licence. Licences are checked
 offline. Without one, AT-SUIT runs in evaluation mode: every module, one site,
 five nodes.

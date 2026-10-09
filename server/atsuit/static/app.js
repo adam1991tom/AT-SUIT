@@ -1,4 +1,5 @@
-// Console: dashboard, chat, help, timers, captions, nodes, admin.
+// Console: the live pages (dashboard, chat, help, timers, captions), the venue (rooms, laptops,
+// people, links) and the site (settings, licence, servers, backups, audit log).
 (async () => {
   const { esc, api, post, put, del, upload, guard, toast, when } = AT;
   const main = document.getElementById("main");
@@ -13,6 +14,32 @@
   if (!isManager) { location.replace("/node"); return; }
   // Admins open on the room workspace too, with the timer first. A #/page link (or the Console button there) opens the console.
   if (!location.hash && boot.rooms.length) { location.replace("/node"); return; }
+  // The console's sections. A section with more than one tab shows them under its heading.
+  // role: "manager" (managers and admins) or "admin" (admins only); mod: the module it needs.
+  const SECTIONS = {
+    rooms: { title: "Rooms", role: "manager", tabs: { rooms: ["Rooms", admSites] } },
+    laptops: { title: "Laptops & screens", mod: "fleet", tabs: { list: ["All laptops & screens", fleet], setup: ["Add laptops", admFleet, "admin"], overlays: ["Overlay laptops", admOverlays, "admin"] } },
+    people: { title: "People", role: "manager", tabs: { people: ["People", admAccounts] } },
+    links: { title: "Links", role: "manager", mod: "dashboard", tabs: { links: ["Links", admLinks] } },
+    settings: { title: "Settings", role: "admin", tabs: { general: ["General", admGeneral], appearance: ["Look", admAppearance], chat: ["Chat", admChat], keys: ["API keys", admKeys], info: ["About", admInfo] } },
+    licence: { title: "Licence", role: "admin", tabs: { licence: ["Licence", admLicence] } },
+    servers: { title: "Servers", role: "admin", tabs: { servers: ["Servers", admServers] } },
+    backups: { title: "Backups & import", role: "admin", tabs: { backups: ["Backups", admData] } },
+    audit: { title: "Audit log", role: "manager", tabs: { audit: ["Audit log", admAudit] } },
+  };
+  // Links into the old Admin page (#/admin/<tab>) and #/fleet still land in the right place.
+  const OLD = { general: "settings/general", appearance: "settings/appearance", chat: "settings/chat", keys: "settings/keys", info: "settings/info",
+    servers: "servers", licence: "licence", sites: "rooms", accounts: "people", links: "links", fleet: "laptops/setup", overlays: "laptops/overlays",
+    data: "backups", import: "backups", audit: "audit" };
+  const MODNAMES = { comms: "Chat & help requests", timers: "Timers", fleet: "Laptops & screens", captions: "Captions", overlays: "Overlays", dashboard: "Dashboard & links", presenter: "Presenters" };
+  const MODS = { dashboard: "dashboard", chat: "comms", help: "comms", timers: "timers", presenter: "presenter", captions: "captions" };
+  const allowed = (role) => !role || (role === "admin" ? isAdminRole : isManager);
+  function pageOn(name) {
+    const s = SECTIONS[name];
+    if (s) return allowed(s.role) && (!s.mod || boot.modules[s.mod] !== false);
+    return !!MODS[name] && boot.modules[MODS[name]] !== false;
+  }
+
   start();
 
   function showLogin() {
@@ -41,8 +68,13 @@
     document.getElementById("shell").classList.remove("hidden");
     document.getElementById("meName").textContent = boot.me.name;
     if (boot.branding.logo_url) { const l = document.getElementById("logo"); l.src = boot.branding.logo_url; l.classList.remove("hidden"); }
-    document.querySelectorAll("#nav [data-mod]").forEach((a) => a.classList.toggle("hidden", !boot.modules[a.dataset.mod]));
-    document.querySelectorAll("#nav [data-role=admin]").forEach((a) => a.classList.toggle("hidden", !isManager));
+    // Each side bar link shows when its page is open to this person; a group heading shows when any of its links do.
+    document.querySelectorAll("#nav a[href^='#/']").forEach((a) => a.classList.toggle("hidden", !pageOn(a.getAttribute("href").slice(2))));
+    document.querySelectorAll("#nav .navh").forEach((h) => {
+      let n = h.nextElementSibling, any = false;
+      for (; n && n.tagName === "A"; n = n.nextElementSibling) any ||= !n.classList.contains("hidden");
+      h.classList.toggle("hidden", !any);
+    });
     document.getElementById("logout").onclick = async (e) => { e.preventDefault(); await post("/api/auth/logout"); location.reload(); };
     sock = AT.socket(topics(), onEvent);
     window.addEventListener("hashchange", route);
@@ -74,21 +106,30 @@
     el.parentElement.classList.toggle("help-alarm", !!open);
   }
 
+  function section(name, el, sub) {
+    const s = SECTIONS[name];
+    const tabs = Object.entries(s.tabs).filter(([, t]) => allowed(t[2]));
+    const [key, [, fn]] = tabs.find(([k]) => k === sub) || tabs[0];
+    el.innerHTML = `<h1>${esc(s.title)}</h1>` + (tabs.length > 1 ? `<div class="tabs sect">${tabs.map(([k, [label]]) => `<a class="btn${k === key ? " on" : ""}" href="#/${name}/${k}">${esc(label)}</a>`).join("")}</div>` : "") + '<div id="adm"></div>';
+    return fn(el.querySelector("#adm"));
+  }
+
   function route() {
     const [, name = "dashboard", sub] = location.hash.split("/");
+    if (name === "admin") return location.replace(`#/${OLD[sub] || (isAdminRole ? "settings" : "rooms")}`);
+    if (name === "fleet") return location.replace("#/laptops");
     document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.getAttribute("href") === `#/${name}`));
     chat = null; view = null;
     if (boot.modules.comms) refreshUnread();
-    const banner = boot.me.role !== "admin" || boot.licence.valid ? "" : `<div class="banner">Evaluation mode: ${esc(boot.licence.reason)}. Add a licence in Admin → Licence.</div>`;
+    const banner = boot.me.role !== "admin" || boot.licence.valid ? "" : `<div class="banner">Evaluation mode: ${esc(boot.licence.reason)}. Add a licence in <a href="#/licence">Licence</a>.</div>`;
     main.innerHTML = banner + '<div id="view"></div>';
     const el = document.getElementById("view");
     const presenter = (el, sub) => { view = PresenterPage.mount(el, sub, boot); };
-    const views = { dashboard, chat: chatView, help, timers, presenter, captions, fleet, admin };
-    // A page whose module is turned off opens the first page that is on (Admin at worst), never a blank page.
-    const mod = { dashboard: "dashboard", chat: "comms", help: "comms", timers: "timers", presenter: "presenter", captions: "captions", fleet: "fleet" };
-    const on = (n) => n === "admin" || boot.modules[mod[n]] !== false;
-    const page = views[name] && on(name) ? name : Object.keys(views).find(on);
-    Promise.resolve().then(() => views[page](el, sub)).catch((e) => {
+    const views = { dashboard, chat: chatView, help, timers, presenter, captions };
+    // A page that is turned off or not open to this person opens the first one that is, never a blank page.
+    const pages = [...Object.keys(views), ...Object.keys(SECTIONS)];
+    const page = pages.includes(name) && pageOn(name) ? name : pages.find(pageOn);
+    Promise.resolve().then(() => views[page] ? views[page](el, sub) : section(page, el, sub)).catch((e) => {
       el.innerHTML = `<div class="panel"><h2>This page didn't load</h2><p class="muted">${esc(e.message || e)}</p><button class="primary" onclick="location.reload()">Try again</button></div>`;
     });
   }
@@ -108,13 +149,13 @@
     const live = {};
     const rooms = boot.modules.timers ? boot.rooms : [];
     for (const r of rooms) live[r.id] = await api(`/api/timers/${r.id}`).catch(() => null);
-    const strip = rooms.length ? `<div class="row" style="justify-content:space-between"><h1>Dashboard</h1><span class="row"><a class="btn primary" href="/node">Open the workspace</a>${boot.me.role === "admin" ? '<a class="btn" href="#/admin/links">Edit links</a>' : ""}</span></div>
+    const strip = rooms.length ? `<div class="row" style="justify-content:space-between"><h1>Dashboard</h1><span class="row"><a class="btn primary" href="/node">Open the workspace</a>${boot.me.role === "admin" ? '<a class="btn" href="#/links">Edit links</a>' : ""}</span></div>
       <div class="grid" id="dashRooms" style="margin-top:.6rem">${rooms.map((r) => `<div class="panel" data-room="${r.id}"><div class="row" style="justify-content:space-between"><h2>${esc(r.name)}</h2><span class="small"><a href="/timer/${r.id}" target="_blank">Standard ↗</a></span></div>
         <div class="clock" style="font-size:2.6rem">--:--</div><div class="small now" style="font-weight:600"></div><div class="muted small next"></div></div>`).join("")}</div>` : "";
-    el.innerHTML = (strip || `<div class="row" style="justify-content:space-between"><h1>Dashboard</h1>${boot.me.role === "admin" ? '<a class="btn" href="#/admin/links">Edit links</a>' : ""}</div>`) + (strip ? '<h2 style="margin-top:1.4rem">Links</h2>' : "") +
+    el.innerHTML = (strip || `<div class="row" style="justify-content:space-between"><h1>Dashboard</h1>${boot.me.role === "admin" ? '<a class="btn" href="#/links">Edit links</a>' : ""}</div>`) + (strip ? '<h2 style="margin-top:1.4rem">Links</h2>' : "") +
       (links.length ? Object.entries(groups).map(([g, ls]) => `<h3 style="margin-top:1.2rem">${esc(g)}</h3><div class="tiles">` +
         ls.map((l) => `<a class="tile" href="${esc(l.url)}" target="_blank" rel="noopener"><span class="dot" data-ping="${l.id}"></span><span class="grow">${esc(l.label)}</span></a>`).join("") + "</div>").join("")
-        : '<p class="muted">No links yet. Admins can import the old Homarr board or add links in Admin → Links.</p>');
+        : '<p class="muted">No links yet. Admins can import the old Homarr board or add links in Links.</p>');
     const dash = el.querySelector("#dashRooms");
     if (dash) {
       const tick = setInterval(() => {
@@ -212,7 +253,7 @@
           <td>${n.legacy ? '<span class="muted small">use Set screen in Nodes</span>' : `<select data-view style="width:auto"><option value="">Choose…</option>${viewOpts(n.screen_view)}<option value="__url" ${(n.screen_view || "").startsWith("url:") ? "selected" : ""}>Web page…</option></select>`}</td>
           <td class="small">${status(n)}</td>
           <td class="small">${n.last_seen ? when(new Date(n.last_seen * 1000).toISOString()) : "never"}</td>
-          <td class="row" style="flex-wrap:nowrap"><button class="small" data-ident>Identify</button>${agentVer(n) ? `<button class="small" data-cmd="restart_browser" title="Restart the browser on this screen">Restart</button>${isAdmin ? '<button class="small" data-cmd="update" title="Update the screen agent now">Update</button>' : ""}` : `<button class="small" data-cmd="reload">Reload</button>`}${isAdmin ? '<button class="small" data-cmd="reboot">Reboot</button>' : ""}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No screens yet. Install the screen agent on a Linux laptop or all-in-one (Admin → Node setup).</td></tr>'}</table>`;
+          <td class="row" style="flex-wrap:nowrap"><button class="small" data-ident>Identify</button>${agentVer(n) ? `<button class="small" data-cmd="restart_browser" title="Restart the browser on this screen">Restart</button>${isAdmin ? '<button class="small" data-cmd="update" title="Update the screen agent now">Update</button>' : ""}` : `<button class="small" data-cmd="reload">Reload</button>`}${isAdmin ? '<button class="small" data-cmd="reboot">Reboot</button>' : ""}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No screens yet. Install the screen agent on a Linux laptop or all-in-one (Laptops & screens → Add laptops).</td></tr>'}</table>`;
       box.querySelectorAll("[data-n]").forEach((row) => {
         const id = +row.dataset.n, n = screens.find((x) => x.id === id);
         const save = () => {
@@ -253,7 +294,7 @@
           ${builtins.map((v) => `<label class="row" style="margin:0;gap:.3rem"><input type="checkbox" data-sbar="${esc(v.id)}" style="width:auto" ${looks[v.id]?.options?.status_bar ? "checked" : ""} ${isAdmin ? "" : "disabled"}>${esc(v.name)}</label>`).join("")}</div>
         <p class="small muted">Add <code>?status=0</code> or <code>?status=1</code> to a screen's address to override it there.</p>
         <h3>Standard and BDNG</h3>
-        <table><tr><td><b>Standard</b><div class="small">${links("hcc")}</div></td><td>${logoCell("hcc", "top", hcc.logos.top, "Logo")}<p class="small muted" style="margin:.2rem 0 0">No logo uploaded: the site logo from Admin → General.</p></td></tr>
+        <table><tr><td><b>Standard</b><div class="small">${links("hcc")}</div></td><td>${logoCell("hcc", "top", hcc.logos.top, "Logo")}<p class="small muted" style="margin:.2rem 0 0">No logo uploaded: the site logo from Settings → General.</p></td></tr>
           <tr><td><b>BDNG sponsor clock</b> <span class="pill">imported view</span>
             <div class="small">${bdngView ? boot.rooms.slice(0, 4).map((r) => `<a target="_blank" href="/room/${r.id}/external/bdng/">${esc(r.name)} ↗</a>`).join(" · ") : '<span class="muted">Not imported yet: screens set to BDNG show the Standard view.</span>'}</div>
             <div class="small" style="margin-top:.3rem">${isAdmin ? `<button class="small${bdngView ? "" : " primary"}" data-impbdng>${bdngView ? "Import again" : "Import BDNG view"}</button> ` : ""}<a href="/api/timers-views/samples/bdng.html" download>Download bdng.html</a></div></td>
@@ -379,8 +420,7 @@
     const render = async () => {
       nodes = await api("/api/fleet/nodes");
       const isAdmin = isAdminRole;
-      el.innerHTML = `<div class="row" style="justify-content:space-between"><h1>Nodes</h1>${isAdmin ? '<a class="btn" href="#/admin/fleet">Add nodes</a>' : ""}</div>
-        <div class="panel"><table><tr><th></th><th>Name</th><th>Kind</th><th>Room</th><th>Address</th><th>Version</th><th>Showing</th><th>Last seen</th><th></th></tr>
+      el.innerHTML = `<div class="panel"><table><tr><th></th><th>Name</th><th>Kind</th><th>Room</th><th>Address</th><th>Version</th><th>Showing</th><th>Last seen</th><th></th></tr>
         ${nodes.map((n) => `<tr data-n="${n.id}"><td><span class="dot ${n.online ? "on" : "off"}"></span></td><td><b>${esc(n.name)}</b>${n.legacy ? ' <span class="pill">old agent</span>' : ""}${n.kind === "tech" && n.operator && n.room_id ? `<div class="small muted">${esc(n.operator)}${n.mode ? ` · <span class="pill ${n.mode === "backup" ? "warn" : ""}">${n.mode === "backup" ? "Backup" : "Main"}</span>` : ""}</div>` : ""}</td>
           <td>${isAdmin ? `<select data-kind style="width:auto">${["tech", "kiosk", "caption"].map((k) => `<option ${k === n.kind ? "selected" : ""}>${k}</option>`).join("")}</select>` : esc(n.kind)}</td>
           <td>${isManager ? `<select data-room style="width:auto">${roomOptions(n.room_id)}</select>` : esc(n.room_name || "")}</td>
@@ -410,23 +450,7 @@
     render();
   }
 
-  // -------------------------------------------------------------- admin --
-  async function admin(el, sub = "general") {
-    // A manager sets up rooms, people (techs and viewers), links and reads the audit log; the rest is for admins.
-    if (!isAdminRole) {
-      if (!["sites", "accounts", "links", "audit"].includes(sub)) sub = "sites";
-    } else if (sub === "import" || sub === "audit") sub = "data";
-    const tabs = isAdminRole
-      ? { general: "General", appearance: "Appearance", info: "Info", servers: "Servers", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", chat: "Chat", data: "Import, backup & audit" }
-      : { sites: "Rooms", accounts: "People", links: "Links", audit: "Audit log" };
-    if (boot.modules.dashboard === false) delete tabs.links;
-    if (boot.modules.fleet === false) delete tabs.fleet;
-    if (!tabs[sub] && sub !== "data") sub = Object.keys(tabs)[0];
-    el.innerHTML = `<h1>Admin</h1><div class="tabs">${Object.entries(tabs).map(([k, v]) => `<button class="${k === sub ? "on" : ""}" onclick="location.hash='#/admin/${k}'">${v}</button>`).join("")}</div><div id="adm"></div>`;
-    const a = el.querySelector("#adm");
-    ({ general: admGeneral, info: admInfo, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, chat: admChat, data: admData, audit: admAudit, appearance: admAppearance, servers: admServers }[sub] || admGeneral)(a);
-  }
-
+  // ------------------------------------------------------- the sections --
   const copyText = async (text, what = "Copied") => {
     try { await navigator.clipboard.writeText(text); }
     catch (_) { const t = document.createElement("textarea"); t.value = text; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); }
@@ -444,9 +468,9 @@
       <label>Product name</label><input name="product_name" value="${esc(b.product_name)}">
       <label>Organisation</label><input name="organisation" value="${esc(b.organisation)}">
       <label>Accent colour</label><input name="accent" type="color" value="${esc(b.accent)}" style="height:2.4rem">
-      <p class="small muted">Version, build and server details are in <a href="#/admin/info">Info</a>.</p>
+      <p class="small muted">Version, build and server details are in <a href="#/settings/info">About</a>.</p>
       <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form>
-      <form class="panel" id="mods"><h2>Modules</h2>${Object.entries(s.modules).map(([m, on]) => `<label><input type="checkbox" name="${m}" ${on ? "checked" : ""} style="width:auto"> ${m}${s.licence.modules.includes(m) ? "" : ' <span class="pill warn">not in licence</span>'}</label>`).join("")}
+      <form class="panel" id="mods"><h2>Modules</h2>${Object.entries(s.modules).map(([m, on]) => `<label><input type="checkbox" name="${m}" ${on ? "checked" : ""} style="width:auto"> ${esc(MODNAMES[m] || m)}${s.licence.modules.includes(m) ? "" : ' <span class="pill warn">not in licence</span>'}</label>`).join("")}
       <h2 style="margin-top:1rem">Other</h2>
       <label><input type="checkbox" name="legacy" ${s.legacy_fleet_api ? "checked" : ""} style="width:auto"> Accept old kiosk agents (Device Suite API, no sign-in)</label>
       <label>Delete chat messages older than (days, 0 = keep)</label><input name="retention" type="number" min="0" value="${s.message_retention_days}">
@@ -484,7 +508,7 @@
         <b>${name}</b><span class="muted small">${about}</span></button>`;
     const seg = (key) => `<div class="seg">${OPTS[key].map(([v, t]) => `<button type="button" data-opt="${key}" data-v="${v}" class="${cur[key] === v ? "on" : ""}">${t}</button>`).join("")}</div>`;
     const draw = () => {
-      a.innerHTML = `<div class="panel"><h2>Theme</h2><p class="muted small" style="margin-top:0">One look for the whole site: every console, tech workspace, setup and presenter page. Stage, caption and backstage screens keep their own look. The accent colour is in <a href="#/admin/general">General</a>.</p>
+      a.innerHTML = `<div class="panel"><h2>Theme</h2><p class="muted small" style="margin-top:0">One look for the whole site: every console, tech workspace, setup and presenter page. Stage, caption and backstage screens keep their own look. The accent colour is in <a href="#/settings/general">General</a>.</p>
         <div class="theme-grid">${THEMES.map(card).join("")}</div></div>
         <div class="grid" style="margin-top:var(--gap)">
           <div class="panel"><h2>Spacing</h2>${seg("density")}</div>
@@ -518,7 +542,7 @@
       <div class="grid">
       <div class="panel"><h2>This app</h2>${kv([["Product", esc(i.product)], ["Organisation", esc(i.organisation) || '<span class="muted">not set</span>'], ["Version", `<b>${esc(i.version)}</b>`],
         ["Build", esc(i.build.number)], ["Commit", `<code>${esc(i.build.commit)}</code>`], i.build.date && ["Built", esc(new Date(i.build.date).toLocaleString())], ["Database schema", i.schema],
-        ["Licence", `${pill(i.licence.valid, "Licensed", "Evaluation")} ${esc(i.licence.licensee)} · <a href="#/admin/licence">details</a>`]])}</div>
+        ["Licence", `${pill(i.licence.valid, "Licensed", "Evaluation")} ${esc(i.licence.licensee)} · <a href="#/licence">details</a>`]])}</div>
       <div class="panel"><h2>Servers</h2><p class="small muted">${i.server.count} server: everything runs on this one.</p>${kv([["Hostname", `<b>${esc(sv.hostname)}</b>`], ["Addresses", sv.ips.map(esc).join(", ") || "–"],
         ["Opened as", `<code>${esc(location.origin)}</code>`], sv.public_url && ["Public address", esc(sv.public_url)], ["Running in", sv.in_docker ? "Docker" : "Python (no container)"],
         ["Up for", ago(sv.uptime_seconds)], sv.system_uptime_seconds != null && ["Machine up for", ago(sv.system_uptime_seconds)], ["Server time", `${esc(new Date(sv.time).toLocaleString())} (${esc(sv.timezone)})`],
@@ -526,10 +550,10 @@
       <div class="panel"><h2>Nodes</h2>${kv([["All nodes", on(n)], ...Object.entries(kinds).map(([k, v]) => [v, on(n.by_kind[k])]), ["Main PCs", n.tech_main], ["Backup PCs", n.tech_backup],
         ["Live connections", `${i.websockets} <span class="muted small">(browsers, laptops and screens)</span>`]])}</div>
       <div class="panel"><h2>Apps and agents</h2>${kv([["Windows tech app", i.apps.windows_app ? esc(i.apps.windows_app) : '<span class="muted">not published</span>'], ["Screen agent", esc(i.apps.screen_agent || "–")],
-        ["Node agent", esc(i.apps.node_agent || "–")], ["Old kiosk agent", esc(i.apps.kiosk_agent || "not published")]])}<p class="small"><a href="#/admin/fleet">Node setup and downloads</a></p></div>
+        ["Node agent", esc(i.apps.node_agent || "–")], ["Old kiosk agent", esc(i.apps.kiosk_agent || "not published")]])}<p class="small"><a href="#/laptops/setup">Node setup and downloads</a></p></div>
       <div class="panel"><h2>Venue</h2>${kv([["Sites", c.sites], ["Rooms", c.rooms], ["Accounts", `${c.accounts} <span class="muted small">(${Object.entries(c.accounts_by_role).map(([k, v]) => `${v} ${esc(k)}`).join(", ")})</span>`],
         ["Links", c.links], ["API keys", c.api_keys], ["Chat messages", c.messages], ["Help requests", `${c.help_requests} (${c.open_help_requests} open)`]])}</div>
-      <div class="panel"><h2>Modules</h2>${kv(Object.entries(i.modules).map(([k, v]) => [k, pill(v, "on", "off")]))}</div>
+      <div class="panel"><h2>Modules</h2>${kv(Object.entries(i.modules).map(([k, v]) => [MODNAMES[k] || k, pill(v, "on", "off")]))}</div>
       <div class="panel"><h2>Captions</h2>${kv([["Engine", `${pill(i.captions.state === "ready", esc(i.captions.state), esc(i.captions.state))}`], i.captions.detail && ["Detail", esc(i.captions.detail)], ["Model", `<span class="small">${esc(i.captions.model)}</span>`],
         ["Rooms captioning", `${i.captions.active_rooms} of ${i.captions.max_rooms} max`]])}</div>
       <div class="panel"><h2>Storage</h2>${kv([["Data folder", `<code>${esc(st.data_dir)}</code>`], ["Database", bytes(st.db_bytes)], ["Uploads", bytes(st.uploads_bytes)], ["Transcripts", bytes(st.transcripts_bytes)],
@@ -636,7 +660,7 @@
     const origin = location.origin;
     let sites;
     try { sites = await api("/api/fleet/enrolment"); }
-    catch (_) { a.innerHTML = '<div class="panel card"><p class="muted">The fleet module is turned off. Turn it on in <a href="#/admin/general">General</a> to add laptops and screens.</p></div>'; return; }
+    catch (_) { a.innerHTML = '<div class="panel card"><p class="muted">The fleet module is turned off. Turn it on in <a href="#/settings/general">General</a> to add laptops and screens.</p></div>'; return; }
     const [winApp, info] = await Promise.all([api("/api/nodes/app").catch(() => ({})), api("/api/admin/info")]);
     const code = sites[0]?.enrol_code || "CODE";
     const parts = { windows: "Windows tech app", screens: "Linux screens", ...(boot.modules.presenter ? { sync: "Room sync (presentation laptops)" } : {}), older: "Older agents" };
@@ -800,11 +824,7 @@
         <div class="row"><a class="btn primary" href="/api/admin/backup" id="bk">Download backup</a><span class="small muted">${last ? `Last backup ${when(last.at)} by ${esc(last.actor)}` : "No backup downloaded yet."}</span></div></div>
       <h2 style="margin-top:1.2rem">Import</h2><p class="small muted">Bring in data from the tools AT-SUIT replaces.</p>
       <div class="grid">${items.map(([k, t, d]) => `<div class="panel" data-k="${k}"><h3>${t}</h3><p class="small muted">${d}</p><input type="file"><button class="small primary" style="margin-top:.5rem">Import</button><pre class="small muted" style="white-space:pre-wrap"></pre></div>`).join("")}</div>
-      <div class="panel" style="margin-top:1.2rem"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Audit log</h2><input id="flt" placeholder="Filter" style="width:14rem"></div>
-        <table style="margin-top:.6rem"><tr><th>When</th><th>Who</th><th>What</th><th>Detail</th></tr><tbody id="log"></tbody></table></div>`;
-    const draw = (q = "") => { a.querySelector("#log").innerHTML = log.filter((l) => !q || `${l.actor} ${l.action} ${l.detail}`.toLowerCase().includes(q)).map((l) => `<tr><td class="small">${when(l.at)}</td><td>${esc(l.actor)}</td><td>${esc(l.action)}</td><td class="small muted">${esc(l.detail)}</td></tr>`).join("") || '<tr><td colspan="4" class="muted">Nothing yet.</td></tr>'; };
-    draw();
-    a.querySelector("#flt").oninput = (e) => draw(e.target.value.trim().toLowerCase());
+      <p class="small muted" style="margin-top:1rem">Every backup, import and change is listed in the <a href="#/audit">Audit log</a>.</p>`;
     a.querySelector("#bk").onclick = () => setTimeout(() => admData(a), 3000);
     a.querySelectorAll("[data-k]").forEach((p) => p.querySelector("button").onclick = async () => {
       const f = p.querySelector("input").files[0]; if (!f) return toast("Choose a file to import first", "bad");

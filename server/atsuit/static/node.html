@@ -71,7 +71,7 @@
   <form class="panel card" id="enrolForm">
     <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
     <h1>Set up this laptop</h1>
-    <p class="muted">An admin can find the enrolment code in Admin → Node setup.</p>
+    <p class="muted">An admin can find the enrolment code in Laptops & screens → Add laptops.</p>
     <label>Laptop name</label><input name="name" required placeholder="e.g. ATLAP3">
     <label>Enrolment code</label><input name="code" required placeholder="ABCD-1234-EF56" style="text-transform:uppercase">
     <label>This laptop is a</label><select name="kind"><option value="tech">Tech workspace</option><option value="kiosk">Kiosk screen</option><option value="caption">Caption source only</option></select>
@@ -305,7 +305,7 @@
       let pick = roomId || null;
       const tiles = () => {
         const list = locked ? node.rooms.filter((r) => r.id === locked) : node.rooms;
-        $("startRooms").innerHTML = list.map((r) => `<button type="button" class="tile ${r.id === pick ? "on" : ""}" data-room="${r.id}">${esc(r.name)}</button>`).join("") || '<p class="muted">No rooms yet. An admin adds them in Admin → Sites.</p>';
+        $("startRooms").innerHTML = list.map((r) => `<button type="button" class="tile ${r.id === pick ? "on" : ""}" data-room="${r.id}">${esc(r.name)}</button>`).join("") || '<p class="muted">No rooms yet. A manager or admin adds them in the console under Rooms.</p>';
         if (locked) $("startRooms").insertAdjacentHTML("beforeend", '<p class="muted small" style="grid-column:1/-1;margin:.3rem 0 0">This laptop is in this room today. An admin can move it from the console (Nodes).</p>');
         else $("startRooms").querySelectorAll("[data-room]").forEach((b) => (b.onclick = () => { pick = +b.dataset.room; tiles(); }));
       };
@@ -489,7 +489,7 @@
   function ovNote(r, w, st, on) {
     const name = (k) => (OV_POS.find(([x]) => x === k) || [k, k])[1].toLowerCase();
     if (r.app && r.app_version && w.position === "top-center" && older(r.app_version, "0.6.0"))
-      return `<p class="small" style="color:var(--warn);margin:.4rem 0 0">This laptop's AT-SUIT app (${esc(r.app_version)}) is too old for top centre and puts the overlay ${name(st?.position || "bottom-right")}. Quit the app from its tray icon and start it again to finish its update, or install it again from Admin → Node setup.</p>`;
+      return `<p class="small" style="color:var(--warn);margin:.4rem 0 0">This laptop's AT-SUIT app (${esc(r.app_version)}) is too old for top centre and puts the overlay ${name(st?.position || "bottom-right")}. Quit the app from its tray icon and start it again to finish its update, or install it again from Laptops & screens → Add laptops.</p>`;
     if (on && st?.position && st.position !== w.position)
       return `<p class="small" style="color:var(--warn);margin:.4rem 0 0">Asked for ${name(w.position)}, the laptop is showing it ${name(st.position)}. Press Apply to send it again.</p>`;
     return "";
@@ -672,7 +672,7 @@
         rows.forEach((l) => seen.add(l.id));
         return rows.length ? `<h4 style="margin:.6rem 0 .3rem">${name}</h4><div class="tiles">${rows.map((l) => `<a class="tile" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("")}</div>` : "";
       }).join("");
-      $("links").innerHTML = html || '<p class="muted small">No links yet. An admin adds them in Admin → Links, or imports the old Homarr board.</p>';
+      $("links").innerHTML = html || '<p class="muted small">No links yet. An admin adds them in Links, or imports the old Homarr board.</p>';
     };
     $("linkFind").oninput = drawLinks; drawLinks();
   }

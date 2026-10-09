@@ -773,7 +773,7 @@ def _version(pkg: str) -> str:
 
 
 def server_info() -> dict:
-    """Everything about this install for Admin → Info and support tickets.
+    """Everything about this install for Settings → About and support tickets.
     Never includes tokens, keys, password hashes or the licence key."""
     from . import captions, fleet
 

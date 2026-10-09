@@ -15,7 +15,7 @@
     <section data-step="0">
       <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
       <h1>Welcome to <span data-product>AT-SUIT</span></h1>
-      <p class="muted">This sets up the server for your venue. Everything here can be changed later in Admin.</p>
+      <p class="muted">This sets up the server for your venue. Everything here can be changed later in the console under Settings.</p>
       <label>Organisation name</label><input name="organisation" required placeholder="e.g. Grand Hall Events">
       <label>Venue (site) name</label><input name="site_name" required placeholder="e.g. Main Venue">
       <label>Time zone</label><input name="timezone" value="Europe/London" list="zones" autocomplete="off"><datalist id="zones"></datalist>
@@ -77,7 +77,7 @@
     body.rooms = body.rooms.split("\n").map((s) => s.trim()).filter(Boolean);
     try {
       await AT.post("/api/setup", body);
-      location.replace("/#/admin");
+      location.replace("/#/settings");
     } catch (ex) { err.textContent = ex.message; }
   };
   show();

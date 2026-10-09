@@ -51,7 +51,7 @@ const Chat = (() => {
       </div>`;
     const chansEl = el.querySelector(".chans"), listEl = el.querySelector(".list"), titleEl = el.querySelector(".title"), form = el.querySelector("form");
     const pendEl = el.querySelector(".pending-files"), myKey = me.kind === "account" ? `a:${me.id}` : `n:${me.name}`;
-    // Admins can delete a direct-message chat for both people (also in Admin → Chat).
+    // Admins can delete a direct-message chat for both people (also in Settings → Chat).
     const delChat = document.createElement("button");
     delChat.type = "button"; delChat.className = "small danger hidden"; delChat.textContent = "Delete chat";
     delChat.title = "Delete this direct-message chat for both people";

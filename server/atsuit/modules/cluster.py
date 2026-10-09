@@ -334,7 +334,7 @@ async def join(body: JoinIn, request: Request):
         until = db.get_setting(c, "cluster.join_until", "")
         if not want or not secrets.compare_digest(want, token_hash(code)) or until < db.now_iso():
             _join_fails[ip] = fails + [now]
-            raise HTTPException(403, "That code is wrong or has run out. Make a new one in Admin → Servers.")
+            raise HTTPException(403, "That code is wrong or has run out. Make a new one in Servers.")
         c.execute("DELETE FROM settings WHERE key IN ('cluster.join_hash','cluster.join_until')")
         name = body.name.strip()
         if c.execute("SELECT 1 FROM helpers WHERE name=?", (name,)).fetchone():

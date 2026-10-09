@@ -1,7 +1,7 @@
 // The AT-SUIT status bar for imported (uploaded) views, like the one on the
 // built-in views: time now, timer state, cue, started, elapsed, expected end,
 // and the room name. Served with every imported view next to ontime-shim.js;
-// it only draws when switched on for the view in Admin → Timers, or with
+// it only draws when switched on for the view in Timers, or with
 // ?status=1 in the address. It sits in a shadow root, over the view's bottom edge.
 (() => {
   const m = location.pathname.match(/^\/room\/(\d+)\/external\/([a-z0-9-]+)\//);

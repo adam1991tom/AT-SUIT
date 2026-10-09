@@ -11,7 +11,7 @@ It can't change settings, accounts or licences.
 
 ## 1. Make an API key
 
-1. Sign in as an admin and go to **Admin → API keys**.
+1. Sign in as an admin and go to **Settings → API keys**.
 2. Give the key a name (e.g. `Companion FOH`) and press **Create**.
 3. Copy the key (it starts `ats_`). It is only shown once. If you lose it,
    revoke it and make a new one.
@@ -150,7 +150,7 @@ timer 1). Hidden, it changes nothing on screen.
 ### AT Overlay on a tech laptop
 
 The AT-SUIT Node app can float the room timer over a tech laptop's screen
-(clicks go through it). The node number is in Nodes on the console.
+(clicks go through it). The node number is in Laptops & screens on the console.
 
 | Button | PUT | Body |
 |---|---|---|
@@ -165,7 +165,7 @@ means the room timer.
 
 ### Overlay laptops (AT LiveOverlay)
 
-Overlay laptops are numbered in Admin → Overlay laptops (`targets/1` is the first).
+Overlay laptops are numbered in Laptops & screens → Overlay laptops (`targets/1` is the first).
 
 | Button | POST | Body |
 |---|---|---|
@@ -196,7 +196,7 @@ Views: `stage`, `minimal`, `clock`, `backstage`, `hcc` (shown as "Standard"), `o
 `captions` (audience screen), `captions:overlay`, `captions:bar` (subtitle bar), `screentest:<pattern>` for a display test pattern (`colorbars`, `grayramp`,
 `rgbramp`, `checker`, `crosshatch`, `sharpness`, `motion`, `overscan`, `ledmap`, `black`,
 `white`, `red`, `green`, `blue`, `gray`), `built:<name>` for views built in Timers → Views, `view:<name>`
-for uploaded ones (the BDNG view is `view:bdng` once imported in Admin → Timers;
+for uploaded ones (the BDNG view is `view:bdng` once imported in Timers;
 the old `bdng` still works and shows it, or the Standard view if it isn't
 imported), or `url:https://...` for any web page.
 

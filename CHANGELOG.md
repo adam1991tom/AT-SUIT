@@ -4,6 +4,17 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.9.0
+
+**The console is in clear sections**
+- The side bar is grouped into **Live** (Dashboard, Chat, Help requests, Timers, Presenters, Captions), **Venue** (Rooms, Laptops & screens, People, Links) and **Site** (Settings, Licence, Servers, Backups, Audit log). The one big Admin page with thirteen tabs is gone.
+- **Laptops & screens** brings the list of every laptop and screen together with adding laptops and the overlay laptops, under one heading.
+- **Settings** holds General, Look (themes), Chat, API keys and About. The modules have plain names (Chat & help requests, Laptops & screens…).
+- **Backups** and the **Audit log** are separate pages; managers can read the audit log.
+- A manager only sees the pages they can use. A page that is off or not theirs opens the first one that is.
+- Old links and bookmarks to `#/admin/...` and `#/fleet` open the matching new page. Every hint that said "Admin → …" now names the new page.
+- Works on a phone: the side bar becomes a scrolling strip and each section's tabs scroll sideways.
+
 ## 0.8.0
 
 **The workspace works like Windows**

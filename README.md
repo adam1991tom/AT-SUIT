@@ -17,7 +17,7 @@ kiosks, and AT-LiveCaption's speech engine.
   (nothing ever pops up) or the backup (silent pop-ups on top of everything).
   No password: the laptop's own enrolment signs them in.
 - **Configured on site.** A setup wizard on first run, then everything (rooms,
-  people, links, nodes, branding, modules, licence) is set in the Admin pages.
+  people, links, nodes, branding, modules, licence) is set in the console's Venue and Site sections.
   No config files to edit.
 
 ## Install

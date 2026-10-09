@@ -620,7 +620,7 @@ async def send_command(node_id: int, body: CommandIn, p: Principal = Depends(req
         cid = None
         if n["legacy"] and body.kind in SSH_COMMANDS:
             if not ssh_key().exists():
-                raise HTTPException(400, "Upload the fleet SSH key in Admin → Fleet to control older kiosk agents")
+                raise HTTPException(400, "Upload the fleet SSH key in Laptops & screens → Add laptops to control older kiosk agents")
             asyncio.get_running_loop().create_task(_run_ssh(n["ip"], SSH_COMMANDS[body.kind]))
         else:
             cid = queue_command(c, node_id, body.kind, body.payload)
@@ -738,7 +738,7 @@ def legacy_kiosk(host: str):
         "<!doctype html><meta name=viewport content='width=device-width'><title>Kiosk</title>"
         "<style>body{font-family:system-ui;background:#0e1116;color:#e8eaf0;padding:20px}"
         "a{display:inline-block;margin:6px;padding:14px 18px;background:#1c2230;color:#fff;border-radius:8px;text-decoration:none}</style>"
-        f"<h1>{escape(norm_host(host))}</h1>{body or '<p>No kiosk links yet. Add them in Admin → Dashboard.</p>'}")
+        f"<h1>{escape(norm_host(host))}</h1>{body or '<p>No kiosk links yet. Add them in Links.</p>'}")
 
 
 @legacy.get("/client-update", dependencies=[Depends(_legacy_guard)])

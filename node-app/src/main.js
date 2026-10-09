@@ -580,7 +580,7 @@ function startUpdates() {
   if (!app.isPackaged || process.env.ATSUIT_NODE_NO_UPDATES) return;
   let autoUpdater;
   try { ({ autoUpdater } = require("electron-updater")); } catch (_) { return; }
-  // Updates come from this venue's AT-SUIT server (Admin → Node setup), not
+  // Updates come from this venue's AT-SUIT server (Laptops & screens → Add laptops), not
   // the internet. They download quietly and install when the app next quits,
   // never in the middle of a show.
   autoUpdater.setFeedURL({ provider: "generic", url: `${conf.server}/api/nodes/app/` });

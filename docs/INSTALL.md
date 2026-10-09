@@ -58,7 +58,7 @@ sudo ./install.sh --port 8180 --tls --tls-host 10.100.70.101
 
 ## Bringing data across
 
-Everything is in Admin → Import. Imports only add; they never change the old
+Everything is on the console's Backups page. Imports only add; they never change the old
 apps.
 
 | Old app | What to upload | How to get it |
@@ -76,8 +76,8 @@ password) aren't brought across; the import report says how many.
 
 Kiosks running the Device Suite agent can report to AT-SUIT without being
 reinstalled: change the server address in their agent config to
-`http://SERVER:8180`. They appear in Nodes as "old agent". To reboot or
-update them from AT-SUIT, upload the fleet SSH key in Admin → Node setup.
+`http://SERVER:8180`. They appear in Laptops & screens as "old agent". To reboot or
+update them from AT-SUIT, upload the fleet SSH key in Laptops & screens → Add laptops.
 
 ## Helper servers
 
@@ -86,7 +86,7 @@ screen. Any other machine can run the same install as a **helper** and take
 heavy work off it. Today that is live caption speech recognition; each helper
 adds the rooms it can caption to the total.
 
-1. On the main server, go to **Admin → Servers → Make a join code**. A code
+1. On the main server, go to **Servers → Make a join code**. A code
    works once, for 15 minutes.
 2. On the helper, install AT-SUIT as above with `ATSUIT_ROLE=helper` in `.env`,
    then open `http://<helper>:8080` and type the main server's address and the
@@ -96,7 +96,7 @@ adds the rooms it can caption to the total.
 3. The helper connects out to the main server, so it needs no open ports of
    its own, and reconnects by itself after a restart.
 
-On **Admin → Servers** choose how rooms are spread:
+On **Servers** choose how rooms are spread:
 
 - **Share**: each room goes to whichever server is least busy, the main one included.
 - **Offload**: helpers take rooms first, and the main server only steps in when they are full or offline.
@@ -113,7 +113,7 @@ main server within a second, and the laptops keep sending audio as before.
 ./update.sh                           # backs up, pulls, rebuilds, restarts
 ```
 
-Admins can also download a backup zip from Admin → Audit & backup. A backup
+Admins can also download a backup zip from the Backups page. A backup
 contains the encryption key, so store it somewhere safe.
 
 ## Offline sites

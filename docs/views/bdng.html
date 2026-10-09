@@ -3,14 +3,14 @@
   BDNG sponsor clock: the Ontime custom view built for the BDNG client
   (Ontime v4, external/BDNG), as one file for AT-SUIT.
 
-  Import it in Admin → Timers → Uploaded views (name it "BDNG"), or with the
+  Import it in Timers → Uploaded views (name it "BDNG"), or with the
   "Import BDNG view" button there. AT-SUIT serves it at
   /room/<room>/external/bdng/ and feeds it the room's live timer through
   Ontime's own websocket protocol (the page's ws://host/ws is pointed at
   /ontime/<room>/ws), so the original code below runs unchanged.
 
   styles.css, config.js and app.js are the originals, inlined. Logos are not
-  included: upload them in Admin → Timers (BDNG top and bottom logo), or
+  included: upload them in Timers (BDNG top and bottom logo), or
   import a .zip of this file as index.html with assets/top-logo.png and
   assets/bottom-logo.png next to it.
 -->
@@ -668,7 +668,7 @@ window.ONTIME_SPONSOR_CONFIG = {
   }
 })();
     </script>
-    <!-- AT-SUIT: logos and bottom text set in Admin → Timers (BDNG). Not part of
+    <!-- AT-SUIT: logos and bottom text set in Timers (BDNG). Not part of
          the Ontime original; harmless when this file runs on Ontime itself. -->
     <script>
       (function () {

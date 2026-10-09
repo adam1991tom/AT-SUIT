@@ -111,7 +111,7 @@ subscriptions (`room:<id>`, `site:<id>`, `captions:<room>`, `timer:<room>`,
 ### Modules
 
 Each module is a FastAPI router plus its tables, registered in
-`atsuit/main.py`. A module can be switched off in Admin → Modules, and the
+`atsuit/main.py`. A module can be switched off in Settings → General, and the
 licence can limit which modules are available.
 
 | Module | Replaces | Server owns | Node does |
@@ -171,7 +171,7 @@ Message bodies and overlay tokens are encrypted at rest with a Fernet key in
 
 | Purpose | Endpoint | Auth |
 |---|---|---|
-| Node enrolment | `POST /api/nodes/enrol {code, name, kind}` → node token | site enrolment code (Admin → Fleet) |
+| Node enrolment | `POST /api/nodes/enrol {code, name, kind}` → node token | site enrolment code (Laptops & screens → Add laptops) |
 | Heartbeat | `POST /api/nodes/heartbeat` (reply includes today's `room_id`) | node token |
 | Start the day | `GET /api/nodes/me` (room only if picked today), `POST /api/nodes/me/start {operator, room_id, mode: main\|backup}` (sets the `atsuit_node` cookie so the workspace runs as the laptop, named after the tech), `PUT /api/nodes/me/mode`, `POST /api/nodes/me/finish`; `PUT /api/nodes/me/room {room_id}` for agents | node token |
 | Windows app | `GET /api/nodes/app`, `/api/nodes/app/<file>` (installer and `latest.yml` for self-update); `POST /api/fleet/app` to publish | public download; admin to publish |
@@ -237,7 +237,7 @@ port, without reinstalling them.
 
 ## 5. Data migration
 
-All importers are in Admin → Import (and the `atsuit-import` CLI), run
+All importers are on the Backups page (and the `atsuit-import` CLI), run
 read-only against copies of the old data, are idempotent, and print a report
 of what they took and skipped.
 
