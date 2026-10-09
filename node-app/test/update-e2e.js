@@ -95,12 +95,15 @@ const exeIn = (dir, re) => fs.readdirSync(dir).find((f) => re.test(f));
 
     const nodeVersion = async () => {
       const nodes = (await call("GET", "/api/fleet/nodes", null, cookie)).data;
-      return (nodes.find((n) => n.name === "update-test") || {}).version;
+      // Node names are stored normalised (e.g. upper case), so compare loosely.
+      const n = nodes.find((x) => String(x.name).toLowerCase() === "update-test");
+      return n ? n.version || "enrolled" : null;
     };
     const env = { ...process.env, ATSUIT_NODE_UPDATE_CHECK_S: "5", ATSUIT_NODE_QUIT_TO_UPDATE: "1" };
     app = spawn(exe, [], { env, detached: true, stdio: "ignore" });
-    await until("A to enrol and report in", async () => (await nodeVersion()) === `app-${A}`, 120);
-    log("A is running and enrolled");
+    // A may download B and quit before its page first reports in, so enrolment is enough here.
+    await until("A to enrol", async () => !!(await nodeVersion()), 120);
+    log("A enrolled, reporting", await nodeVersion());
 
     // A finds B, downloads it, quits and installs it.
     await until("B to be installed", async () => installed()?.version === B, 300);
