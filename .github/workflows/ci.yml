@@ -18,7 +18,7 @@ jobs:
         run: pip install -r server/requirements.txt -r server/requirements-asr.txt -r server/requirements-dev.txt
       - name: Cache speech model
         id: model
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: models
           key: sherpa-zipformer-en-2023-06-21
