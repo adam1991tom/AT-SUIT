@@ -17,7 +17,7 @@
 The quickest way, on a fresh server (installs Docker too if it's missing):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/main/get.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/HEAD/get.sh | sudo bash
 # options for install.sh go after -s --, e.g.  | sudo bash -s -- --port 8180 --tls
 ```
 

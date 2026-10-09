@@ -25,7 +25,7 @@ kiosks, and AT-LiveCaption's speech engine.
 One command on a fresh Linux server (installs Docker if needed):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/main/get.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/HEAD/get.sh | sudo bash
 ```
 
 Or from a clone:
@@ -78,9 +78,10 @@ docs/DESIGN.md        architecture, module map, migration and build order
 
 ## Releases
 
-`main` is always releasable and publishes `ghcr.io/adam1991tom/at-suit:edge`.
-To release, bump `VERSION`, add a section to [CHANGELOG.md](CHANGELOG.md),
-merge, and push a tag `vX.Y.Z`. CI then publishes `:X.Y.Z` and `:latest` and
+`ATSUIT` (the default branch) is always releasable and publishes
+`ghcr.io/adam1991tom/at-suit:edge`. To release, bump `VERSION`, add a section
+to [CHANGELOG.md](CHANGELOG.md), merge, then push a tag `vX.Y.Z` or publish a
+release `vX.Y.Z` from the `ATSUIT` branch on GitHub. CI then publishes `:X.Y.Z` and `:latest` and
 creates the GitHub release with the Windows app installer and the node agent
 attached. See
 [CONTRIBUTING.md](CONTRIBUTING.md).

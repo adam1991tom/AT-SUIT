@@ -1,12 +1,19 @@
 name: Release
 
-# Pushes to main publish ghcr.io/<owner>/at-suit:edge.
-# A tag like v0.1.0 publishes :0.1.0 and :latest and creates a GitHub release.
+# Pushes to the ATSUIT branch publish ghcr.io/<owner>/at-suit:edge.
+# A tag like v0.1.0 publishes :0.1.0 and :latest and creates (or fills in) the GitHub release.
 on:
   push:
-    branches: [main]
+    branches: [ATSUIT]
     tags: ["v*"]
+  # A release made on GitHub's Releases page doesn't always send a tag push.
+  release:
+    types: [published]
   workflow_dispatch:
+
+# A tag push and its release run one after the other, not side by side.
+concurrency:
+  group: release-${{ github.ref }}
 
 permissions:
   contents: write
@@ -60,7 +67,7 @@ jobs:
         with:
           images: ${{ steps.img.outputs.name }}
           tags: |
-            type=edge,branch=main
+            type=edge,branch=ATSUIT
             type=semver,pattern={{version}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
       - name: Check the tag matches VERSION

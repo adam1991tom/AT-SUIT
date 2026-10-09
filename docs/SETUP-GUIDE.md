@@ -25,7 +25,7 @@ to install.
 On the server:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/main/get.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/HEAD/get.sh | sudo bash
 ```
 
 It installs Docker if it's missing, puts AT-SUIT in `/opt/at-suit` and starts

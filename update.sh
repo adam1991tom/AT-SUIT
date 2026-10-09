@@ -70,9 +70,9 @@ elif [ -f .atsuit-repo ]; then
   [ -n "$REF" ] || REF="$(curl -fsSL "${AUTH[@]}" "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
   TMP="$(mktemp -d)"
   if [ -n "$TOKEN" ]; then
-    curl -fsSL "${AUTH[@]}" "https://api.github.com/repos/${REPO}/tarball/${REF:-main}" | tar xz -C "$TMP" --strip-components 1
+    curl -fsSL "${AUTH[@]}" "https://api.github.com/repos/${REPO}/tarball/${REF:-HEAD}" | tar xz -C "$TMP" --strip-components 1
   else
-    curl -fsSL "https://codeload.github.com/${REPO}/tar.gz/${REF:-main}" | tar xz -C "$TMP" --strip-components 1
+    curl -fsSL "https://codeload.github.com/${REPO}/tar.gz/${REF:-HEAD}" | tar xz -C "$TMP" --strip-components 1
   fi
   cp -a "$TMP"/. ./ && rm -rf "$TMP"
 elif [ "$AUTO" = 1 ] && [ "$IMAGE_INSTALL" = 0 ]; then

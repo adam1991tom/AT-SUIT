@@ -1,8 +1,9 @@
 # Changelog
 
 Versions follow [semantic versioning](https://semver.org). To release, set
-`VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
-release workflow publishes the image and the GitHub release.
+`VERSION`, add a section here, merge to `ATSUIT`, then push a tag `vX.Y.Z` (or
+publish that release on GitHub); the release workflow publishes the image and
+the GitHub release.
 
 ## 1.0.2
 
