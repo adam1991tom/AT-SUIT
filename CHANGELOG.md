@@ -11,6 +11,8 @@ the GitHub release.
 - A message that arrives while a chat is opening no longer goes missing until the next reload.
 
 **Releases and updates**
+- The server checks GitHub every half hour (was every three hours), so a new release shows up soon after it's published.
+- Settings → Updates says **Ahead of GitHub** when the server runs a newer version than the newest release, instead of "Up to date".
 - The default branch is now `ATSUIT`. Checks, builds and the install script follow it; with no release yet, `get.sh` and `update.sh` take the default branch whatever its name.
 - A release published on GitHub's Releases page builds and attaches the Windows app and release notes by itself.
 - A server installed from a git checkout updates to a release even when that release isn't straight ahead of its copy (for example after a squash merge), as long as nobody has edited its files by hand.
@@ -24,7 +26,7 @@ the GitHub release.
 - CI's update test now checks the real thing: the app finds the new version as it starts, installs it and comes back by itself.
 
 **The server updates itself from GitHub**
-- The server checks the newest GitHub release every three hours. **Settings → Updates** chooses **Install by itself** (the default), **Tell me only** (with an **Install now** button) or **Off**, and shows the newest release, what's new and how the last update went.
+- The server checks the newest GitHub release every half hour. **Settings → Updates** chooses **Install by itself** (the default), **Tell me only** (with an **Install now** button) or **Off**, and shows the newest release, what's new and how the last update went.
 - It never installs while a show is on, meaning a timer that is running or paused in any room.
 - Installing is done on the host by `update.sh --auto`, run every 10 minutes by a systemd timer that `install.sh` sets up (`sudo ./install.sh --updater` for an existing install). It is the same safe update: backup, health check and roll back. A version that failed isn't retried by itself.
 - After updating, the server fetches the same release's Windows app and publishes it, so laptops keep updating from the server without internet. A laptop only goes to GitHub itself when the server has no app.

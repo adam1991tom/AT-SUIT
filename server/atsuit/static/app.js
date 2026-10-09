@@ -553,6 +553,7 @@
       ["off", "Off", "Doesn't check. Update with sudo ./update.sh on the server."]];
     const state = !u.latest ? (u.error ? `<span class="pill bad">Couldn't check</span> ${esc(u.error)}` : '<span class="muted">Not checked yet.</span>')
       : u.available ? `<span class="pill warn">${esc(L.version)} is out</span> ${L.published_at ? `<span class="muted small">released ${when(L.published_at)}</span>` : ""}`
+      : u.ahead ? `<span class="pill">Ahead of GitHub</span><div class="small muted">This server runs ${esc(u.current)}, newer than the newest release on GitHub (${esc(L.version)}). It updates again once a release newer than ${esc(u.current)} is published. Press Check now if one just came out.</div>`
       : `<span class="pill good">Up to date</span>`;
     const res = u.last_result;
     a.innerHTML = `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">

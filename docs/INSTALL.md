@@ -134,7 +134,7 @@ the venue is never left without a working server. Fix the cause, then run
 
 ### Automatic updates from GitHub
 
-The server checks the newest GitHub release every three hours. **Settings →
+The server checks the newest GitHub release every half hour. **Settings →
 Updates** decides what happens: **Install by itself** (the default), **Tell me
 only** (an admin presses **Install now**) or **Off**. Nothing ever installs
 while a show is on, meaning a timer that is running or paused in any room.

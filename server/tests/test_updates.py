@@ -41,6 +41,13 @@ def test_settings_and_check(admin, monkeypatch):
     assert seen == {"repo": "acme/at-suit", "token": "ghp_abc123"}
     assert st["available"] and st["latest"]["version"] == bump(VERSION) and st["error"] == ""
     assert "ghp_abc123" not in admin.get("/api/admin/updates").text  # the token never comes back
+    # a server running a build newer than the newest release says so, rather than "up to date"
+    monkeypatch.setattr(updates, "fetch_latest", lambda repo, token: release("0.0.1"))
+    st = admin.post("/api/admin/updates/check").json()
+    assert st["ahead"] and not st["available"]
+    monkeypatch.setattr(updates, "fetch_latest", lambda repo, token: release(bump(VERSION)))
+    st = admin.post("/api/admin/updates/check").json()
+    assert st["available"] and not st["ahead"]
 
     def down(repo, token):
         raise RuntimeError("GitHub refused (401). Check the token, or try again later.")

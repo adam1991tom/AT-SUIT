@@ -34,7 +34,7 @@ from .security import Principal, decrypt, encrypt, require_admin
 
 REPO_DEFAULT = "adam1991tom/AT-SUIT"
 MODES = ("auto", "notify", "off")
-CHECK_EVERY_S = 3 * 3600
+CHECK_EVERY_S = 30 * 60  # a new release shows within half an hour; GitHub allows 60 calls an hour without a token
 HOST_SEEN_S = 30 * 60  # the host updater runs every few minutes; older than this, it isn't set up
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 TAG_RE = re.compile(r"^[A-Za-z0-9_.-]{1,40}$")
@@ -112,6 +112,7 @@ def status(c) -> dict:
     return {
         "current": VERSION, "mode": cf["mode"], "repo": cf["repo"], "has_token": bool(cf["token"]),
         "latest": latest or None, "available": bool(latest) and newer(latest.get("version"), VERSION),
+        "ahead": bool(latest) and newer(VERSION, latest.get("version")),
         "checked_at": st.get("checked_at"), "error": st.get("error") or "",
         "requested": st.get("requested") or None, "failed": st.get("failed") or [],
         "last_result": st.get("last_result") or None,
