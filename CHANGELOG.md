@@ -4,6 +4,14 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 1.0.2
+
+**The Windows app shows its version and updates on start**
+- The version is in the workspace top bar, in **This laptop** and in the tray menu.
+- **This laptop** says whether the app is up to date and has **Check for updates**, then **Update now** once a new version has downloaded. The tray menu has the same.
+- When the app starts and finds a newer version on the server, it installs it and restarts once, with a notice, before the day's work. A tech can turn this off in This laptop. A version found later still waits for Update now or for the app to close, never interrupting a show.
+- CI's update test now checks the real thing: the app finds the new version as it starts, installs it and comes back by itself.
+
 ## 1.0.1
 
 **From the first show-day test**

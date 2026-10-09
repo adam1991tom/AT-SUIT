@@ -168,9 +168,14 @@ with Identify, Restart (the browser), Update and Reboot buttons.
 
 **AT-SUIT Node (Windows app).** Each release on GitHub has
 `AT-SUIT-Node-Setup-X.Y.Z.exe`, its `.blockmap` and `latest.yml`. Upload all
-three in Laptops & screens → Add laptops → Windows app release. Laptops download it in
-the background and install it the next time the app closes, never during a
-show. For a silent roll-out, put
+three in Laptops & screens → Add laptops → Windows app release. Each laptop
+checks your server as its app starts and every few hours. When the app starts
+and finds a newer version, it installs it and restarts once, before the day's
+work (the tech can turn this off in **This laptop**). A version found later
+downloads in the background and installs when the app closes, or straight
+away when the tech presses **Update now** in This laptop or the tray menu;
+never by itself during a show. The app's version shows in the workspace top
+bar, in This laptop and in the tray menu. For a silent roll-out, put
 `{"server": "http://SERVER:PORT", "enrol_code": "CODE"}` in
 `C:\ProgramData\AT-SUIT\node.json` and run the installer with `/S`; the
 app enrols itself under the PC's name on first start. The installer isn't

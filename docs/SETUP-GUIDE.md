@@ -86,7 +86,7 @@ In the console:
 - **Updates**: `sudo /opt/at-suit/update.sh`. It saves a backup first, starts
   the new version and checks it is healthy; if it isn't, it puts the old
   version and the data back by itself. Laptops update when their app next
-  closes.
+  starts or closes, or when the tech presses **Update now** in This laptop.
 - **Backups**: `sudo /opt/at-suit/backup.sh` (add it to cron for a nightly
   copy) or the **Backups** page. `restore.sh` puts one back.
 - **Support**: **Settings → About → Download diagnostics** gives support

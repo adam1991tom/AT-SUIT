@@ -8,7 +8,9 @@ const { app, safeStorage } = require("electron");
 
 // overlay: the last overlay settings ({ on, url, position, size, display,
 // opacity, room_id }); an overlay left on comes back when the app starts.
-const DEFAULTS = { server: "", name: "", token_enc: "", token_plain: "", popups: false, overlay: null };
+// update_on_launch: when the app starts and finds a newer version on the server, it installs it
+// and restarts straight away (before the day's work), instead of waiting for the app to close.
+const DEFAULTS = { server: "", name: "", token_enc: "", token_plain: "", popups: false, overlay: null, update_on_launch: true };
 
 function file() {
   return path.join(app.getPath("userData"), "node.json");

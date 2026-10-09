@@ -106,6 +106,19 @@ test("after enrolment the tech gives their name, the room and Main or Backup; no
   await expect(page.locator("#who")).toHaveText("Amy on TESTLAP1");
   await expect(page.locator("#modePill")).toHaveText("Main PC");
   expect(conf().popups).toBe(false);
+  // The app's version is in the top bar; This laptop has the updates (off here: not an installed app).
+  const version = require("../package.json").version;
+  await expect(page.locator("#topVer")).toHaveText(`v${version}`);
+  await page.click("#topVer");
+  await expect(page.locator("#appVer")).toHaveText(`AT-SUIT Node ${version}`);
+  await expect(page.locator("#updText")).toContainText("Updates come from the server");
+  await expect(page.locator("#updBtn")).toBeDisabled();
+  await expect(page.locator("#updLaunch")).toBeChecked();
+  await page.uncheck("#updLaunch");
+  await expect.poll(() => conf().update_on_launch).toBe(false);
+  await page.check("#updLaunch");
+  await expect.poll(() => conf().update_on_launch).toBe(true);
+  await page.click("#laptopBtn"); // close it again
 });
 
 test("the main PC: no pop-ups and no notifications of any kind", async () => {

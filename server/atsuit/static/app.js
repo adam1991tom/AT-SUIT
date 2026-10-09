@@ -677,7 +677,7 @@
           <li>Pop-ups only show on the backup PC. They're silent and sit on top of everything.</li></ol>
         <h3>Silent install (IT)</h3><p class="small muted">Put this in <code>C:\\ProgramData\\AT-SUIT\\node.json</code>, then run the installer with <code>/S</code>. The app enrols under the PC's name on first start.</p>
         <pre class="small">${esc(nodeJson)}</pre><div class="row"><button class="small" id="dlJson">Download node.json</button><button class="small" data-copy="${esc(nodeJson)}">Copy</button></div>
-        <h3>Publish a new version</h3><p class="small muted">The .exe, .blockmap and latest.yml from the GitHub release. Laptops update the next time the app closes, never during a show.</p>
+        <h3>Publish a new version</h3><p class="small muted">The .exe, .blockmap and latest.yml from the GitHub release. Laptops update as their app starts, when the tech presses Update now, or when the app closes; never by themselves during a show.</p>
         <div class="row"><input type="file" id="appFiles" class="grow" multiple accept=".exe,.blockmap,.yml"><button class="small" id="upApp">Publish app</button></div>
         <p class="small muted">A browser at <code>${esc(origin)}/node</code> works too, without installing anything.</p>`,
       screens: `<h2>Linux screens</h2><p class="small muted">Laptops and all-in-ones that only show a timer, captions or a view. Agent ${esc(info.apps.screen_agent || "–")}. Screens update themselves.</p>
