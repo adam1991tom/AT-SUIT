@@ -588,8 +588,11 @@ function startUpdates() {
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.logger = null;
   autoUpdater.on("error", () => {});
+  // CI's update test sets these: check after a few seconds, and quit as soon
+  // as the update is downloaded so it installs straight away.
+  if (process.env.ATSUIT_NODE_QUIT_TO_UPDATE) autoUpdater.on("update-downloaded", () => { quitting = true; app.quit(); });
   const check = () => autoUpdater.checkForUpdates().catch(() => {});
-  setTimeout(check, 60 * 1000);
+  setTimeout(check, (Number(process.env.ATSUIT_NODE_UPDATE_CHECK_S) || 60) * 1000);
   setInterval(check, 4 * 60 * 60 * 1000);
 }
 

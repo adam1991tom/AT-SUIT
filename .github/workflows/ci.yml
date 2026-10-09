@@ -113,3 +113,13 @@ jobs:
             node-app/dist/*.blockmap
             node-app/dist/latest.yml
           if-no-files-found: error
+      - name: Build a newer copy to update to
+        working-directory: node-app
+        run: |
+          $v = (Get-Content ../VERSION).Trim().Split('.')
+          $b = "$($v[0]).$($v[1]).$([int]$v[2] + 1)"
+          npx electron-builder --win --publish never "-c.extraMetadata.version=$b" "-c.directories.output=distB"
+      - name: The app updates itself from the server (install A, publish B, A becomes B)
+        working-directory: node-app
+        timeout-minutes: 15
+        run: node test/update-e2e.js dist distB
