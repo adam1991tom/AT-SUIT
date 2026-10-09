@@ -473,6 +473,9 @@ async def node_start(body: StartIn, request: Request, response: Response, p: Pri
 @router.put("/api/nodes/me/mode")
 async def node_mode(body: ModeIn, p: Principal = Depends(require_node)):
     with db.tx() as c:
+        n = c.execute("SELECT kind FROM nodes WHERE id=?", (p.id,)).fetchone()
+        if not n or n["kind"] != "tech":
+            raise HTTPException(400, "Only a tech laptop is a main or backup PC")
         c.execute("UPDATE nodes SET mode=? WHERE id=?", (body.mode, p.id))
     await hub.publish("fleet", "node.changed", {"id": p.id})
     return {"ok": True}
@@ -560,8 +563,11 @@ async def edit_node(node_id: int, body: NodeEdit, p: Principal = Depends(require
             raise HTTPException(400, "Unknown node kind")
         try:
             site_id = body.site_id or n["site_id"]
+            # Leaving room_id out keeps the room; sending null takes the node out of it.
+            moved = "room_id" in body.model_fields_set
             c.execute("UPDATE nodes SET name=?, room_id=?, room_day=?, site_id=?, kind=? WHERE id=?",
-                      (norm_host(body.name) if body.name else n["name"], body.room_id, work_day(c, site_id),
+                      (norm_host(body.name) if body.name else n["name"], body.room_id if moved else n["room_id"],
+                       work_day(c, site_id) if moved else n["room_day"],
                        site_id, body.kind or n["kind"], node_id))
         except sqlite3.IntegrityError:
             raise HTTPException(409, "Another node has that name")

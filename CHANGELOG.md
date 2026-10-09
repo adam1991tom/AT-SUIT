@@ -4,6 +4,19 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## Unreleased (for 1.0)
+
+**Ready to sell**
+- One-step install on a fresh Linux server: `curl -fsSL …/get.sh | sudo bash` installs Docker if needed and AT-SUIT in `/opt/at-suit`.
+- Safe updates: `update.sh` backs up, starts the new version and waits for it to be healthy; if it isn't, it restores the backup and the previous version by itself.
+- CI installs the Windows app, publishes a newer build on a server and checks the app updates itself to it.
+- A setup guide (docs/SETUP-GUIDE.md) and a printable tech quick-start card at `/guide/tech`, linked from Laptops & screens → Add laptops.
+- A show-day test runs a whole venue day through the server: managers, laptops, screens, timers, chat, help, captions, overlays, backup, audit and sign-out.
+
+**Fixes**
+- Renaming a laptop or screen no longer takes it out of its room.
+- Only tech laptops can be set to Main or Backup PC.
+
 ## 0.9.0
 
 **The console is in clear sections**
