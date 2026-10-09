@@ -5,6 +5,13 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.0.3
+
+**Releases and updates**
+- The default branch is now `ATSUIT`. Checks, builds and the install script follow it; with no release yet, `get.sh` and `update.sh` take the default branch whatever its name.
+- A release published on GitHub's Releases page builds and attaches the Windows app and release notes by itself.
+- A server installed from a git checkout updates to a release even when that release isn't straight ahead of its copy (for example after a squash merge), as long as nobody has edited its files by hand.
+
 ## 1.0.2
 
 **The Windows app shows its version and updates on start**

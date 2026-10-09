@@ -60,7 +60,12 @@ if grep -q '^ATSUIT_IMAGE=ghcr.io/' .env 2>/dev/null; then IMAGE_INSTALL=1; fi
 if [ -d .git ]; then
   if [ "$AUTO" = 1 ]; then
     git "${GITAUTH[@]}" fetch -q origin "refs/tags/${ATSUIT_REF}:refs/tags/${ATSUIT_REF}"
-    git merge -q --ff-only "$ATSUIT_REF"
+    if ! git merge -q --ff-only "$ATSUIT_REF" 2>/dev/null; then
+      # The release isn't ahead of this checkout (a squash merge, a different branch):
+      # go to the release itself, unless someone has edited the files here by hand.
+      git diff --quiet HEAD -- || { echo "Files here were edited by hand; not moving to ${ATSUIT_REF}."; false; }
+      git checkout -q --detach "$ATSUIT_REF"
+    fi
   else
     git pull --ff-only
   fi
