@@ -701,7 +701,7 @@
         <label>Fleet SSH private key</label><div class="row"><input type="file" id="key" class="grow"><button class="small" id="upKey">Upload key</button></div>`,
     };
     a.innerHTML = `<div class="panel" style="margin-bottom:1rem"><div class="row" style="justify-content:space-between;flex-wrap:wrap"><h2 style="margin:0">Enrolment</h2><span class="small muted">Server address <code>${esc(origin)}</code> <button class="small" data-copy="${esc(origin)}">Copy</button></span></div>
-        <p class="small muted">Laptops and screens join with the site's code. A new code stops the old one working for new devices; ones already enrolled carry on.</p>
+        <p class="small muted">Laptops and screens join with the site's code. A new code stops the old one working for new devices; ones already enrolled carry on. Print the <a href="/guide/tech" target="_blank">tech quick-start card</a> to leave by each laptop.</p>
         ${sites.map((s) => `<div class="row enrol"><b class="grow">${esc(s.name)}</b><code class="code">${esc(s.enrol_code)}</code><button class="small" data-copy="${esc(s.enrol_code)}">Copy</button><button class="small" data-new="${s.id}">New code</button></div>`).join("")}</div>
       <div class="tabs sub">${Object.entries(parts).map(([k, v]) => `<button class="${k === part ? "on" : ""}" data-part="${k}">${v}</button>`).join("")}</div>
       <div class="panel" id="part">${sections[part]}</div>`;

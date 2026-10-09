@@ -14,6 +14,16 @@
 
 ## Install
 
+The quickest way, on a fresh server (installs Docker too if it's missing):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/main/get.sh | sudo bash
+# options for install.sh go after -s --, e.g.  | sudo bash -s -- --port 8180 --tls
+```
+
+It puts AT-SUIT in `/opt/at-suit` and runs `install.sh`. Set `ATSUIT_REF=v1.0.0`
+to install a particular release. Or do the same by hand:
+
 ```bash
 git clone https://github.com/adam1991tom/AT-SUIT.git /opt/atsuit
 cd /opt/atsuit
@@ -110,8 +120,17 @@ main server within a second, and the laptops keep sending audio as before.
 ```bash
 ./backup.sh                           # saves backups/atsuit-DATE.tgz
 ./restore.sh backups/atsuit-DATE.tgz  # puts one back (asks first)
-./update.sh                           # backs up, pulls, rebuilds, restarts
+./update.sh                           # safe update: see below
+./update.sh --check                   # which version is running
 ```
+
+`update.sh` saves a backup, keeps the running version as the `atsuit:rollback`
+image, then fetches the new version (`git pull`, the newest release for a
+`get.sh` install, or the published image) and starts it. It waits until the
+server answers healthy five times in a row. If it doesn't, it prints the
+server's log, restores the backup and starts the previous version again, so
+the venue is never left without a working server. Fix the cause, then run
+`./update.sh` again.
 
 Admins can also download a backup zip from the Backups page. A backup
 contains the encryption key, so store it somewhere safe.

@@ -117,6 +117,11 @@ def create_app() -> FastAPI:
     def screen_page():
         return page("screen.html")
 
+    @app.get("/guide/tech", include_in_schema=False)
+    def tech_card_page():
+        # The printable tech quick-start card.
+        return page("quickstart.html")
+
     @app.get("/guide/companion", include_in_schema=False)
     def companion_guide_page():
         return page("guide.html")

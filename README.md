@@ -22,6 +22,14 @@ kiosks, and AT-LiveCaption's speech engine.
 
 ## Install
 
+One command on a fresh Linux server (installs Docker if needed):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/main/get.sh | sudo bash
+```
+
+Or from a clone:
+
 ```bash
 git clone https://github.com/adam1991tom/AT-SUIT.git && cd AT-SUIT
 ./install.sh                 # http on port 8080
@@ -35,7 +43,8 @@ Or skip the build and run the published image: `./install.sh --pull` (or
 `docker login ghcr.io` on the server first.
 
 Then open `http://SERVER-IP:PORT/` and follow the setup wizard. See
-[docs/INSTALL.md](docs/INSTALL.md) for https, migration from the old apps,
+[docs/SETUP-GUIDE.md](docs/SETUP-GUIDE.md) to go from a bare server to a
+venue ready for its first show, [docs/INSTALL.md](docs/INSTALL.md) for https, migration from the old apps,
 backups and updates, and [docs/ADMIN.md](docs/ADMIN.md) for day-to-day setup.
 
 ## Pages
