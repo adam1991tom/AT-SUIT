@@ -101,18 +101,27 @@
   .v-hcc #logoTop { display: block; position: absolute; top: 3.5vh; left: 3.5vw; height: clamp(50px, 8vh, 110px); z-index: 2; }
   .v-hcc #bar { height: 36px; }
 
-  /* overlay: a see-through panel for a small borderless window or a bar across the screen */
+  /* overlay: a see-through panel for a small borderless window or a bar across the screen.
+     The timer fills the box; the time of day, the cue title and the second line sit small in the corners. */
   html.v-overlay, .v-overlay { background: transparent !important; }
   .v-overlay .stage { padding: 0; }
+  .v-overlay { --tsize: min(72vh, 30vw); --corner: max(12px, min(15vh, 3.6vw)); --edge: max(1.6vh, .9vw); }
   .v-overlay .main { position: absolute; inset: 0; background: rgba(0,0,0,.72); border-radius: min(3vh, 14px); overflow: hidden;
-    display: grid; grid-template-columns: 1fr auto; grid-template-rows: 1fr auto; grid-template-areas: "timer tod" "title sec";
-    align-items: center; text-align: left; padding: 0 max(4vh, 1.4vw) calc(max(3vh, 4px) + 2px); column-gap: 3vw; }
-  .v-overlay { --tsize: min(60vh, 17vw); }
-  .v-overlay #timer { grid-area: timer; }
-  .v-overlay #tod { display: block; grid-area: tod; font-size: min(26vh, 5.5vw); justify-self: end; }
-  .v-overlay #sec { grid-area: sec; justify-self: end; margin: 0; font-size: min(12vh, 2.6vw); padding-bottom: .4vh; color: #e2e8f0; max-width: 100%; }
-  .v-overlay #title, .v-overlay #next { font-size: min(12vh, 2.6vw); min-height: 0; margin: 0; padding-bottom: .4vh; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .v-overlay #title { grid-area: title; color: #e2e8f0; } .v-overlay #next { display: none; }
+    display: flex; align-items: center; justify-content: center; padding: 0 0 max(3vh, 4px); }
+  .v-overlay #timer { line-height: 1; }
+  .v-overlay #tod, .v-overlay #title, .v-overlay #sec { position: absolute; margin: 0; min-height: 0; font-size: var(--corner); line-height: 1.15; font-weight: 700;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #cbd5e1; }
+  .v-overlay #tod { display: block; top: var(--edge); right: calc(var(--edge) * 1.6); }
+  .v-overlay #title { top: var(--edge); left: calc(var(--edge) * 1.6); max-width: 62%; font-weight: 600; }
+  .v-overlay #sec { bottom: calc(max(3vh, 4px) + var(--edge) * .7); right: calc(var(--edge) * 1.6); max-width: 48%; color: #e2e8f0; }
+  .v-overlay #next { display: none; }
+  /* a bar across the screen: title and second line on the left, the clock on the right, the timer in the middle */
+  @media (min-aspect-ratio: 5/1) {
+    .v-overlay { --tsize: 70vh; --corner: max(12px, 30vh); }
+    .v-overlay #title { top: 12%; max-width: 30%; }
+    .v-overlay #sec { top: auto; bottom: calc(max(3vh, 4px) + 10%); left: calc(var(--edge) * 1.6); right: auto; max-width: 30%; }
+    .v-overlay #tod { top: 50%; transform: translateY(-50%); font-size: 46vh; margin-top: calc(max(3vh, 4px) / -2); }
+  }
   .v-overlay #bar { position: absolute; height: max(3vh, 4px); background: rgba(255,255,255,.12); }
   .v-overlay #bar .mask { background: #000; }
   .v-overlay #msg { position: absolute; background: rgba(0,0,0,.92); padding: 2vh 3vw; } .v-overlay #msg div { font-size: min(34vh, 6vw); }
@@ -266,7 +275,7 @@
   // Shrink the timer to fit when it gets longer (1:00:00, the time of day).
   const fit = (t) => {
     t.style.fontSize = "";
-    const room = t.parentElement.clientWidth * (kind === "overlay" ? 0.6 : 0.96);
+    const room = t.parentElement.clientWidth * (kind === "overlay" ? (innerWidth / innerHeight >= 5 ? 0.5 : 0.9) : 0.96);
     if (t.scrollWidth > room) t.style.fontSize = parseFloat(getComputedStyle(t).fontSize) * room / t.scrollWidth + "px";
   };
   addEventListener("resize", () => { fit($("timer")); fitMsg(); });

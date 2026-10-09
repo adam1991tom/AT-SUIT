@@ -696,10 +696,18 @@
   $("helpBox").onclick = (e) => e.stopPropagation();
   if (boot.modules.comms) {
     renderHelp();
-    const send = () => guard(() => post("/api/comms/help", { room_id: roomId, category: $("helpCat").value, description: $("helpText").value, priority: "urgent" }))
-      .then(() => { $("helpText").value = ""; toast("Help call sent. You'll see here when someone is on the way.", "good"); renderHelp(); });
+    // One press is one call: the button stays off until the server answers and for a moment after,
+    // so a double-click, a held Enter key or a slow network can't send it again.
+    let sending = false;
+    const send = () => {
+      if (sending) return;
+      sending = true; $("helpBtn").disabled = true; $("helpBtn").textContent = "Sending…";
+      guard(() => post("/api/comms/help", { room_id: roomId, category: $("helpCat").value, description: $("helpText").value, priority: "urgent" }))
+        .then(() => { $("helpText").value = ""; toast("Help call sent. You'll see here when someone is on the way.", "good"); renderHelp(); }, () => {})
+        .finally(() => setTimeout(() => { sending = false; $("helpBtn").disabled = false; $("helpBtn").textContent = "Send"; }, 1500));
+    };
     $("helpBtn").onclick = send;
-    $("helpText").onkeydown = (e) => { if (e.key === "Enter") send(); };
+    $("helpText").onkeydown = (e) => { if (e.key === "Enter" && !e.repeat) { e.preventDefault(); send(); } };
   } else $("helpTop").parentElement.classList.add("hidden");
 
   // captions: a quick look on the dashboard, the full view in its window
@@ -733,6 +741,7 @@
     if (evt.type === "message.new" && !own(evt.data)) {
       const m = evt.data, dm = evt.topic.startsWith("dm:"), mine = dm || evt.topic === `room:${roomId}` || evt.topic.startsWith("site:");
       if (!chatSeen()) { chatUnread++; ATDesk.badge("chat", chatUnread); }
+      ATDesk.flash?.("chat"); // the chat window glows for a moment, open or not
       if (mine || m.priority === "urgent") alerts.add(m.priority === "urgent" ? "urgent" : "chat", dm ? `${m.sender_name} (direct)` : m.sender_name, m.body || "Sent a file", () => setDock(true));
     }
     const what = (h) => h.description ? `${h.category}: ${h.description}` : h.category;

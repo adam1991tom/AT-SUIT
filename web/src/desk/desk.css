@@ -32,6 +32,14 @@
 .dk-tab.on { background: var(--panel); border-color: var(--line); color: var(--strong); margin-bottom: -1px; }
 .dk-tab:hover { border-color: var(--line); }
 .dk-tab .unread, .dk-item .unread { margin-left: .35rem; }
+/* something new in a window (a chat message): its tab and taskbar button turn the accent colour and pulse until it's read,
+   and the window glows for a moment even when it's already open */
+.dk-tabs .dk-tab.dk-new, .dk-items .dk-item.dk-new { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); animation: dk-pulse 1.4s ease-in-out infinite; }
+.dk-tabs .dk-tab.dk-new .unread, .dk-items .dk-item.dk-new .unread { background: var(--accent-ink); color: var(--accent); font-weight: 800; }
+.dk-win.dk-flash { animation: dk-glow 1s ease-in-out 3; }
+@keyframes dk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@keyframes dk-glow { 0%, 100% { box-shadow: none; } 50% { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent), 0 0 28px color-mix(in srgb, var(--accent) 55%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .dk-tab.dk-new, .dk-item.dk-new { animation: none; } .dk-win.dk-flash { animation: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent); } }
 .dk-btns { display: flex; align-items: center; gap: .1rem; }
 .dk-btns button { padding: .1rem .45rem; font-size: .85rem; line-height: 1.2; background: transparent; border-color: transparent; color: var(--muted); }
 .dk-btns button:hover { color: var(--strong); border-color: var(--line); }

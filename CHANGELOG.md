@@ -4,6 +4,16 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 1.0.1
+
+**From the first show-day test**
+- The overlay timer fills its box. The time of day, the cue title and the second line sit small in the corners; across a bar, the title and second line are on the left and the clock on the right.
+- A new screen view, **Speaker preview**: the studio clock on the left; every help call on the site (this room's first) and the crew's important and urgent messages on the right. No stage timer. Pick it like any view, or open `/timer/<room>?view=preview`. Backstage is unchanged.
+- A new chat message stands out in the workspace: the Chat window glows, the message lights up for a few seconds, and while it's unread the Chat tab and taskbar button turn the accent colour and pulse.
+
+**Fixes**
+- The Help button sends one call per press. It waits for the server before it can be pressed again, a held Enter key doesn't repeat it, and the server treats the same call from the same person within 30 seconds as the one already sent.
+
 ## 1.0.0
 
 **Ready to sell**

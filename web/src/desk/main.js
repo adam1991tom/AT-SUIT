@@ -6,6 +6,7 @@
 //   ATDesk.add(id, element, title)        before start()
 //   ATDesk.start(host, { key, fallback, shared, canShare, onShare })
 //   ATDesk.open(id) / close(id) / available(id, yes) / badge(id, n) / isOpen(id)
+//   ATDesk.flash(id)                      make a window glow for a moment (a new chat message)
 //   ATDesk.find(elementId)                 an element here or in a pop-out
 import { mount } from "svelte";
 import "./desk.css";
@@ -20,7 +21,7 @@ let order = 0;
 export function add(id, el, title) {
   els[id] = el;
   el.hidden = false; // parts wait hidden in the page until the desk places them
-  desk.panes[id] = { title, available: true, badge: 0, popped: false, order: order++ };
+  desk.panes[id] = { title, available: true, badge: 0, flash: false, popped: false, order: order++ };
   parking().appendChild(el);
 }
 
@@ -30,6 +31,17 @@ export function available(id, yes) {
 
 export function badge(id, n) {
   if (desk.panes[id]) desk.panes[id].badge = n || 0;
+}
+
+// The window glows for a few seconds, even when it's open and the badge stays at zero.
+const flashing = {};
+export function flash(id) {
+  const p = desk.panes[id];
+  if (!p) return;
+  p.flash = false;
+  clearTimeout(flashing[id]);
+  // off then on again, so a second message restarts the glow
+  requestAnimationFrame(() => { p.flash = true; flashing[id] = setTimeout(() => { p.flash = false; }, 3200); });
 }
 
 export function title(id, t) {

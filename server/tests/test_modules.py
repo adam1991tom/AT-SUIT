@@ -355,13 +355,55 @@ def test_backstage_help_board_is_public_and_live(admin):
         evt = ws.receive_json()
         assert evt["type"] == "help" and evt["data"]["calls"][0]["description"] == "Mic 3 dropping out"
         admin.put(f"/api/comms/help/{h['id']}", json={"status": "resolved"})
-        assert ws.receive_json()["data"]["calls"] == []
+        evt = ws.receive_json()
+        while evt["type"] != "help":
+            evt = ws.receive_json()
+        assert evt["data"]["calls"] == []
     admin.post("/api/comms/help", json={"room_id": rooms(admin)["CC"], "description": "Clicker"})
     admin.post("/api/auth/logout")
     board = admin.get(f"/api/comms/help/board/{rid}").json()  # a screen, not signed in
     assert board == {"room_id": rid, "calls": [], "open_elsewhere": 1}
     page = admin.get(f"/timer/{rid}?view=backstage").text
     assert "studio" in page and admin.get(f"/timer/{rid}").text != page
+
+
+def test_help_button_pressed_twice_sends_one_call(admin):
+    rid = rooms(admin)["CC"]
+    body = {"room_id": rid, "category": "Audio", "description": "Lectern mic"}
+    calls = [admin.post("/api/comms/help", json=body).json() for _ in range(4)]
+    assert len({c["id"] for c in calls}) == 1
+    # a different problem is a new call
+    other = admin.post("/api/comms/help", json={**body, "description": "Clicker"}).json()
+    assert other["id"] != calls[0]["id"]
+    # once the first is answered, asking again is a new call too
+    admin.put(f"/api/comms/help/{calls[0]['id']}", json={"status": "acknowledged"})
+    assert admin.post("/api/comms/help", json=body).json()["id"] != calls[0]["id"]
+
+
+def test_speaker_preview_shows_site_help_and_crew_notices(admin):
+    r = rooms(admin)
+    sp, hd = r["CC"], r["HD"]
+    chans = {c["name"]: c["id"] for c in admin.get("/api/comms/channels").json()}
+    admin.post("/api/comms/help", json={"room_id": hd, "category": "Video", "description": "No signal"})
+    mine = admin.post("/api/comms/help", json={"room_id": sp, "category": "Presenter", "description": "Speaker lost"}).json()
+    room_name = next(c for c in admin.get("/api/comms/channels").json() if c.get("room_id") == sp)["name"]
+    site_chan = next(c["id"] for c in admin.get("/api/comms/channels").json() if c["kind"] == "site")
+    admin.post(f"/api/comms/channels/{site_chan}/messages", json={"body": "Doors open in 5", "priority": "urgent"})
+    admin.post(f"/api/comms/channels/{site_chan}/messages", json={"body": "just chatting", "priority": "normal"})
+    other_room = next(c["id"] for c in admin.get("/api/comms/channels").json() if c.get("room_id") == hd)
+    admin.post(f"/api/comms/channels/{other_room}/messages", json={"body": "Not for the preview room", "priority": "important"})
+    with admin.websocket_connect(f"/ws?topics=timer:{sp}") as ws:
+        assert ws.receive_json()["type"] == "hello"
+        admin.post(f"/api/comms/channels/{chans[room_name]}/messages", json={"body": "Next speaker is late", "priority": "important"})
+        assert ws.receive_json()["type"] == "preview"
+    admin.post("/api/auth/logout")
+    pv = admin.get(f"/api/comms/help/preview/{sp}").json()  # a screen, not signed in
+    assert pv["calls"][0]["id"] == mine["id"] and {c["description"] for c in pv["calls"]} == {"Speaker lost", "No signal"}
+    assert [n["body"] for n in pv["notices"]] == ["Next speaker is late", "Doors open in 5"]
+    assert pv["notices"][1]["to"] == "All crew" and pv["notices"][1]["priority"] == "urgent"
+    assert admin.get("/api/comms/help/preview/99999").status_code == 404
+    page = admin.get(f"/timer/{sp}?view=preview").text
+    assert 'id="pv"' in page
 
 
 def test_shared_computer_login_is_short(admin, client):

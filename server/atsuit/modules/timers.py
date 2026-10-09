@@ -38,7 +38,7 @@ END_ACTIONS = ("none", "stop", "load-next", "play-next")
 # "hcc" is the Standard view (the id stays so existing links and screens keep working).
 # There is no separate "stage" view any more: the stage screen is the Standard view (adam, 0.6.5).
 BUILTIN_VIEWS = {"hcc": "Standard", "minimal": "Minimal timer", "clock": "Clock", "backstage": "Backstage (studio clock)",
-                 "overlay": "Overlay window"}
+                 "preview": "Speaker preview (clock and help calls)", "overlay": "Overlay window"}
 # Views that used to be built in. BDNG is now an imported HTML view (docs/views/bdng.html):
 # view=bdng shows the imported "bdng" view if there is one, else the Standard view.
 LEGACY_VIEWS = {"bdng": "hcc", "stage": "hcc"}
@@ -834,7 +834,7 @@ LOOK_DEFAULTS = {"hcc": {}, "bdng": {"bottom_text": "BDNG Official Timekeeping S
 # The Ontime-style status bar along the bottom (time of day, state, cue, start
 # and end): on for the full-screen views, off for the minimal and overlay ones.
 # Imported (uploaded) views get it as a strip over their bottom edge, off unless switched on.
-STATUS_BAR_DEFAULT = {"stage": True, "minimal": False, "clock": False, "backstage": True, "hcc": True, "overlay": False}
+STATUS_BAR_DEFAULT = {"stage": True, "minimal": False, "clock": False, "backstage": True, "preview": False, "hcc": True, "overlay": False}
 
 
 def _look_options(c, view: str) -> dict:

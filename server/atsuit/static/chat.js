@@ -193,6 +193,8 @@ const Chat = (() => {
         else {
           listEl.querySelector("p.muted")?.remove();
           listEl.insertAdjacentHTML("beforeend", msgHtml(m));
+          // someone else's new message lights up for a few seconds so it catches the eye
+          if (evt.type === "message.new" && !(me.kind === "account" ? m.sender_id === me.id : !m.sender_id && m.sender_name === me.name)) listEl.lastElementChild.classList.add("fresh");
           listEl.scrollTop = listEl.scrollHeight;
           post(`/api/comms/channels/${cid}/read`, { up_to: m.id }).catch(() => {});
         }
