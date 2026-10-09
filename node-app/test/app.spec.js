@@ -126,7 +126,7 @@ test("the main PC: no pop-ups and no notifications of any kind", async () => {
 test("a workspace window pops out into a window of its own, stays on top if asked, and docks back", async () => {
   app = await launch();
   const page = await mainPage(app);
-  await expect(page.locator("#ws")).toBeVisible();
+  await expect(page.locator(".dk-win:has(#chat)")).toBeVisible(); // the desk lays the windows out once the page has loaded
   const gid = await page.evaluate(() => ATDesk.tree.groupOf(ATDesk.layout(), "chat").id);
   const [pop] = await Promise.all([app.waitForEvent("window"), page.click(`[data-gid="${gid}"] [aria-label="Pop out"]`)]);
   await expect(pop.locator(".dk-popmain #chat")).toBeVisible();
