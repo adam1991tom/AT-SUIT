@@ -130,7 +130,9 @@ def test_fleet_enrol_heartbeat_commands(admin):
     assert admin.get("/api/admin/accounts", headers=hdr).status_code in (401, 403)
 
 
-def test_node_limit_evaluation(admin):
+def test_node_limit(admin):
+    from licensed_server import licence_key
+    assert admin.put("/api/admin/licence", json={"key": licence_key(max_nodes=5)}).status_code == 200
     code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
     for i in range(5):
         assert admin.post("/api/nodes/enrol", json={"code": code, "name": f"n{i}"}).status_code == 200
@@ -334,7 +336,7 @@ def test_kiosk_keeps_its_room(admin, monkeypatch):
 
 
 def test_windows_app_release(admin, client):
-    assert client.get("/api/nodes/app").json() == {"version": None, "github": "adam1991tom/AT-SUIT"}
+    assert client.get("/api/nodes/app").json() == {"version": None, "github": "adam1991tom/AT-SUIT-releases"}
     yml = b"version: 0.2.0\nfiles:\n  - url: AT-SUIT-Node-Setup-0.2.0.exe\npath: AT-SUIT-Node-Setup-0.2.0.exe\nsha512: abc\n"
     files = [("files", ("latest.yml", yml)), ("files", ("AT-SUIT-Node-Setup-0.2.0.exe", b"MZ fake installer"))]
     assert admin.post("/api/fleet/app", files=[("files", ("../evil.sh", b"x"))]).status_code == 400

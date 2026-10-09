@@ -65,12 +65,13 @@ const exeIn = (dir, re) => fs.readdirSync(dir).find((f) => re.test(f));
   log(`A = ${A}, B = ${B}`);
 
   const data = fs.mkdtempSync(path.join(os.tmpdir(), "atsuit-update-"));
-  const server = spawn(process.env.PYTHON || "python", ["-m", "uvicorn", "atsuit.main:app", "--host", "127.0.0.1", "--port", PORT],
+  const server = spawn(process.env.PYTHON || "python", ["tests/licensed_server.py", "--host", "127.0.0.1", "--port", PORT],
     { cwd: path.join(__dirname, "..", "..", "server"), env: { ...process.env, ATSUIT_DATA: data, ATSUIT_ASR: "0" }, stdio: "inherit" });
   let app = null;
   try {
     await until("the server", async () => (await fetch(`${BASE}/api/health`)).ok, 120);
-    await call("POST", "/api/setup", { organisation: "Test", site_name: "Main", admin_username: "admin", admin_password: "correct-horse", rooms: ["CC"] });
+    const licence_key = fs.readFileSync(path.join(data, "test-licence.txt"), "utf8");
+    await call("POST", "/api/setup", { organisation: "Test", site_name: "Main", admin_username: "admin", admin_password: "correct-horse", rooms: ["CC"], licence_key });
     const { cookie } = await call("POST", "/api/auth/login", { username: "admin", password: "correct-horse" });
     const code = (await call("GET", "/api/fleet/enrolment", null, cookie)).data[0].enrol_code;
 

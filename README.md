@@ -22,13 +22,14 @@ kiosks, and AT-LiveCaption's speech engine.
 
 ## Install
 
-One command on a fresh Linux server (installs Docker if needed):
+One command on a fresh Linux server (installs Docker if needed). It installs the
+newest release from the public releases repository and runs the published image:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/HEAD/get.sh | sudo bash
+curl -fsSL https://github.com/adam1991tom/AT-SUIT-releases/releases/latest/download/get.sh | sudo bash
 ```
 
-Or from a clone:
+Or from a clone of the source (for development; the source repository needs access):
 
 ```bash
 git clone https://github.com/adam1991tom/AT-SUIT.git && cd AT-SUIT
@@ -82,16 +83,20 @@ docs/DESIGN.md        architecture, module map, migration and build order
 `ghcr.io/adam1991tom/at-suit:edge`. To release, bump `VERSION`, add a section
 to [CHANGELOG.md](CHANGELOG.md), merge, then push a tag `vX.Y.Z` or publish a
 release `vX.Y.Z` from the `ATSUIT` branch on GitHub. CI then publishes `:X.Y.Z` and `:latest` and
-creates the GitHub release with the Windows app installer and the node agent
-attached. See
+creates the GitHub release with the Windows app installer, the node agent and
+the install files attached. With the `RELEASES_TOKEN` secret set it also
+publishes the same release to the public `AT-SUIT-releases` repository, which
+is where servers and laptops update from. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 
-The repository is currently under the MIT licence (see `LICENSE`), which lets
-anyone use and resell the code. Before selling AT-SUIT, replace it with a
-proprietary licence; customer installs are controlled separately by licence
-keys (see docs/ADMIN.md).
+AT-SUIT is proprietary (see [LICENSE](LICENSE)): using it needs a licence key
+from AT NET, and nothing works until one is installed. Keys are checked offline
+and carry the subscription's end date; there are warnings before it ends and 14
+days of grace after, and it never locks during a show. Issuing keys and the
+plans are in [docs/ADMIN.md](docs/ADMIN.md#licences-for-resellers).
+Versions before 1.0.4 were published under the MIT licence.
 
 ## Development
 

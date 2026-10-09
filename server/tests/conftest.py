@@ -5,6 +5,20 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from licensed_server import licence_key, trust_test_key  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def test_vendor_key(monkeypatch):
+    """Every test trusts the throwaway vendor key in licensed_server.py, never the real one."""
+    from atsuit import licence
+
+    monkeypatch.setattr(licence, "_vendor_raw", licence._vendor_raw)  # put the real one back afterwards
+    trust_test_key()
+    yield
+    licence.forget()
 
 
 @pytest.fixture()
@@ -27,7 +41,7 @@ def client(tmp_path, monkeypatch):
 def admin(client):
     r = client.post("/api/setup", json={
         "organisation": "Test Org", "site_name": "Main Venue", "admin_username": "admin",
-        "admin_password": "correct-horse", "rooms": ["CC", "HD", "RH"],
+        "admin_password": "correct-horse", "rooms": ["CC", "HD", "RH"], "licence_key": licence_key(),
     })
     assert r.status_code == 200, r.text
     return client

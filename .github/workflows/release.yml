@@ -48,6 +48,10 @@ jobs:
     needs: [windows-app]
     if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
+    env:
+      # A token that can write releases to <owner>/AT-SUIT-releases, the public repository servers
+      # and laptops update from (so this one can be private). Without it, releases go here only.
+      RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Image name
@@ -95,6 +99,14 @@ jobs:
         with:
           name: windows-app
           path: windows-app
+      - name: Install files (no source code)
+        if: startsWith(github.ref, 'refs/tags/v')
+        # What get.sh and update.sh install from a release: the scripts and compose file; AT-SUIT
+        # itself is the image published above.
+        run: |
+          mkdir bundle
+          cp -a install.sh update.sh backup.sh restore.sh get.sh docker-compose.yml Dockerfile .env.example VERSION LICENSE deploy bundle/
+          tar czf at-suit-install.tar.gz -C bundle .
       - name: GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -103,3 +115,18 @@ jobs:
           files: |
             node-agent/atsuit_node.py
             windows-app/*
+            at-suit-install.tar.gz
+            get.sh
+      - name: Public release (releases-only repository)
+        if: startsWith(github.ref, 'refs/tags/v') && env.RELEASES_TOKEN != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: ${{ github.repository_owner }}/AT-SUIT-releases
+          token: ${{ secrets.RELEASES_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          body_path: notes.md
+          files: |
+            node-agent/atsuit_node.py
+            windows-app/*
+            at-suit-install.tar.gz
+            get.sh

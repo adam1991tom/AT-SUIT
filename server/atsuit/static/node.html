@@ -22,6 +22,9 @@
   /* the workspace fills the window under the top bar: windows and a taskbar (static/ui/desk.js) */
   #ws:not(.hidden) { display: flex; flex-direction: column; height: 100vh; }
   #desk { flex: 1; min-height: 0; display: flex; }
+  .lic-bar { background: var(--banner); border-bottom: 1px solid var(--warn); color: var(--warn-ink); padding: .3rem 1rem; font-size: .85rem; }
+  .lic-bar.bad { border-color: var(--bad); color: var(--bad-ink); }
+  .lic-bar a { color: inherit; text-decoration: underline; }
   .tile-timer .row > input.grow { width: auto; flex-basis: 9rem; } /* the stage message and its Show / Hide on one line */
   .tile-timer .bigclock { font-size: clamp(2.4rem, 17cqw, 8rem); line-height: 1; margin: .2rem 0; }
   .cap-line { min-height: 2.6rem; margin: .4rem 0; font-size: .95rem; }
@@ -129,6 +132,7 @@
     <a class="btn hidden" id="consoleBtn" href="/#/dashboard" target="_blank">Console</a>
     <button id="out">Sign out</button>
   </div>
+  <div id="licBar" class="lic-bar hidden"></div>
   <div id="laptop" class="panel hidden" style="margin:1rem 1rem 0">
     <h3>This laptop</h3>
     <div class="opts" id="modeOpts">
@@ -341,6 +345,14 @@
       catch (ex) { $("loginErr").textContent = ex.message; }
     };
     return;
+  }
+  // A licence that's running out: one quiet line under the top bar (admins also get a link to Licence).
+  if (boot.licence_notice) {
+    const n = boot.licence_notice, bar = $("licBar");
+    bar.textContent = n.text;
+    if (n.admin) bar.insertAdjacentHTML("beforeend", ' <a href="/?shared=1#/licence" target="_blank">Open Licence</a>');
+    bar.classList.toggle("bad", n.level === "bad");
+    bar.classList.remove("hidden");
   }
   // Main PC: nothing pops up or alerts. Backup PC: silent pop-ups.
   const mode = techLaptop() ? node.node.mode : "";

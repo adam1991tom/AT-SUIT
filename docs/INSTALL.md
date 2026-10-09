@@ -17,12 +17,14 @@
 The quickest way, on a fresh server (installs Docker too if it's missing):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/HEAD/get.sh | sudo bash
+curl -fsSL https://github.com/adam1991tom/AT-SUIT-releases/releases/latest/download/get.sh | sudo bash
 # options for install.sh go after -s --, e.g.  | sudo bash -s -- --port 8180 --tls
 ```
 
-It puts AT-SUIT in `/opt/at-suit` and runs `install.sh`. Set `ATSUIT_REF=v1.0.0`
-to install a particular release. Or do the same by hand:
+It puts AT-SUIT in `/opt/at-suit` and runs `install.sh` with the published image
+of the newest release (the release carries only the install files, no source).
+Set `ATSUIT_REF=v1.0.4` to install a particular release. Or build from a clone
+of the source (development; the source repository needs access):
 
 ```bash
 git clone https://github.com/adam1991tom/AT-SUIT.git /opt/atsuit

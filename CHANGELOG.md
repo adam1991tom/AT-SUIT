@@ -5,6 +5,22 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.0.4
+
+**Licence keys and subscriptions**
+- AT-SUIT needs a licence key to work. Without a valid key only the Licence page works: the workspace, screens, timer and caption pages say "not licensed", the API answers 402 and live connections are refused. Pasting a key unlocks it at once, and screens come back by themselves. Evaluation mode is gone.
+- Subscription keys carry their end date. Admins see a warning in the console and the workspace 30 days before the end; everyone sees it in the last 7 days.
+- After the end there are 14 days of grace with everything working. Then AT-SUIT locks, but never during a show: the lock waits for a restart or 02:00 to 05:00 (site time) with no timer running or paused and no captions live. Nothing is deleted.
+- Winding the server's clock back doesn't revive an expired key.
+- Servers set up before 1.0.4 without a key get 14 days to add one; servers with a key carry on as before.
+- Only the vendor key built into AT-SUIT is trusted (the `ATSUIT_VENDOR_PUBKEY` setting is gone).
+- `tools/licence.py issue` takes a plan (`small`, `venue`, `large`, `enterprise`, `trial`, `event`, `owner`), a length in months or an end date, and adds 7 spare days to paid periods. Keys get a serial.
+- The licence is now proprietary (see LICENSE). Earlier versions were MIT.
+
+**Releases from a public releases-only repository**
+- Servers and laptops look for updates in `adam1991tom/AT-SUIT-releases`, which holds only the releases (no source), so the source repository can be private and nobody needs a token. Until that repository has a release, they ask the source repository as before.
+- Each release carries `at-suit-install.tar.gz` (install files only) and `get.sh`. The one-line install is now `curl -fsSL https://github.com/adam1991tom/AT-SUIT-releases/releases/latest/download/get.sh | sudo bash`, and installs the published image.
+
 ## 1.0.3
 
 **Speaker preview**

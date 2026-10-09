@@ -289,7 +289,8 @@ def app_info():
 
     with db.ro() as c:
         cf = updates.conf(c)
-    return {**app_release(), "github": cf["repo"] if cf["mode"] != "off" else None}
+        repo = (updates.state(c).get("latest") or {}).get("repo") or cf["repo"]  # where the newest release was found
+    return {**app_release(), "github": repo if cf["mode"] != "off" else None}
 
 
 @router.get("/api/nodes/app/{filename}")

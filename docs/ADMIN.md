@@ -78,10 +78,11 @@ the right page.
    accounts, modules, captions engine, storage and disk space, and the last
    backup. **Download diagnostics** saves it as JSON for a support ticket,
    or **Copy** it; neither includes passwords, keys or tokens.
-12. **Licence** (admins only): who it's licensed to, edition,
-   serial, issue and expiry dates with days left, modules, sites and nodes
-   used against the limits, whether the signature checks out, the vendor
-   key and the key itself to copy. Techs never see licence details.
+12. **Licence** (admins only): who it's licensed to, plan (edition),
+   serial, issue and expiry dates with days left, the grace date once it has
+   ended, modules, sites and nodes used against the limits, whether the
+   signature checks out, the vendor key and the key itself to copy. Techs
+   never see licence details, only the warning line while it runs out.
 13. **Backups**: download a backup (database, uploads and encryption key)
    and import from the old tools.
 14. **Settings → API keys**: a key for Companion.
@@ -236,11 +237,49 @@ keys). Room 3 here; the room number is in its stage screen address
 
 ## Licences (for resellers)
 
-The vendor key pair already exists: its public half is in
-`server/atsuit/vendor_pubkey.txt` and ships in every image. The private half is
-never in the repo; keep it offline and backed up, because losing it means no
-new licences can be issued for existing installs. Pass it with `--key`.
-`tools/licence.py issue --key <private key> --licensee "Venue Ltd" --nodes 40 --sites 2 --days 365`
-(use 0 for unlimited) prints a key the customer pastes into Licence. Licences are checked
-offline. Without one, AT-SUIT runs in evaluation mode: every module, one site,
-five nodes.
+AT-SUIT does nothing until a valid licence key is installed (in setup, or
+**Licence** afterwards). Keys are checked offline against the vendor public
+key in `server/atsuit/vendor_pubkey.txt`, the only key AT-SUIT trusts. The
+private half is never in the repo and never on a venue server: keep it
+offline and backed up, because losing it means no new keys for existing
+customers.
+
+**Plans.** Every plan has every module; plans differ by how many laptops
+(nodes) can join. One key covers one server; `--sites` allows more venues on it.
+
+| Plan | Laptops | Length |
+|---|---|---|
+| `small` | 10 | `--months` (default 12) or `--until YYYY-MM-DD`, plus 7 spare days |
+| `venue` | 30 | as above |
+| `large` | 75 | as above |
+| `enterprise` | unlimited | as above |
+| `trial` | 10 | 30 days |
+| `event` | 10 | 7 days |
+| `owner` | unlimited | never ends (your own servers) |
+
+```bash
+python tools/licence.py issue --key vendor-private-key.pem --licensee "Venue Ltd" --plan venue           # a year
+python tools/licence.py issue --key vendor-private-key.pem --licensee "Venue Ltd" --plan small --months 1
+python tools/licence.py issue --key vendor-private-key.pem --licensee "Hire Co" --plan event
+python tools/licence.py show <key>
+```
+
+It prints the key for the customer to paste into **Licence**. Renewing is
+issuing a key for the next period; pasting it replaces the old one and keeps
+everything else.
+
+**When a subscription runs out:**
+
+- 30 days before the end, admins see a warning in the console and the
+  workspace; 7 days before, everyone does.
+- After the end there are 14 days of grace: everything works, with a red
+  warning for everyone.
+- Then it locks: only **Licence** works, the workspace, screens and timer
+  pages say "not licensed", and the API answers 402. It never locks during
+  a show: the lock waits for a restart or 02:00 to 05:00 (site time) with no
+  timer running or paused and no captions live. Nothing is deleted, and a
+  new key unlocks it at once (screens come back by themselves).
+- Winding the server's clock back doesn't help: it remembers the latest time
+  it has seen. A newer key from you resets that, in case a clock ran ahead.
+- Servers set up before 1.0.4 without a key get 14 days to add one.
+

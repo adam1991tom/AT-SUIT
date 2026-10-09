@@ -6,6 +6,7 @@ import wave
 from pathlib import Path
 
 import pytest
+from licensed_server import licence_key
 
 MODELS = os.getenv("ATSUIT_TEST_MODELS")
 pytestmark = pytest.mark.skipif(not MODELS, reason="set ATSUIT_TEST_MODELS to run")
@@ -24,7 +25,7 @@ def test_node_audio_becomes_captions(tmp_path, monkeypatch):
 
     with TestClient(create_app()) as c:
         c.post("/api/setup", json={"organisation": "O", "site_name": "S", "admin_username": "admin",
-                                   "admin_password": "correct-horse", "rooms": ["CC"]})
+                                   "admin_password": "correct-horse", "rooms": ["CC"], "licence_key": licence_key()})
         for _ in range(120):
             if asr.engine.state in ("ready", "error", "unavailable"):
                 break

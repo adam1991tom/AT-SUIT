@@ -29,13 +29,15 @@ async function call(method, url, body, cookie) {
 module.exports = async () => {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), "atsuit-test-"));
   const python = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
-  const server = spawn(python, ["-m", "uvicorn", "atsuit.main:app", "--host", "127.0.0.1", "--port", PORT], {
+  // licensed_server.py: AT-SUIT trusting a throwaway vendor key, with a matching licence in the data folder.
+  const server = spawn(python, ["tests/licensed_server.py", "--host", "127.0.0.1", "--port", PORT], {
     cwd: path.join(__dirname, "..", "..", "server"),
     env: { ...process.env, ATSUIT_DATA: data, ATSUIT_ASR: "0" },
     stdio: "ignore",
   });
   await waitUp();
-  await call("POST", "/api/setup", { organisation: "Test", site_name: "Main", admin_username: "admin", admin_password: "correct-horse", rooms: ["CC", "HD", "RH"] });
+  const licence_key = fs.readFileSync(path.join(data, "test-licence.txt"), "utf8");
+  await call("POST", "/api/setup", { organisation: "Test", site_name: "Main", admin_username: "admin", admin_password: "correct-horse", rooms: ["CC", "HD", "RH"], licence_key });
   const { cookie } = await call("POST", "/api/auth/login", { username: "admin", password: "correct-horse" });
   await call("POST", "/api/admin/accounts", { username: "amy", display_name: "Amy", role: "tech", password: "amy-password-1" }, cookie);
   await call("POST", "/api/admin/accounts", { username: "ben", display_name: "Ben", role: "tech", password: "ben-password-1" }, cookie);

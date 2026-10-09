@@ -74,10 +74,21 @@ elif [ -f .atsuit-repo ]; then
   REPO="$(cat .atsuit-repo)" REF="${ATSUIT_REF:-}"
   [ -n "$REF" ] || REF="$(curl -fsSL "${AUTH[@]}" "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
   TMP="$(mktemp -d)"
-  if [ -n "$TOKEN" ]; then
-    curl -fsSL "${AUTH[@]}" "https://api.github.com/repos/${REPO}/tarball/${REF:-HEAD}" | tar xz -C "$TMP" --strip-components 1
+  if [ -n "$REF" ] && curl -fsSL "https://github.com/${REPO}/releases/download/${REF}/at-suit-install.tar.gz" -o "$TMP.bundle" 2>/dev/null; then
+    # A release's install files (no source code): AT-SUIT itself is the published image of that release.
+    tar xzf "$TMP.bundle" -C "$TMP" && rm -f "$TMP.bundle"
+    WANT="${WANT:-${REF#v}}"
+    if grep -q '^ATSUIT_IMAGE=' .env 2>/dev/null; then sed -i "s|^ATSUIT_IMAGE=.*|ATSUIT_IMAGE=ghcr.io/adam1991tom/at-suit:${WANT}|" .env
+    else echo "ATSUIT_IMAGE=ghcr.io/adam1991tom/at-suit:${WANT}" >> .env; fi
+    set -a; . ./.env; set +a
+    IMAGE_INSTALL=1
   else
-    curl -fsSL "https://codeload.github.com/${REPO}/tar.gz/${REF:-HEAD}" | tar xz -C "$TMP" --strip-components 1
+    rm -f "$TMP.bundle"
+    if [ -n "$TOKEN" ]; then
+      curl -fsSL "${AUTH[@]}" "https://api.github.com/repos/${REPO}/tarball/${REF:-HEAD}" | tar xz -C "$TMP" --strip-components 1
+    else
+      curl -fsSL "https://codeload.github.com/${REPO}/tar.gz/${REF:-HEAD}" | tar xz -C "$TMP" --strip-components 1
+    fi
   fi
   cp -a "$TMP"/. ./ && rm -rf "$TMP"
 elif [ "$AUTO" = 1 ] && [ "$IMAGE_INSTALL" = 0 ]; then

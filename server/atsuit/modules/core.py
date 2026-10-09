@@ -180,6 +180,9 @@ def setup_status():
 
 @router.post("/api/setup")
 def setup(body: SetupIn, response: Response):
+    lic = licence.parse(body.licence_key) if body.licence_key.strip() else None
+    if lic and not lic.valid:
+        raise HTTPException(400, lic.reason)
     with db.tx() as c:
         if is_setup(c):
             raise HTTPException(409, "Setup is already complete")
@@ -193,9 +196,10 @@ def setup(body: SetupIn, response: Response):
         )
         db.set_setting(c, "branding", {**DEFAULT_BRANDING, "organisation": body.organisation.strip()})
         db.set_setting(c, "modules", DEFAULT_MODULES)
-        if body.licence_key.strip():
-            db.set_setting(c, "licence_key", body.licence_key.strip())
         db.set_setting(c, "setup_complete", True)
+        if lic:
+            db.set_setting(c, "licence_key", body.licence_key.strip())
+            licence.installed(c, lic, body.admin_username.strip())
         db.audit(c, body.admin_username, "setup.complete", body.site_name)
         token = create_session(c, cur.lastrowid)
     _set_cookie(response, token)
@@ -305,9 +309,13 @@ def bootstrap(p: Principal = Depends(require_user)):
             "me": {"kind": p.kind, "id": p.id, "name": p.name, "role": p.role, "site_id": p.site_id, "room_id": p.room_id},
             "branding": get_branding(c),
             "modules": modules_enabled(c),
-            # Licence details are for admins; everyone else only needs the modules.
-            "licence": {"licensee": lic.licensee, "edition": lic.edition, "valid": lic.valid, "reason": lic.reason}
+            # Licence details are for admins; everyone else only needs the modules,
+            # whether it's locked, and a warning while the subscription runs out.
+            "licence": {"licensee": lic.licensee, "edition": lic.edition, "valid": lic.valid, "reason": lic.reason,
+                        "state": lic.state, "expires": lic.expires, "grace_until": lic.grace_until}
             if p.role == "admin" else {},
+            "licence_locked": licence.locked(c),
+            "licence_notice": licence.notice(c, p.role),
             "sites": sites,
             "rooms": rooms,
         }
@@ -394,6 +402,7 @@ def get_licence(p: Principal = Depends(require_admin)):
     with db.ro() as c:
         key = db.get_setting(c, "licence_key", "")
         lic = licence.current(c)
+        now, is_locked, note = licence.clock(c), licence.locked(c), licence.notice(c, "admin")
         used = usage(c)
     d = licence.details(key)
     pl = d["payload"] if isinstance(d["payload"], dict) else {}
@@ -403,7 +412,9 @@ def get_licence(p: Principal = Depends(require_admin)):
         "expires": expires,
         "issued": lic.issued or int(pl.get("issued", 0) or 0),
         "licensee": lic.licensee if lic.valid or not pl else str(pl.get("licensee", "")),
-        "days_left": max(0, int((expires - time.time()) // 86400)) if expires else None,
+        "days_left": max(0, -int((now - expires) // 86400)) if expires else None,  # rounded up, as the warnings say
+        "locked": is_locked,
+        "notice": note,
         "usage": used,
         "limits": {"sites": lic.max_sites, "nodes": lic.max_nodes, "rooms": 0},
         "installed": d["installed"],
@@ -425,12 +436,16 @@ class LicenceIn(BaseModel):
 def put_licence(body: LicenceIn, p: Principal = Depends(require_admin)):
     if not body.key.strip() and not body.remove:
         raise HTTPException(400, "Paste the licence key first")
-    lic = licence.parse(body.key)
-    if body.key.strip() and not lic.valid:
-        raise HTTPException(400, lic.reason)
     with db.tx() as c:
+        lic = licence.check_new(c, body.key)
+        if body.key.strip() and not lic.valid:
+            raise HTTPException(400, lic.reason)
         db.set_setting(c, "licence_key", body.key.strip())
-        db.audit(c, p.name, "licence.update", lic.licensee)
+        if body.key.strip():
+            licence.installed(c, lic, p.name)
+        else:
+            db.audit(c, p.name, "licence.remove", "")
+            licence.forget()
     return lic.public()
 
 

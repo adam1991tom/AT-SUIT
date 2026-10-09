@@ -272,8 +272,8 @@ Cut-over per server, after the side-by-side trial:
   starts it, and prints the setup URL. `update.sh` backs up the volume
   before rebuilding. `backup.sh` and `restore.sh` wrap the volume.
 - **First run**: the web setup wizard asks for the organisation and site
-  name, the first admin account, the rooms, and the licence key (or
-  evaluation). Everything after that is configured in the Admin UI on site:
+  name, the first admin account, the rooms, and the licence key (nothing but
+  the Licence page works without one). Everything after that is configured in the Admin UI on site:
   rooms, accounts, links, nodes, modules, branding, captions, retention.
   No file editing is needed.
 - **Side-by-side trial on ATSERVER1**: run AT-SUIT on **port 8180** (and
@@ -292,12 +292,16 @@ Cut-over per server, after the side-by-side trial:
 - **Licensing hook**: a licence is a signed JSON document (Ed25519) naming
   the licensee, expiry, max nodes, max sites and enabled modules. The server
   verifies it offline against the vendor public key compiled into the image.
-  Without a licence the server runs in evaluation mode (all modules, 5 nodes,
-  1 site, a banner). `tools/licence.py` makes the vendor key pair and issues
-  licences. Nothing phones home, which suits venues without internet.
-- **Repository licence**: this repo is currently MIT, which lets anyone
-  resell the code. Selling it means changing to a proprietary licence before
-  public releases; that's the owner's decision, so it isn't changed here.
+  Without a valid licence only the Licence page works. Subscription keys
+  carry their end date: warnings, then 14 days of grace, then a lock that
+  waits until no show is on (see docs/ADMIN.md). `tools/licence.py` makes the
+  vendor key pair and issues licences by plan. Nothing phones home, which
+  suits venues without internet.
+- **Repository licence**: proprietary from 1.0.4 (earlier versions were MIT).
+  The source repository can be private: releases (install files, the Windows
+  app and the node agent, no source) are published to the public
+  `AT-SUIT-releases` repository, and the image to GHCR, so servers and
+  laptops update without a token.
 - **Supportability**: `/api/health`, a diagnostics bundle download in Admin
   (versions, settings without secrets, recent logs), audit log, and backups.
 
