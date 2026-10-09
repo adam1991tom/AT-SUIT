@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 
 from .. import config, db
 from ..hub import hub
-from ..security import Principal, require_admin, require_manager, require_tech
+from ..security import Principal, principal, require_admin, require_manager, require_tech
 from .core import require_module, room_or_404
 
 router = APIRouter(dependencies=[Depends(require_module("timers"))])
@@ -60,9 +60,11 @@ def remaining(r, at: float | None = None) -> int:
     return int(r["remaining_ms"])
 
 
-def cue_out(q) -> dict:
+def cue_out(q, notes: bool = False) -> dict:
+    """A cue as screens see it. Notes are the techs' own (a speaker's phone, a reminder),
+    so they only go to signed-in staff, never to the public screens and feeds."""
     return {
-        "id": q["id"], "cue": q["cue"], "title": q["title"], "note": q["note"], "duration_ms": q["duration_ms"],
+        "id": q["id"], "cue": q["cue"], "title": q["title"], "note": q["note"] if notes else "", "duration_ms": q["duration_ms"],
         "time_start": q["time_start"], "timer_type": q["timer_type"], "end_action": q["end_action"],
         "skip": bool(q["skip"]), "colour": q["colour"], "warn_ms": q["warn_ms"], "danger_ms": q["danger_ms"],
         "custom": json.loads(q["custom_json"] or "{}"),
@@ -114,6 +116,7 @@ def state(c, r, room_name: str = "") -> dict:
         "flash_danger": bool(r["flash_danger"]), "show_clock": bool(r["show_clock"]),
         "time_format": "12" if db.get_setting(c, "ontime_time_format", "24") == "12" else "24",
         "clock_ms": _clock_ms(c, r["room_id"]),
+        "venue_date": datetime.now(_site_zone(c, r["room_id"])).date().isoformat(),
         "cue": cue_out(current) if current else None, "next": cue_out(nxt) if nxt else None,
         "cue_index": [q["id"] for q in cues].index(current["id"]) if current else None, "cue_count": len(cues),
         "secondary": secondary_out(r, now),
@@ -182,11 +185,12 @@ def get_timer(room_id: int):
 
 
 @router.get("/api/timers/{room_id}/cues")
-def get_cues(room_id: int):
-    """Public like the timer: backstage screens show the running order."""
+def get_cues(room_id: int, request: Request):
+    """Public like the timer: backstage screens show the running order. Notes only for staff."""
+    p = principal(request)
     with db.ro() as c:
         room_or_404(c, room_id)
-        return [cue_out(q) for q in cue_list(c, room_id)]
+        return [cue_out(q, notes=bool(p and p.at_least("tech"))) for q in cue_list(c, room_id)]
 
 
 # --------------------------------------------------------------- control --
@@ -272,8 +276,9 @@ async def timer_action(room_id: int, action: str, body: TimerAction | None = Non
             q = _neighbours(cues, r["cue_id"])
             if q:
                 _load(c, room_id, q, start=action == "go")
-            elif action == "go":
-                _stop(c, room_id)
+            elif r["cue_id"] and cues:
+                # past the last cue: leave what's on stage alone rather than stopping it
+                raise HTTPException(409, "That's the last cue")
         elif action == "previous":
             q = _neighbours(cues, r["cue_id"], -1)
             if q:
@@ -331,7 +336,8 @@ async def message_show(room_id: int, body: MessageShow | None = None, p: Princip
 
 @router.post("/api/timers/{room_id}/message/hide")
 async def message_hide(room_id: int, p: Principal = Depends(require_tech)):
-    return await timer_action(room_id, "message", TimerAction(message_visible=False), p)
+    # Hiding the message also stops the blink, or the timer would keep pulsing with nothing to read.
+    return await timer_action(room_id, "message", TimerAction(message_visible=False, message_blink=False), p)
 
 
 # ------------------------------------------------------- secondary line --
@@ -479,7 +485,8 @@ async def end_actions() -> None:
             with db.tx() as c:
                 changed += _flash(c, now)
                 for r in c.execute("SELECT * FROM timers WHERE running=1 AND end_action!='none'").fetchall():
-                    if remaining(r, now) > 0:
+                    # only a real count-down ends: a 0:00 cue or a count-up doesn't skip straight on
+                    if remaining(r, now) > 0 or r["timer_type"] != "count-down" or not r["duration_ms"]:
                         continue
                     nxt = _neighbours(cue_list(c, r["room_id"]), r["cue_id"])
                     if r["end_action"] == "stop" or not nxt:
@@ -1068,7 +1075,7 @@ def ontime_event(q) -> dict | None:
         return None
     start = _hhmm_to_ms(q["time_start"])
     return {
-        "type": "event", "id": str(q["id"]), "cue": q["cue"], "title": q["title"], "note": q["note"],
+        "type": "event", "id": str(q["id"]), "cue": q["cue"], "title": q["title"], "note": "",
         "endAction": q["end_action"] if q["end_action"] != "stop" else "none", "timerType": q["timer_type"],
         "countToEnd": False, "linkStart": False, "timeStrategy": "lock-duration", "flag": False,
         "timeStart": start or 0, "timeEnd": (start or 0) + q["duration_ms"], "duration": q["duration_ms"],

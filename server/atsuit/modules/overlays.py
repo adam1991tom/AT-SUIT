@@ -86,7 +86,10 @@ def edit_target(target_id: int, body: TargetIn, p: Principal = Depends(require_a
 @router.delete("/api/overlays/targets/{target_id}")
 def delete_target(target_id: int, p: Principal = Depends(require_admin)):
     with db.tx() as c:
+        r = c.execute("SELECT name FROM overlay_targets WHERE id=?", (target_id,)).fetchone()
         c.execute("DELETE FROM overlay_targets WHERE id=?", (target_id,))
+        if r:
+            db.audit(c, p.name, "overlay.delete", r["name"])
     return {"ok": True}
 
 

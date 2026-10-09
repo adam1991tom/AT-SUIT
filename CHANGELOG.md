@@ -4,6 +4,54 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.7.0
+
+The bug-sweep release: every screen was gone through as admin, manager, tech and stage screen, and 58 of the 61 problems found are fixed. Still open: the top bar wraps on 1400px screens, the console Timers page is wide on a phone (both go with the rebuild), and the Companion module keeps port 8180 on purpose (the documented port next to the old apps).
+
+**Stage screens**
+- Long stage messages shrink to fit the screen instead of running off it; the second line keeps to two lines (one in the overlay); a long cue title no longer squeezes the status bar's times.
+- Hiding a message also stops the blink; the Clock view never pulses.
+- Backstage shows the venue's date (not the screen's own time zone), is easier to read in portrait, and keeps a long message to three lines.
+- Every clock screen re-checks the venue time every 5 minutes, so it stays right across a clock change.
+- Caption screens no longer replay old lines as new after a reload or reconnect.
+- Screen test: bad values in the address can't hang the browser.
+
+**Security**
+- Cue notes stay with the crew: public screens, the Ontime feed and the live timer feed leave them out.
+- The presenter upload link checks the link and the file size before reading the file.
+- Sign-in slows down after 8 wrong passwords from one address (for 5 minutes), and every failed sign-in is in the audit log.
+- A manager kept to one site only sees and changes that site's rooms, people, links and laptops.
+- An empty "Install licence" no longer removes the licence; there is a separate *Remove licence* button that asks first.
+
+**Console**
+- Time zones are checked (and picked from a list) in setup and Sites; a wrong one used to make every clock show UTC.
+- Chat unread counts are kept on the server: the Chat badge lights on every page and survives a reload, in the console and on tech laptops.
+- A link for a room is saved to that room's site; managers can't make admin-board links.
+- Pages for a module that is turned off open the next page instead of a blank one.
+- Duplicate room names and usernames say so instead of "Internal Server Error"; a file that isn't a RoomComms database gets a clear message; an event can't end before it starts.
+- Publishing the Windows app needs the .exe and latest.yml together (an .exe alone used to be deleted).
+- Deleting a link, an overlay laptop or a chat message, and making a new presenter sync code, now ask first; link and overlay changes are audited.
+- Error messages name the field in words ("Time start: use a time like 9:30").
+- Buttons that need a file or a version say so instead of doing nothing; your own role and Active box can't be changed by mistake; managers don't see Update buttons they can't use.
+- Wide tables scroll inside their panel on a phone.
+
+**Tech workspace**
+- Windows open below the top bar (it wraps on smaller screens), and unpinning one puts it back at its own size.
+- The open chat box no longer covers the board; on a phone it starts folded and the top bar scrolls away.
+- The Screens window refreshes by itself when another tech or the console changes a screen.
+- "Send day to timer": a session without an end time runs until the next one starts (or counts up), instead of a 0:00 cue that skipped at once; a 0:00 cue never skips on by itself.
+- GO on the last cue says "That's the last cue" and leaves the stage alone (Stop stops).
+- A quick message with Blink unticked no longer turns the Blink switch off.
+- Help: you aren't alerted about your own call or told you're on your own way, and the caller sees "Help call sent" rather than "on the way" before anyone answers.
+- An urgent chat message shows one alert, not two; Overlays only says "sent" when that laptop can show it.
+- The stage message sends on Enter and won't show an empty message; deleting a cue asks first; cue rows fit a phone.
+
+**Windows app**
+- A 502/503 page from a proxy (while the server restarts) is retried like an unreachable server.
+
+**Companion**
+- "Danger" feedback is only lit for a running or paused count-down under its danger time; a stopped timer shows `--:--`.
+
 ## 0.6.7
 
 - **New Manager role**, between Tech and Admin. A manager can add, rename and remove rooms, add and edit tech and viewer accounts, move laptops and screens between rooms (Nodes), edit links and presenter events, edit the quick speaker messages, and read the audit log. A manager can't change site settings, the licence, branding, modules, timer views or designs, add or remove nodes, see enrolment codes, make API keys, take backups or import data, and can't create or change admins or other managers. In the console a manager sees Admin → Rooms, People, Links and Audit log.

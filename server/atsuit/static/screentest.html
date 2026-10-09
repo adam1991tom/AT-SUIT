@@ -120,7 +120,9 @@
   window.ATSUIT_SCREENTEST = Object.fromEntries(Object.entries(P).map(([k, v]) => [k, v.name]));   // the server keeps the same list
 
   // -------------------------------------------------------------------- state
-  const S = { p: P[Q.get("p")] ? Q.get("p") : "colorbars", cell: +Q.get("cell") || 1, speed: +Q.get("speed") || 8, cols: +Q.get("cols") || 8, rows: +Q.get("rows") || 4, info: Q.get("info") !== "0" };
+  // Values from the address are clamped: cell=-1 would loop forever, p=constructor isn't a pattern.
+  const num = (k, d, lo, hi) => { const v = Math.round(+Q.get(k)); return Number.isFinite(v) && v ? Math.min(hi, Math.max(lo, v)) : d; };
+  const S = { p: Object.hasOwn(P, Q.get("p") || "") ? Q.get("p") : "colorbars", cell: num("cell", 1, 1, 256), speed: num("speed", 8, 1, 100), cols: num("cols", 8, 1, 64), rows: num("rows", 4, 1, 64), info: Q.get("info") !== "0" };
   let W = 1, H = 1, DPR = 1;
   const keep = () => { const q = new URLSearchParams(); q.set("p", S.p); ["cell", "speed", "cols", "rows"].forEach((k) => q.set(k, S[k])); if (!S.info) q.set("info", "0"); history.replaceState(null, "", `?${q}`); };
 

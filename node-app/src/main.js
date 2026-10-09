@@ -143,6 +143,11 @@ function openMain() {
     mainWin.loadFile(path.join(__dirname, "offline.html"), { query: { server: conf.server } }).catch(() => {});
     setTimeout(() => mainWin && !mainWin.isDestroyed() && mainWin.loadURL(`${conf.server}/node`).catch(() => {}), 5000);
   });
+  // A proxy in front of the server answers 502/503 while it restarts: that isn't a failed load to
+  // Chromium, so treat a 5xx page the same way and try again.
+  mainWin.webContents.on("did-navigate", (_e, url, status) => {
+    if (status >= 500 && url.startsWith(conf.server)) mainWin.webContents.emit("did-fail-load", {}, -100, `HTTP ${status}`, url, true);
+  });
   mainWin.loadURL(`${conf.server}/node`);
 }
 
@@ -369,6 +374,9 @@ function openOverlay(c, target) {
     w.webContents.on("render-process-gone", () => setTimeout(() => !w.isDestroyed() && w.reload(), 2000));
     w.webContents.on("did-fail-load", (_e, code, _desc, url, isMain) => {
       if (isMain && code !== -3) setTimeout(() => !w.isDestroyed() && overlayUrl && w.loadURL(overlayUrl).catch(() => {}), 5000);
+    });
+    w.webContents.on("did-navigate", (_e, url, status) => {
+      if (status >= 500) setTimeout(() => !w.isDestroyed() && overlayUrl && w.loadURL(overlayUrl).catch(() => {}), 5000);
     });
     w.once("ready-to-show", () => !w.isDestroyed() && w.showInactive());
     // Windows can put a new frameless, transparent window where it likes when it first shows;

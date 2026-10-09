@@ -14,12 +14,14 @@ import subprocess
 import sys
 import time
 import zipfile
+from typing import Annotated
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
 
 from .. import VERSION, config, db, licence
 from ..hub import hub
@@ -129,10 +131,23 @@ def health():
 
 
 # ------------------------------------------------------------------- setup --
+def _time_zone(v: str) -> str:
+    """A real IANA time zone (Europe/London), or every venue clock would quietly run on UTC."""
+    v = v.strip()
+    try:
+        ZoneInfo(v)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise ValueError(f"Unknown time zone '{v}'. Use a name like Europe/London.")
+    return v
+
+
+TimeZone = Annotated[str, AfterValidator(_time_zone)]
+
+
 class SetupIn(BaseModel):
     organisation: str = Field(min_length=1, max_length=120)
     site_name: str = Field(min_length=1, max_length=120)
-    timezone: str = "Europe/London"
+    timezone: TimeZone = "Europe/London"
     admin_username: str = Field(min_length=2, max_length=64)
     admin_password: str = Field(min_length=8, max_length=256)
     admin_display_name: str = ""
@@ -185,12 +200,32 @@ def _set_cookie(response: Response, token: str, shared: bool = False) -> None:
                         max_age=None if shared else config.cfg.session_hours * 3600)
 
 
+# Wrong passwords: after LOGIN_TRIES in LOGIN_WINDOW seconds from one address for one
+# username, that address waits until the window clears. Every failure is in the audit log.
+LOGIN_TRIES, LOGIN_WINDOW = 8, 300
+_login_fails: dict[tuple[str, str], list[float]] = {}
+
+
 @router.post("/api/auth/login")
-def login(body: LoginIn, response: Response):
+def login(body: LoginIn, request: Request, response: Response):
+    user = body.username.strip()
+    key, now = (request.client.host if request.client else "", user.lower()), time.monotonic()
+    fails = [t for t in _login_fails.get(key, []) if now - t < LOGIN_WINDOW]
+    if len(fails) >= LOGIN_TRIES:
+        wait = int(LOGIN_WINDOW - (now - fails[0])) + 1
+        raise HTTPException(429, f"Too many wrong passwords. Try again in {max(1, wait // 60)} min.")
     with db.tx() as c:
-        a = c.execute("SELECT * FROM accounts WHERE username=? AND active=1", (body.username.strip(),)).fetchone()
-        if not a or not verify_password(body.password, a["password_hash"]):
-            raise HTTPException(401, "Wrong username or password")
+        a = c.execute("SELECT * FROM accounts WHERE username=? AND active=1", (user,)).fetchone()
+        ok = bool(a) and verify_password(body.password, a["password_hash"])
+        if not ok:
+            db.audit(c, user[:64] or "?", "auth.fail", key[0])
+    if not ok:
+        _login_fails[key] = fails + [now]
+        if len(_login_fails) > 10000:  # don't let made-up usernames grow this forever
+            _login_fails.clear()
+        raise HTTPException(401, "Wrong username or password")
+    _login_fails.pop(key, None)
+    with db.tx() as c:
         token = create_session(c, a["id"], minutes=SHARED_MINUTES if body.shared else None)
         db.audit(c, a["username"], "auth.login", "shared computer" if body.shared else "")
     _set_cookie(response, token, body.shared)
@@ -331,10 +366,13 @@ def get_licence(p: Principal = Depends(require_admin)):
 
 class LicenceIn(BaseModel):
     key: str
+    remove: bool = False  # an empty key only removes the licence when that's what was asked
 
 
 @router.put("/api/admin/licence")
 def put_licence(body: LicenceIn, p: Principal = Depends(require_admin)):
+    if not body.key.strip() and not body.remove:
+        raise HTTPException(400, "Paste the licence key first")
     lic = licence.parse(body.key)
     if body.key.strip() and not lic.valid:
         raise HTTPException(400, lic.reason)
@@ -347,13 +385,13 @@ def put_licence(body: LicenceIn, p: Principal = Depends(require_admin)):
 # sites
 class SiteIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    timezone: str = "Europe/London"
+    timezone: TimeZone = "Europe/London"
 
 
 @router.get("/api/admin/sites")
 def list_sites(p: Principal = Depends(require_manager)):
     with db.ro() as c:
-        rows = db.rows(c.execute("SELECT * FROM sites ORDER BY name"))
+        rows = [r for r in db.rows(c.execute("SELECT * FROM sites ORDER BY name")) if site_ok(p, r["id"])]
     # The enrolment code adds laptops, which is for admins only.
     if p.role != "admin":
         for r in rows:
@@ -377,6 +415,7 @@ def add_site(body: SiteIn, p: Principal = Depends(require_admin)):
 def edit_site(site_id: int, body: SiteIn, p: Principal = Depends(require_admin)):
     with db.tx() as c:
         c.execute("UPDATE sites SET name=?,timezone=? WHERE id=?", (body.name.strip(), body.timezone, site_id))
+        db.audit(c, p.name, "site.edit", f"{body.name.strip()} ({body.timezone})")
     return {"ok": True}
 
 
@@ -411,7 +450,7 @@ class RoomIn(BaseModel):
 @router.post("/api/admin/rooms")
 async def add_room(body: RoomIn, p: Principal = Depends(require_manager)):
     with db.tx() as c:
-        if not c.execute("SELECT 1 FROM sites WHERE id=?", (body.site_id,)).fetchone():
+        if not c.execute("SELECT 1 FROM sites WHERE id=?", (body.site_id,)).fetchone() or not site_ok(p, body.site_id):
             raise HTTPException(404, "Site not found")
         try:
             rid = create_room(c, body.site_id, body.name, body.short_name, body.sort)
@@ -425,11 +464,14 @@ async def add_room(body: RoomIn, p: Principal = Depends(require_manager)):
 @router.put("/api/admin/rooms/{room_id}")
 async def edit_room(room_id: int, body: RoomIn, p: Principal = Depends(require_manager)):
     with db.tx() as c:
-        room_or_404(c, room_id)
-        c.execute(
-            "UPDATE rooms SET name=?,short_name=?,sort=?,enabled=? WHERE id=?",
-            (body.name.strip(), (body.short_name or body.name)[:12], body.sort, int(body.enabled), room_id),
-        )
+        room_or_404(c, room_id, p)
+        try:
+            c.execute(
+                "UPDATE rooms SET name=?,short_name=?,sort=?,enabled=? WHERE id=?",
+                (body.name.strip(), (body.short_name or body.name)[:12], body.sort, int(body.enabled), room_id),
+            )
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, "A room with that name already exists")
         c.execute("UPDATE channels SET name=? WHERE room_id=? AND kind='room'", (body.name.strip(), room_id))
         db.audit(c, p.name, "room.edit", body.name.strip())
     await hub.publish(f"site:{body.site_id}", "rooms.changed", {})
@@ -439,7 +481,7 @@ async def edit_room(room_id: int, body: RoomIn, p: Principal = Depends(require_m
 @router.delete("/api/admin/rooms/{room_id}")
 async def delete_room(room_id: int, p: Principal = Depends(require_manager)):
     with db.tx() as c:
-        r = room_or_404(c, room_id)
+        r = room_or_404(c, room_id, p)
         c.execute("DELETE FROM rooms WHERE id=?", (room_id,))
         db.audit(c, p.name, "room.delete", r["name"])
     await hub.publish(f"site:{r['site_id']}", "rooms.changed", {})
@@ -468,7 +510,9 @@ class AccountIn(BaseModel):
 @router.get("/api/admin/accounts")
 def list_accounts(p: Principal = Depends(require_manager)):
     with db.ro() as c:
-        return db.rows(c.execute("SELECT id,username,display_name,role,site_id,active,created_at FROM accounts ORDER BY username"))
+        rows = db.rows(c.execute("SELECT id,username,display_name,role,site_id,active,created_at FROM accounts ORDER BY username"))
+    # A user kept to one site only sees that site's people (and themselves).
+    return [r for r in rows if p.site_id is None or r["site_id"] == p.site_id or r["id"] == p.id]
 
 
 @router.post("/api/admin/accounts")
@@ -478,6 +522,8 @@ def add_account(body: AccountIn, p: Principal = Depends(require_manager)):
     if not body.password or len(body.password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
     _check_manages(p, body.role)
+    if p.site_id is not None and body.site_id != p.site_id:
+        raise HTTPException(403, "You can only add people to your own site")
     with db.tx() as c:
         try:
             cur = c.execute(
@@ -496,18 +542,23 @@ def edit_account(account_id: int, body: AccountIn, p: Principal = Depends(requir
     if body.role not in ROLES:
         raise HTTPException(400, "Unknown role")
     with db.tx() as c:
-        cur = c.execute("SELECT role FROM accounts WHERE id=?", (account_id,)).fetchone()
-        if not cur:
+        cur = c.execute("SELECT role,site_id FROM accounts WHERE id=?", (account_id,)).fetchone()
+        if not cur or (account_id != p.id and p.site_id is not None and cur["site_id"] != p.site_id):
             raise HTTPException(404, "Account not found")
+        if p.site_id is not None and body.site_id != p.site_id:
+            raise HTTPException(403, "You can only keep people on your own site")
         if account_id == p.id and (body.role != p.role or not body.active):
             raise HTTPException(400, "You can't change your own access")
         if account_id != p.id:
             _check_manages(p, cur["role"], body.role)
-        c.execute(
-            "UPDATE accounts SET username=?,display_name=?,role=?,site_id=?,active=? WHERE id=?",
-            (body.username.strip(), body.display_name.strip() or body.username.strip(), body.role, body.site_id,
-             int(body.active), account_id),
-        )
+        try:
+            c.execute(
+                "UPDATE accounts SET username=?,display_name=?,role=?,site_id=?,active=? WHERE id=?",
+                (body.username.strip(), body.display_name.strip() or body.username.strip(), body.role, body.site_id,
+                 int(body.active), account_id),
+            )
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, "That username is taken")
         if body.password:
             if len(body.password) < 8:
                 raise HTTPException(400, "Password must be at least 8 characters")
@@ -524,7 +575,9 @@ def delete_account(account_id: int, p: Principal = Depends(require_manager)):
     if account_id == p.id:
         raise HTTPException(400, "You can't delete your own account")
     with db.tx() as c:
-        cur = c.execute("SELECT role FROM accounts WHERE id=?", (account_id,)).fetchone()
+        cur = c.execute("SELECT role,site_id FROM accounts WHERE id=?", (account_id,)).fetchone()
+        if cur and p.site_id is not None and cur["site_id"] != p.site_id:
+            raise HTTPException(404, "Account not found")
         if cur:
             _check_manages(p, cur["role"])
         c.execute("DELETE FROM accounts WHERE id=?", (account_id,))

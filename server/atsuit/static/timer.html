@@ -23,7 +23,9 @@
   .v-design.with-next #next { display: block; }
   /* the second line under the timer: a second countdown or a short text (like the venue's views) */
   #sec { display: none; flex-shrink: 0; font-weight: 700; font-size: clamp(40px, 7vw, 150px); line-height: normal; color: var(--tfg); font-variant-numeric: tabular-nums; margin-top: 1.5vh; white-space: nowrap; max-width: 96%; overflow: hidden; text-overflow: ellipsis; }
-  #sec.on { display: block; } #sec.over { color: var(--c-danger); } #sec.text { white-space: normal; font-size: clamp(32px, 5vw, 110px); }
+  #sec.on { display: block; } #sec.over { color: var(--c-danger); } #sec.text { white-space: normal; font-size: clamp(32px, 5vw, 110px); display: none; }
+  #sec.text.on { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; } /* at most two lines */
+  .v-overlay #sec.text.on { -webkit-line-clamp: 1; line-clamp: 1; }
   #tod { display: none; font-variant-numeric: tabular-nums; font-weight: 700; color: #94a3b8; }
   .logo { display: none; object-fit: contain; }
   /* the room, small in the bottom-left corner and only just visible against the background */
@@ -34,7 +36,8 @@
     align-items: center; gap: 2.6vw; border-top: 1px solid color-mix(in srgb, var(--tfg) 12%, var(--tbg)); background: color-mix(in srgb, var(--tfg) 4%, var(--tbg)); font-variant-numeric: tabular-nums; overflow: hidden; }
   .has-status #status { display: flex; }
   .has-status #room { bottom: calc(var(--barh) + var(--sbh) / 2); transform: translateY(50%); }
-  #status .it { display: flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 1.15; }
+  #status .it { display: flex; flex-direction: column; justify-content: center; flex-shrink: 0; line-height: 1.15; }
+  #status .it.grow { flex-shrink: 1; min-width: 0; } /* only the cue title gives way to a long name */
   #status .it b { font-size: clamp(9px, .72vw, 15px); font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--sblabel); }
   #status .it span { font-size: clamp(14px, 1.45vw, 30px); font-weight: 700; color: var(--sbfg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #status .grow { flex: 1; } #status .end { margin-left: auto; }
@@ -266,7 +269,16 @@
     const room = t.parentElement.clientWidth * (kind === "overlay" ? 0.6 : 0.96);
     if (t.scrollWidth > room) t.style.fontSize = parseFloat(getComputedStyle(t).fontSize) * room / t.scrollWidth + "px";
   };
-  addEventListener("resize", () => fit($("timer")));
+  addEventListener("resize", () => { fit($("timer")); fitMsg(); });
+  // A long stage message shrinks until it fits the screen instead of running off the top and bottom.
+  function fitMsg() {
+    const box = $("msg"), el = box.firstChild;
+    el.style.fontSize = "";
+    if (!box.classList.contains("on")) return;
+    const room = () => el.scrollHeight <= box.clientHeight * .92 && el.scrollWidth <= box.clientWidth;
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    while (!room() && size > 10) { size *= .92; el.style.fontSize = size + "px"; }
+  }
   const bar = $("bar"), [zn, zw, zd, mask] = bar.children;
   const place = (el, left, width) => { el.style.left = left + "%"; el.style.width = width + "%"; };
   const draw = () => {
@@ -289,7 +301,7 @@
       t.textContent = text;
       if (grew) fit(t);
     }
-    t.className = phase + (s.message_blink ? " blink" : "");
+    t.className = phase + (s.message_blink && !clock ? " blink" : ""); // the time of day never pulses
     $("tod").textContent = todText();
     $("tod").style.visibility = clock ? "hidden" : "";
     if (kind === "clock") $("title").textContent = "Current time";
@@ -312,10 +324,12 @@
     const showMsg = s.message_visible && s.message && (!design || design.show_message);
     $("msg").classList.toggle("on", !!showMsg);
     $("msg").classList.toggle("blink", !!s.message_blink);
-    if (showMsg && $("msg").firstChild.textContent !== s.message) $("msg").firstChild.textContent = s.message;
+    if (showMsg && $("msg").firstChild.textContent !== s.message) { $("msg").firstChild.textContent = s.message; fitMsg(); }
     $("black").classList.toggle("on", !!s.blackout);
   };
   setInterval(draw, 100);
+  // Re-read the venue clock every few minutes, so a screen left up overnight keeps time across a clock change.
+  setInterval(() => AT.api(`/api/timers/${roomId}`).then(got).catch(() => {}), 300000);
   draw();
   AT.socket([`timer:${roomId}`], (e) => {
     if (e.type === "timer") { got(e.data); if (kind === "backstage") renderList(); }

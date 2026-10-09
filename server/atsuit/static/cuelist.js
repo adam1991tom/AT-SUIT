@@ -66,7 +66,7 @@ const CueList = (() => {
         const id = +row.dataset.q, i = cues.findIndex((q) => q.id === id);
         row.querySelector("[data-load]").onclick = () => guard(() => post(`/api/timers/${roomId}/load`, { cue_id: id }));
         row.querySelector("[data-edit]").onclick = () => startEdit(cues[i]);
-        row.querySelector("[data-del]").onclick = () => guard(() => del(`/api/timers/${roomId}/cues/${id}`));
+        row.querySelector("[data-del]").onclick = () => confirm(`Delete cue ${cues[i].cue || ""} ${cues[i].title}${s && s.cue && s.cue.id === id ? " (it's on the timer now)" : ""}?`) && guard(() => del(`/api/timers/${roomId}/cues/${id}`));
         const move = (d) => { const ids = cues.map((q) => q.id); ids.splice(i + d, 0, ids.splice(i, 1)[0]); guard(() => post(`/api/timers/${roomId}/cues/reorder`, { ids })); };
         row.querySelector("[data-up]").onclick = () => move(-1);
         row.querySelector("[data-down]").onclick = () => move(1);
@@ -105,7 +105,12 @@ const CueList = (() => {
     const act = (path, body) => guard(() => post(`/api/timers/${roomId}/${path}`, body)).then(apply, () => {});
     el.querySelectorAll("[data-a]").forEach((b) => b.onclick = () => act(b.dataset.a));
     el.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => act("add", { delta_ms: +b.dataset.add }));
-    $("[data-show]").onclick = () => act("message", { message: $("[data-msg]").value, message_visible: true });
+    $("[data-show]").onclick = () => {
+      const text = $("[data-msg]").value.trim();
+      if (!text) { toast("Type the message first", "bad"); $("[data-msg]").focus(); return; }
+      act("message", { message: text, message_visible: true });
+    };
+    $("[data-msg]").onkeydown = (e) => { if (e.key === "Enter") $("[data-show]").click(); };
     el.querySelectorAll("[data-sw]").forEach((b) => b.onclick = () => act(b.dataset.sw, {}));
     api("/api/timers-views").then((views) => {
       const sel = $("[data-views]");
@@ -151,7 +156,8 @@ const CueList = (() => {
       onEvent(evt) {
         if (evt.topic !== `timer:${roomId}`) return;
         if (evt.type === "timer") apply(evt.data);
-        if (evt.type === "cues") { cues = evt.data.cues; renderList(); }
+        // The live feed is public and leaves notes out, so fetch the list (with notes) again.
+        if (evt.type === "cues") api(`/api/timers/${roomId}/cues`).then((list) => { cues = list; renderList(); }).catch(() => {});
       },
     };
   }

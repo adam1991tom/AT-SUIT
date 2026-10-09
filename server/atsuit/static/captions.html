@@ -152,8 +152,10 @@
     const r = await AT.api(`/api/captions/${roomId}/recent`);
     applyAppearance(r.appearance);
     finals.length = 0; committedRows = 0;
-    const now = Date.now();
-    r.finals.slice(-5).forEach((t) => wrapToLines(t).forEach((line) => finals.push({ text: line, ts: now })));
+    // Keep each line's real age (from the server's clock), so lines that have already faded stay gone after a reload or reconnect.
+    const now = Date.now(), at = r.finals_at || [];
+    r.finals.forEach((t, i) => { if (i < r.finals.length - 5) return; const ts = at[i] ? now - Math.max(0, (r.now - at[i]) * 1000) : 0;
+      wrapToLines(t).forEach((line) => finals.push({ text: line, ts })); });
     partial = tailLine(r.partial || "");
     render();
   }

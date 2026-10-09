@@ -8,6 +8,8 @@ const Desk = (() => {
   try { state = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (_) {}
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (_) {} };
   let top = 20;
+  // Windows open and stay below the top bar (it wraps to two rows on smaller screens).
+  const below = () => Math.max(56, Math.round(document.querySelector(".top")?.getBoundingClientRect().bottom || 56) + 6);
 
   // Every <section class="win" data-win="id" data-title="..."> becomes a
   // window with a title bar; `bar` gets a toggle button for each.
@@ -28,13 +30,14 @@ const Desk = (() => {
         if (st.pin && window.Layout) { dock(); return; }
         if (window.Layout && Layout.has("win:" + id)) { Layout.release("win:" + id); document.body.appendChild(w); }
         w.classList.remove("pinned");
-        const W = window.innerWidth, H = window.innerHeight;
+        const W = window.innerWidth, H = window.innerHeight, minY = below();
         const ww = Math.min(st.w || +w.dataset.w || 440, W - 16), hh = st.h || null;
         w.style.width = ww + "px";
-        if (hh) w.style.height = Math.min(hh, H - 70) + "px";
-        const x = st.x ?? W - ww - 24 - (i % 3) * 30, y = st.y ?? 80 + (i % 4) * 36;
+        w.style.maxHeight = `calc(100vh - ${minY + 12}px)`;
+        if (hh) w.style.height = Math.min(hh, H - minY - 12) + "px";
+        const x = st.x ?? W - ww - 24 - (i % 4) * 60, y = st.y ?? minY + 20 + (i % 4) * 48;
         w.style.left = Math.max(0, Math.min(x, W - 120)) + "px";
-        w.style.top = Math.max(56, Math.min(y, H - 48)) + "px";
+        w.style.top = Math.max(minY, Math.min(y, H - 48)) + "px";
       };
       // A pinned window becomes a tile on the board (layout.js) instead of floating.
       const dock = () => {
@@ -49,7 +52,11 @@ const Desk = (() => {
         btn.classList.toggle("on", open);
         if (open) { place(); raise(); }
       };
-      btn.onclick = () => show(!st.open);
+      btn.onclick = () => {
+        show(!st.open);
+        // On a phone the windows sit in the page, so take the tech to the one they opened.
+        if (st.open && window.innerWidth < 900 && !st.pin) w.scrollIntoView({ behavior: "smooth", block: "start" });
+      };
       head.querySelector("[data-pin]").onclick = () => {
         st.pin = !st.pin; if (st.pin) st.open = true;
         head.querySelector("[data-pin]").classList.toggle("on", !!st.pin); show(st.open);

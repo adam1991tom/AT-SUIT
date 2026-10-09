@@ -2,7 +2,7 @@
 (async () => {
   const { esc, api, post, put, del, upload, guard, toast, when } = AT;
   const main = document.getElementById("main");
-  let boot, sock, chat = null, view = null, helpOpen = 0;
+  let boot, sock, chat = null, view = null, helpOpen = 0, unreadTimer = null;
 
   await AT.branding();
   try { boot = await api("/api/bootstrap"); } catch (e) { return showLogin(); }
@@ -46,12 +46,20 @@
     document.getElementById("logout").onclick = async (e) => { e.preventDefault(); await post("/api/auth/logout"); location.reload(); };
     sock = AT.socket(topics(), onEvent);
     window.addEventListener("hashchange", route);
-    if (boot.modules.comms) refreshHelpCount();
+    if (boot.modules.comms) { refreshHelpCount(); refreshUnread(); }
     route();
+  }
+
+  // The Chat badge in the side bar, on every page (the Chat page keeps it up to date while it's open).
+  function setUnread(n) { const u = document.getElementById("unreadAll"); u.textContent = n > 99 ? "99+" : n; u.classList.toggle("hidden", !n); }
+  function refreshUnread() {
+    clearTimeout(unreadTimer);
+    unreadTimer = setTimeout(() => api("/api/comms/channels").then((cs) => { if (!chat) setUnread(cs.reduce((a, c) => a + (c.unread || 0), 0)); }).catch(() => {}), 300);
   }
 
   function onEvent(evt) {
     if (chat) chat.onEvent(evt);
+    else if (evt.type === "message.new" || evt.type === "message.deleted") refreshUnread();
     if (evt.type === "help.new") { toast(`Help needed in ${evt.data.room_name}: ${evt.data.description || evt.data.category}`, "bad"); refreshHelpCount(); }
     if (evt.type === "help.updated") refreshHelpCount();
     if (evt.type === "rooms.changed") api("/api/bootstrap").then((b) => { boot = b; });
@@ -70,12 +78,19 @@
     const [, name = "dashboard", sub] = location.hash.split("/");
     document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.getAttribute("href") === `#/${name}`));
     chat = null; view = null;
+    if (boot.modules.comms) refreshUnread();
     const banner = boot.me.role !== "admin" || boot.licence.valid ? "" : `<div class="banner">Evaluation mode: ${esc(boot.licence.reason)}. Add a licence in Admin → Licence.</div>`;
     main.innerHTML = banner + '<div id="view"></div>';
     const el = document.getElementById("view");
     const presenter = (el, sub) => { view = PresenterPage.mount(el, sub, boot); };
     const views = { dashboard, chat: chatView, help, timers, presenter, captions, fleet, admin };
-    (views[name] || dashboard)(el, sub);
+    // A page whose module is turned off opens the first page that is on (Admin at worst), never a blank page.
+    const mod = { dashboard: "dashboard", chat: "comms", help: "comms", timers: "timers", presenter: "presenter", captions: "captions", fleet: "fleet" };
+    const on = (n) => n === "admin" || boot.modules[mod[n]] !== false;
+    const page = views[name] && on(name) ? name : Object.keys(views).find(on);
+    Promise.resolve().then(() => views[page](el, sub)).catch((e) => {
+      el.innerHTML = `<div class="panel"><h2>This page didn't load</h2><p class="muted">${esc(e.message || e)}</p><button class="primary" onclick="location.reload()">Try again</button></div>`;
+    });
   }
 
   const roomName = (id) => boot.rooms.find((r) => r.id === id)?.name || "";
@@ -122,7 +137,7 @@
 
   // --------------------------------------------------------------- chat --
   function chatView(el) {
-    chat = Chat.mount(el, { me: boot.me, onUnread: (n) => { const u = document.getElementById("unreadAll"); u.textContent = n; u.classList.toggle("hidden", !n); } });
+    chat = Chat.mount(el, { me: boot.me, onUnread: setUnread });
   }
 
   // --------------------------------------------------------------- help --
@@ -149,8 +164,8 @@
     const viewOpts = (sel) => [...views, { id: "captions", name: "Captions" }].map((v) => `<option value="${esc(v.id)}" ${v.id === sel ? "selected" : ""}>${esc(v.name)}</option>`).join("");
     el.innerHTML = `<h1>Timers</h1><p class="muted">Live preview of every room. Techs run the timer and cue list from their workspace; Companion can drive them with an API key.</p>
       <div class="grid" id="tg"></div>
-      <div class="row" style="justify-content:space-between;margin-top:1.4rem"><h2>Screens</h2><span class="muted small">Pick what each remote screen shows. A screen can also choose for itself: tap its top-left corner 5 times.</span></div>
-      <div class="panel" id="screens"></div>
+      <div class="row${boot.modules.fleet === false ? " hidden" : ""}" style="justify-content:space-between;margin-top:1.4rem"><h2>Screens</h2><span class="muted small">Pick what each remote screen shows. A screen can also choose for itself: tap its top-left corner 5 times.</span></div>
+      ${boot.modules.fleet === false ? "" : '<div class="panel" id="screens"></div>'}
       <h2 style="margin-top:1.4rem">Views</h2><div class="panel" id="views"></div>`;
     const grid = el.querySelector("#tg");
     for (const r of boot.rooms) {
@@ -197,7 +212,7 @@
           <td>${n.legacy ? '<span class="muted small">use Set screen in Nodes</span>' : `<select data-view style="width:auto"><option value="">Choose…</option>${viewOpts(n.screen_view)}<option value="__url" ${(n.screen_view || "").startsWith("url:") ? "selected" : ""}>Web page…</option></select>`}</td>
           <td class="small">${status(n)}</td>
           <td class="small">${n.last_seen ? when(new Date(n.last_seen * 1000).toISOString()) : "never"}</td>
-          <td class="row" style="flex-wrap:nowrap"><button class="small" data-ident>Identify</button>${agentVer(n) ? `<button class="small" data-cmd="restart_browser" title="Restart the browser on this screen">Restart</button><button class="small" data-cmd="update" title="Update the screen agent now">Update</button>` : `<button class="small" data-cmd="reload">Reload</button>`}${isAdmin ? '<button class="small" data-cmd="reboot">Reboot</button>' : ""}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No screens yet. Install the screen agent on a Linux laptop or all-in-one (Admin → Node setup).</td></tr>'}</table>`;
+          <td class="row" style="flex-wrap:nowrap"><button class="small" data-ident>Identify</button>${agentVer(n) ? `<button class="small" data-cmd="restart_browser" title="Restart the browser on this screen">Restart</button>${isAdmin ? '<button class="small" data-cmd="update" title="Update the screen agent now">Update</button>' : ""}` : `<button class="small" data-cmd="reload">Reload</button>`}${isAdmin ? '<button class="small" data-cmd="reboot">Reboot</button>' : ""}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No screens yet. Install the screen agent on a Linux laptop or all-in-one (Admin → Node setup).</td></tr>'}</table>`;
       box.querySelectorAll("[data-n]").forEach((row) => {
         const id = +row.dataset.n, n = screens.find((x) => x.id === id);
         const save = () => {
@@ -209,7 +224,8 @@
             if (!url || !/^https?:\/\//.test(url.trim())) return renderScreens();
             view = "url:" + url.trim();
           }
-          if (view && (room || view.startsWith("url:"))) guard(() => put(`/api/fleet/nodes/${id}/screen`, { room_id: room ? +room : null, view })).then(() => toast("Screen updated", "good"));
+          if (!view || (!room && !view.startsWith("url:"))) { toast(view ? "Pick the room this screen is in" : "Pick what this screen shows", "bad"); return; }
+          guard(() => put(`/api/fleet/nodes/${id}/screen`, { room_id: room ? +room : null, view })).then(() => toast("Screen updated", "good"), () => renderScreens());
         };
         row.querySelector("[data-room]").onchange = save;
         row.querySelector("[data-view]") && (row.querySelector("[data-view]").onchange = save);
@@ -403,6 +419,9 @@
     const tabs = isAdminRole
       ? { general: "General", info: "Info", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", chat: "Chat", data: "Import, backup & audit" }
       : { sites: "Rooms", accounts: "People", links: "Links", audit: "Audit log" };
+    if (boot.modules.dashboard === false) delete tabs.links;
+    if (boot.modules.fleet === false) delete tabs.fleet;
+    if (!tabs[sub] && sub !== "data") sub = Object.keys(tabs)[0];
     el.innerHTML = `<h1>Admin</h1><div class="tabs">${Object.entries(tabs).map(([k, v]) => `<button class="${k === sub ? "on" : ""}" onclick="location.hash='#/admin/${k}'">${v}</button>`).join("")}</div><div id="adm"></div>`;
     const a = el.querySelector("#adm");
     ({ general: admGeneral, info: admInfo, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, chat: admChat, data: admData, audit: admAudit }[sub] || admGeneral)(a);
@@ -488,21 +507,27 @@
       <div class="panel"><h2>Limits</h2>${kv([["Sites", lim("sites")], ["Nodes", lim("nodes")], ["Rooms", `${l.usage.rooms} (no limit)`]])}
       <h2 style="margin-top:1rem">Check</h2>${kv([["Signature", l.installed ? (l.signature_valid ? '<span class="pill good">valid</span>' : '<span class="pill bad">not valid</span>') : "no key installed"],
         ["Vendor key", `<code>${esc(l.vendor_key_id || "none")}</code> <span class="muted small">${esc(l.vendor_key_source)}</span>`], ["Stored in", `<span class="small">${esc(l.stored_in)}</span>`]])}</div></div>
-      <div class="panel" style="margin-top:1rem"><h2>Licence key</h2>${l.raw ? `<textarea rows="3" readonly id="raw">${esc(l.raw)}</textarea><div class="row" style="margin-top:.4rem"><button class="small" id="copyKey">Copy key</button></div>` : '<p class="muted small">No key installed. AT-SUIT runs in evaluation mode: every module, one site, five nodes.</p>'}
+      <div class="panel" style="margin-top:1rem"><h2>Licence key</h2>${l.raw ? `<textarea rows="3" readonly id="raw">${esc(l.raw)}</textarea><div class="row" style="margin-top:.4rem"><button class="small" id="copyKey">Copy key</button><button class="small danger" id="rmKey">Remove licence</button></div>` : '<p class="muted small">No key installed. AT-SUIT runs in evaluation mode: every module, one site, five nodes.</p>'}
       <label style="margin-top:1rem">Install a new key</label><textarea id="key" rows="3" placeholder="Paste the key from your supplier"></textarea><div class="row" style="margin-top:.6rem"><button class="primary" id="save">Install licence</button></div></div>`;
     a.querySelector("#copyKey") && (a.querySelector("#copyKey").onclick = () => copyText(l.raw, "Key copied"));
-    a.querySelector("#save").onclick = () => guard(() => put("/api/admin/licence", { key: a.querySelector("#key").value })).then(() => location.reload());
+    a.querySelector("#save").onclick = () => {
+      if (!a.querySelector("#key").value.trim()) return toast("Paste the licence key first", "bad");
+      guard(() => put("/api/admin/licence", { key: a.querySelector("#key").value })).then(() => location.reload());
+    };
+    a.querySelector("#rmKey") && (a.querySelector("#rmKey").onclick = () => confirm("Remove this licence? AT-SUIT goes back to evaluation mode.") &&
+      guard(() => put("/api/admin/licence", { key: "", remove: true })).then(() => location.reload()));
   }
 
   async function admSites(a) {
     const sites = await api("/api/admin/sites");
     boot = await api("/api/bootstrap");
     a.innerHTML = sites.map((s) => `<div class="panel" style="margin-bottom:1rem" data-site="${s.id}">
-      ${isAdminRole ? `<div class="row"><input data-sn value="${esc(s.name)}" class="grow"><input data-tz value="${esc(s.timezone)}" style="width:12rem"><button class="small" data-save>Save</button>${sites.length > 1 ? '<button class="small danger" data-delsite>Delete site</button>' : ""}</div>` : `<h2>${esc(s.name)}</h2>`}
+      ${isAdminRole ? `<div class="row"><input data-sn value="${esc(s.name)}" class="grow"><input data-tz value="${esc(s.timezone)}" list="zones" style="width:12rem"><button class="small" data-save>Save</button>${sites.length > 1 ? '<button class="small danger" data-delsite>Delete site</button>' : ""}</div>` : `<h2>${esc(s.name)}</h2>`}
       <table style="margin-top:.6rem"><tr><th>Order</th><th>Room</th><th>Short name</th><th>On</th><th></th></tr>
       ${boot.rooms.filter((r) => r.site_id === s.id).map((r) => `<tr data-r="${r.id}"><td><input data-sort type="number" value="${r.sort}" style="width:4.5rem"></td><td><input data-name value="${esc(r.name)}"></td><td><input data-short value="${esc(r.short_name)}" style="width:7rem"></td>
         <td><input type="checkbox" data-en ${r.enabled ? "checked" : ""} style="width:auto"></td><td class="row"><button class="small" data-rsave>Save</button><button class="small danger" data-rdel>Delete</button></td></tr>`).join("")}
       <tr><td></td><td><input data-newroom placeholder="New room name"></td><td></td><td></td><td><button class="small primary" data-add>Add room</button></td></tr></table></div>`).join("") +
+      `<datalist id="zones">${(Intl.supportedValuesOf ? Intl.supportedValuesOf("timeZone") : []).map((z) => `<option value="${z}">`).join("")}</datalist>` +
       (isAdminRole ? `<form class="panel row" id="ns"><input name="name" class="grow" placeholder="New site (venue) name" required><button class="primary">Add site</button></form>` : "");
     a.querySelectorAll("[data-site]").forEach((p) => {
       const sid = +p.dataset.site;
@@ -521,15 +546,16 @@
 
   async function admAccounts(a) {
     const [accts, sites] = await Promise.all([api("/api/admin/accounts"), api("/api/admin/sites")]);
-    const siteOpts = (sel) => `<option value="">All sites</option>` + sites.map((s) => `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(s.name)}</option>`).join("");
+    const mine = boot.me.site_id; // someone kept to one site can only add people to it
+    const siteOpts = (sel) => (mine == null ? `<option value="">All sites</option>` : "") + sites.map((s) => `<option value="${s.id}" ${s.id === (sel ?? mine) ? "selected" : ""}>${esc(s.name)}</option>`).join("");
     // A manager looks after techs and viewers; admin and manager accounts are shown but only an admin changes them.
     const roles = isAdminRole ? ["admin", "manager", "tech", "viewer"] : ["tech", "viewer"];
     const canEdit = (u) => isAdminRole || u.id === boot.me.id || roles.includes(u.role);
     const roleOpts = (sel) => (roles.includes(sel) ? roles : [sel]).map((r) => `<option ${r === sel ? "selected" : ""}>${r}</option>`).join("");
     a.innerHTML = `<div class="panel"><p class="muted small">Admins configure everything. Managers set up rooms, add techs, move laptops between rooms and read the audit log, but can't change site settings, the licence, branding or views, or add laptops. Techs chat, run timers, send captions and control nodes. Viewers can read.</p><table><tr><th>Username</th><th>Name</th><th>Role</th><th>Site</th><th>Active</th><th>New password</th><th></th></tr>
       ${accts.filter((u) => !canEdit(u)).map((u) => `<tr><td>${esc(u.username)}</td><td>${esc(u.display_name)}</td><td>${esc(u.role)}</td><td class="muted small" colspan="4">Only an admin can change this account.</td></tr>`).join("")}
-      ${accts.filter(canEdit).map((u) => `<tr data-u="${u.id}"><td><input data-un value="${esc(u.username)}"></td><td><input data-dn value="${esc(u.display_name)}"></td><td><select data-role>${roleOpts(u.role)}</select></td>
-        <td><select data-site>${siteOpts(u.site_id)}</select></td><td><input type="checkbox" data-act ${u.active ? "checked" : ""} style="width:auto"></td><td><input data-pw type="password" placeholder="unchanged"></td>
+      ${accts.filter(canEdit).map((u) => `<tr data-u="${u.id}"><td><input data-un value="${esc(u.username)}"></td><td><input data-dn value="${esc(u.display_name)}"></td><td><select data-role ${u.id === boot.me.id ? 'disabled title="You can\'t change your own role"' : ""}>${roleOpts(u.role)}</select></td>
+        <td><select data-site>${siteOpts(u.site_id)}</select></td><td><input type="checkbox" data-act ${u.active ? "checked" : ""} ${u.id === boot.me.id ? "disabled" : ""} style="width:auto"></td><td><input data-pw type="password" placeholder="unchanged"></td>
         <td class="row"><button class="small" data-save>Save</button>${u.id === boot.me.id ? "" : '<button class="small danger" data-del>Delete</button>'}</td></tr>`).join("")}
       <tr id="new"><td><input data-un placeholder="username"></td><td><input data-dn placeholder="Display name"></td><td><select data-role>${roleOpts("tech")}</select></td><td><select data-site>${siteOpts(null)}</select></td><td></td><td><input data-pw type="password" placeholder="password (8+)"></td><td><button class="small primary" data-add>Add</button></td></tr></table></div>`;
     const read = (row) => ({ username: row.querySelector("[data-un]").value, display_name: row.querySelector("[data-dn]").value, role: row.querySelector("[data-role]").value,
@@ -545,17 +571,17 @@
     const links = await api("/api/dashboard/links");
     const kinds = ["link", "timer", "buttons", "kiosk", "device", "tool"];
     const row = (l = {}) => `<tr data-l="${l.id || ""}"><td><input data-label value="${esc(l.label || "")}" placeholder="Label"></td><td><input data-url value="${esc(l.url || "")}" placeholder="http://"></td>
-      <td><select data-room>${roomOptions(l.room_id, "Whole site")}</select></td><td><select data-board>${["public", "admin"].map((b) => `<option ${b === l.board ? "selected" : ""}>${b}</option>`).join("")}</select></td>
+      <td><select data-room>${roomOptions(l.room_id, "Whole site")}</select></td><td><select data-board>${(isAdminRole ? ["public", "admin"] : ["public"]).map((b) => `<option ${b === l.board ? "selected" : ""}>${b}</option>`).join("")}</select></td>
       <td><select data-kind>${kinds.map((k) => `<option ${k === l.kind ? "selected" : ""}>${k}</option>`).join("")}</select></td>
       <td class="row">${l.id ? '<button class="small" data-save>Save</button><button class="small danger" data-del>Delete</button>' : '<button class="small primary" data-save>Add</button>'}</td></tr>`;
     a.innerHTML = `<div class="panel"><p class="small" style="margin-top:0"><b>What these are:</b> shortcuts to other web pages (a Companion button page, a room's camera control, a tool). Pick <b>Whole site</b> to show a link to everyone on the Dashboard, or pick a <b>room</b> so it appears only in that room's tech workspace, under <b>Links</b>. <b>Admin</b> links are only shown to admins. The <b>kind</b> only decides the heading it is grouped under. You don't have to add any: the workspace works without them.</p>
       <table><tr><th>Label</th><th>URL</th><th>Room</th><th>Board</th><th>Kind</th><th></th></tr>${row()}${links.map(row).join("")}</table></div>`;
     a.querySelectorAll("[data-l]").forEach((tr) => {
       const body = () => ({ label: tr.querySelector("[data-label]").value, url: tr.querySelector("[data-url]").value, board: tr.querySelector("[data-board]").value, kind: tr.querySelector("[data-kind]").value,
-        room_id: tr.querySelector("[data-room]").value ? +tr.querySelector("[data-room]").value : null, site_id: boot.sites[0]?.id ?? null });
+        room_id: tr.querySelector("[data-room]").value ? +tr.querySelector("[data-room]").value : null, site_id: boot.me.site_id ?? null }); // a room's link goes to the room's site (the server sets it)
       const id = tr.dataset.l;
       tr.querySelector("[data-save]").onclick = () => guard(() => id ? put(`/api/dashboard/links/${id}`, body()) : post("/api/dashboard/links", body())).then(() => id ? toast("Saved", "good") : admLinks(a));
-      tr.querySelector("[data-del]") && (tr.querySelector("[data-del]").onclick = () => guard(() => del(`/api/dashboard/links/${id}`)).then(() => admLinks(a)));
+      tr.querySelector("[data-del]") && (tr.querySelector("[data-del]").onclick = () => confirm("Delete this link?") && guard(() => del(`/api/dashboard/links/${id}`)).then(() => admLinks(a)));
     });
   }
 
@@ -615,14 +641,14 @@
     on("#dlJson", () => { const u = URL.createObjectURL(new Blob([nodeJson], { type: "application/json" })), l = document.createElement("a"); l.href = u; l.download = "node.json"; l.click(); setTimeout(() => URL.revokeObjectURL(u), 1000); });
     on("#upApp", () => {
       const files = [...a.querySelector("#appFiles").files];
-      if (!files.length) return;
+      if (!files.length) return toast("Choose the release files first (Setup .exe and latest.yml)", "bad");
       const fd = new FormData();
       files.forEach((f) => fd.append("files", f));
       guard(() => api("/api/fleet/app", { method: "POST", form: fd })).then((r) => { toast(`AT-SUIT Node ${r.version} published`, "good"); admFleet(a, part); });
     });
-    on("#upAgent", () => { const f = a.querySelector("#agentFile").files[0]; f && guard(() => upload("/api/fleet/agent", f)).then((r) => { toast(`Agent ${r.version} published`, "good"); admFleet(a, part); }); });
-    on("#upKey", () => { const f = a.querySelector("#key").files[0]; f && guard(() => upload("/api/fleet/ssh-key", f)).then(() => toast("Key saved", "good")); });
-    on("#upRel", () => { const f = a.querySelector("#rel").files[0], v = a.querySelector("#ver").value.trim(); f && v && guard(() => upload(`/api/fleet/client-release?version=${encodeURIComponent(v)}`, f)).then(() => { toast("Published", "good"); admFleet(a, part); }); });
+    on("#upAgent", () => { const f = a.querySelector("#agentFile").files[0]; if (!f) return toast("Choose the agent file first", "bad"); guard(() => upload("/api/fleet/agent", f)).then((r) => { toast(`Agent ${r.version} published`, "good"); admFleet(a, part); }); });
+    on("#upKey", () => { const f = a.querySelector("#key").files[0]; if (!f) return toast("Choose the key file first", "bad"); guard(() => upload("/api/fleet/ssh-key", f)).then(() => toast("Key saved", "good")); });
+    on("#upRel", () => { const f = a.querySelector("#rel").files[0], v = a.querySelector("#ver").value.trim(); if (!f || !v) return toast(!f ? "Choose the release file first" : "Type the version number first", "bad"); guard(() => upload(`/api/fleet/client-release?version=${encodeURIComponent(v)}`, f)).then(() => { toast("Published", "good"); admFleet(a, part); }); });
   }
 
   async function admOverlays(a) {
@@ -636,7 +662,7 @@
         <select name="room_id" style="width:10rem">${roomOptions(null)}</select><button class="primary">Add</button></form></div>`;
     const f = a.querySelector("#addT");
     f.onsubmit = (e) => { e.preventDefault(); const b = Object.fromEntries(new FormData(f)); b.room_id = b.room_id ? +b.room_id : null; guard(() => post("/api/overlays/targets", b)).then(() => admOverlays(a)); };
-    a.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => guard(() => del(`/api/overlays/targets/${b.dataset.del}`)).then(() => admOverlays(a)));
+    a.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => confirm("Remove this overlay laptop?") && guard(() => del(`/api/overlays/targets/${b.dataset.del}`)).then(() => admOverlays(a)));
   }
 
   async function admKeys(a) {
@@ -693,7 +719,7 @@
     a.querySelector("#flt").oninput = (e) => draw(e.target.value.trim().toLowerCase());
     a.querySelector("#bk").onclick = () => setTimeout(() => admData(a), 3000);
     a.querySelectorAll("[data-k]").forEach((p) => p.querySelector("button").onclick = async () => {
-      const f = p.querySelector("input").files[0]; if (!f) return;
+      const f = p.querySelector("input").files[0]; if (!f) return toast("Choose a file to import first", "bad");
       const r = await guard(() => upload(`/api/admin/import/${p.dataset.k}`, f));
       p.querySelector("pre").textContent = JSON.stringify(r, null, 2);
       boot = await api("/api/bootstrap");

@@ -18,7 +18,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, Response
-from pydantic import BaseModel, Field
+from starlette.datastructures import UploadFile as StarletteUpload
+from pydantic import BaseModel, Field, model_validator
 
 from .. import config, db, schedule
 from ..hub import hub
@@ -150,6 +151,12 @@ class EventIn(BaseModel):
     status: str = "planning"
     site_id: int | None = None
     archived: bool = False
+
+    @model_validator(mode="after")
+    def _dates_in_order(self):
+        if self.starts_on and self.ends_on and self.ends_on < self.starts_on:
+            raise ValueError("The event can't end before it starts")
+        return self
 
 
 def _check_event(c, body: EventIn, p: Principal) -> int:
@@ -608,19 +615,23 @@ async def to_timer(room_id: int, body: ToTimerIn, p: Principal = Depends(require
         if body.replace:
             c.execute("DELETE FROM cues WHERE room_id=?", (room_id,))
             c.execute("UPDATE timers SET cue_id=NULL WHERE room_id=?", (room_id,))
-        for i, s in enumerate(sessions[:500], start=1):
-            dur = 0
+        def span(a: str, b: str) -> int:
             try:
-                if s["starts_at"] and s["ends_at"]:
-                    dur = max(0, int((datetime.fromisoformat(s["ends_at"]) - datetime.fromisoformat(s["starts_at"])).total_seconds() * 1000))
+                return max(0, int((datetime.fromisoformat(b) - datetime.fromisoformat(a)).total_seconds() * 1000)) if a and b else 0
             except ValueError:
-                pass
+                return 0
+
+        for i, s in enumerate(sessions[:500], start=1):
+            # No end time: run until the next session starts; with neither, count up from zero.
+            nxt = sessions[i]["starts_at"] if i < len(sessions) else ""
+            dur = span(s["starts_at"], s["ends_at"]) or span(s["starts_at"], nxt)
             start = s["starts_at"][11:16] if "T" in s["starts_at"] else s["starts_at"][:5]
             note = ", ".join(pr["full_name"] for pr in s["presenters"])
             timers._insert_cue(c, room_id, timers.CueIn(cue=str(i), title=s["title"][:200], note=note[:2000],
                                                          duration_ms=min(dur, timers.MAX_DURATION),
                                                          time_start=start if re.match(r"^\d{2}:\d{2}$", start) else "",
-                                                         end_action="load-next"))
+                                                         timer_type="count-down" if dur else "count-up",
+                                                         end_action="load-next" if dur else "none"))
         db.audit(c, p.name, "presenter.to_timer", f"room {room_id}: {len(sessions)} sessions")
     await timers._cues_changed(room_id)
     return {"cues": min(len(sessions), 500)}
@@ -867,9 +878,21 @@ def portal(token: str):
 
 
 @router.post("/api/present/{token}/upload")
-async def portal_upload(token: str, file: UploadFile):
+async def portal_upload(token: str, request: Request):
+    """No sign-in here, so the link and the size are checked before the file is read:
+    otherwise anyone could fill the server's disk with uploads to a made-up link."""
     with db.ro() as c:
         pr, e = _by_token(c, token)
+        limit = int(prefs(c)["upload_limit_mb"]) * 1024 * 1024
+    size = request.headers.get("content-length")
+    if not size or not size.isdigit():
+        raise HTTPException(411, "Upload size missing")
+    if int(size) > limit + 1024 * 1024:  # room for the form around the file
+        raise HTTPException(413, f"That file is bigger than the {limit // 1048576} MB limit")
+    form = await request.form()
+    file = form.get("file")
+    if not isinstance(file, StarletteUpload):
+        raise HTTPException(422, "No file in the upload")
     await _add_file(pr, file, f"presenter:{pr['full_name']}")
     with db.ro() as c:
         return _portal(c, pr, e)

@@ -75,6 +75,12 @@
   .chatbody .compose select { max-width: 5.6rem; }
   .chatbody .compose > button, .chatbody .compose > .btn { padding-left: .45rem; padding-right: .45rem; }
   @media (max-width: 600px) { .chatdock { right: 0; width: 100%; } }
+  /* the open chat box never sits over the board: room to scroll everything above it, and on wide screens a column beside it */
+  body.chat-open .board { padding-bottom: 480px; }
+  @media (min-width: 1800px) { body.chat-open .board { margin-right: 372px; padding-bottom: 5rem; } }
+  /* phones: the top bar scrolls away instead of covering a third of the screen */
+  @media (max-width: 700px) { .top { position: static; } }
+  @media (max-width: 600px) { .dropdown { position: fixed; left: .5rem; right: .5rem; top: 4rem; width: auto; } } /* the bell and Help lists stay on screen */
   .opts { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
   .opt { display: block; margin: 0; padding: .7rem .8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); color: var(--text); cursor: pointer; font-size: .9rem; }
   .opt input { width: auto; margin-right: .35rem; }
@@ -531,7 +537,7 @@
           <div class="row" style="margin-top:.4rem"><input data-o="url" class="grow" placeholder="Room timer (or paste a web address)" value="${esc(w.url || "")}"><button class="small" data-apply>Apply</button></div>${ovNote(r, w, st, on)}</div>`;
       }).join("") + (lvOvCount ? '<hr style="border:0;border-top:1px solid var(--line);margin:.8rem 0">' : "");
     $("atOv").querySelectorAll("[data-ov]").forEach((card) => {
-      const id = +card.dataset.ov;
+      const id = +card.dataset.ov, row = rows.find((x) => x.id === id);
       const body = (extra) => {
         const b = { position: card.querySelector('[data-o="position"]').value, size: card.querySelector('[data-o="size"]').value, url: card.querySelector('[data-o="url"]').value.trim(), ...extra };
         const d = card.querySelector('[data-o="display"]'); if (d) b.display = +d.value;
@@ -540,7 +546,9 @@
       const send = (extra) => guard(async () => {
         await api(`/api/fleet/nodes/${id}/overlay`, { method: "PUT", body: body(extra) });
         if (id === meId && APP && APP.overlay) await APP.overlay(body(extra)); // this laptop: straight away
-        toast(extra.on === false ? "Overlay off" : "Overlay sent", "good");
+        // Only say "sent" when that laptop can actually show it.
+        if (row && (!row.online || !row.app)) toast(`Saved. ${row.online ? "That laptop doesn't have the AT-SUIT app" : "That laptop is offline"}, so it shows when the app is running there.`);
+        else toast(extra.on === false ? "Overlay off" : "Overlay sent", "good");
       }).then(() => setTimeout(renderAtOverlay, 1500), () => {});
       card.querySelectorAll("[data-on]").forEach((b) => (b.onclick = () => send({ on: b.dataset.on === "1" })));
       card.querySelector("[data-apply]").onclick = () => send({});
@@ -579,11 +587,19 @@
   // this room's Linux screens: what each shows, or any web page
   let views = node?.views || [];
   let pv = null;
-  async function renderScreens() {
+  let screensSig = "";
+  // Other techs and the console change screens too: check every 10 seconds while this page is showing.
+  setInterval(() => { if (!document.hidden && boot.modules.fleet !== false) renderScreens(true); }, 10000);
+  async function renderScreens(quiet = false) {
     let all = [];
     try { all = await api("/api/fleet/nodes"); } catch (_) { return; }
     if (!views.length) try { views = await api("/api/timers-views?screens=1"); } catch (_) {}
-    const screens = all.filter((n) => n.kind === "kiosk" && n.room_id === roomId);
+    const screens = all.filter((n) => n.kind === "kiosk" && n.room_id === roomId)
+      .map((n) => ({ ...n, screen_view: n.screen_view === "stage" ? "hcc" : n.screen_view })); // the old Stage view is Standard now
+    // Redraw only when something changed, so a tech typing in the list isn't interrupted by the refresh.
+    const sig = JSON.stringify(screens.map((n) => [n.id, n.name, n.online, n.screen_view]));
+    if (quiet && sig === screensSig) return;
+    screensSig = sig;
     wins.screens.available(screens.length > 0);
     if (!pv) pv = Previews.mount($("pvBox"), { roomId });
     pv.update({ views, screens });
@@ -661,9 +677,11 @@
   // chat: a small box at the bottom right that folds away, like Facebook's
   const dock = $("chatDock");
   let dockOpen = true, dockUnread = 0;
-  try { dockOpen = localStorage.getItem("atsuit_chat_open") !== "0"; } catch (_) {}
+  // On a phone the chat starts folded (it would cover the timer) unless the tech left it open.
+  try { const kept = localStorage.getItem("atsuit_chat_open"); dockOpen = kept ? kept !== "0" : innerWidth > 700; } catch (_) {}
   const setDock = (open) => {
     dockOpen = open; dock.classList.toggle("closed", !open); $("chatToggle").textContent = open ? "▾" : "▴";
+    document.body.classList.toggle("chat-open", open && !dock.classList.contains("hidden"));
     if (open) dockUnread = 0;
     $("chatUnread").textContent = dockUnread; $("chatUnread").classList.toggle("hidden", !dockUnread);
     try { localStorage.setItem("atsuit_chat_open", open ? "1" : "0"); } catch (_) {}
@@ -671,7 +689,7 @@
   $("chatHead").onclick = () => setDock(!dockOpen);
   if (boot.modules.comms) {
     const chans = await api("/api/comms/channels");
-    chat = Chat.mount($("chat"), { me: boot.me, compact: true, quiet, prefer: chans.find((c) => c.room_id === roomId)?.id });
+    chat = Chat.mount($("chat"), { me: boot.me, compact: true, quiet: true /* the workspace's own alerts show urgent messages */, prefer: chans.find((c) => c.room_id === roomId)?.id });
     setDock(dockOpen);
   } else dock.classList.add("hidden");
 
@@ -711,7 +729,7 @@
   if (boot.modules.comms) {
     renderHelp();
     const send = () => guard(() => post("/api/comms/help", { room_id: roomId, category: $("helpCat").value, description: $("helpText").value, priority: "urgent" }))
-      .then(() => { $("helpText").value = ""; toast("Help is on the way", "good"); renderHelp(); });
+      .then(() => { $("helpText").value = ""; toast("Help call sent. You'll see here when someone is on the way.", "good"); renderHelp(); });
     $("helpBtn").onclick = send;
     $("helpText").onkeydown = (e) => { if (e.key === "Enter") send(); };
   } else $("helpTop").parentElement.classList.add("hidden");
@@ -749,11 +767,16 @@
       if (!dockOpen) { dockUnread++; setDock(false); }
       if (mine || m.priority === "urgent") alerts.add(m.priority === "urgent" ? "urgent" : "chat", dm ? `${m.sender_name} (direct)` : m.sender_name, m.body || "Sent a file", () => setDock(true));
     }
-    if (evt.type === "help.new") { alerts.add("urgent", `Help needed in ${evt.data.room_name}`, `${evt.data.category}: ${evt.data.description || ""}`, () => $("helpTop").click()); renderHelp(); }
+    const what = (h) => h.description ? `${h.category}: ${h.description}` : h.category;
+    if (evt.type === "help.new") {
+      // not about the call you just sent yourself
+      if (!(evt.data.room_id === roomId && evt.data.requested_by === boot.me.name)) alerts.add("urgent", `Help needed in ${evt.data.room_name}`, what(evt.data), () => $("helpTop").click());
+      renderHelp();
+    }
     if (evt.type === "help.updated") {
       renderHelp();
       const h = evt.data;
-      if (h.room_id === roomId && h.status === "acknowledged") alerts.add("good", `${h.assigned_to || "Someone"} is on the way`, `${h.category}: ${h.description || ""}`);
+      if (h.room_id === roomId && h.status === "acknowledged" && h.assigned_to !== boot.me.name) alerts.add("good", `${h.assigned_to || "Someone"} is on the way`, what(h));
     }
     cuelist && cuelist.onEvent(evt);
     if (evt.topic === `timer:${roomId}` && evt.type === "timer") tstate = evt.data;

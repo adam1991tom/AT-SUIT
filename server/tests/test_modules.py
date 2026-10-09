@@ -410,3 +410,36 @@ def test_manager_runs_rooms_and_techs_but_not_the_site(admin, client):
     # a manager can't raise or drop their own access
     me = client.get("/api/auth/me").json()["id"]
     assert client.put(f"/api/admin/accounts/{me}", json={"username": "mia", "role": "admin"}).status_code == 400
+
+
+def test_wrong_passwords_are_logged_and_slowed(admin, client):
+    from atsuit.modules import core
+
+    core._login_fails.clear()
+    client.cookies.clear()
+    for _ in range(core.LOGIN_TRIES):
+        assert client.post("/api/auth/login", json={"username": "admin", "password": "nope-nope"}).status_code == 401
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "correct-horse"}).status_code == 429
+    core._login_fails.clear()
+    assert client.post("/api/auth/login", json={"username": "admin", "password": "correct-horse"}).status_code == 200
+    assert sum(1 for l in client.get("/api/admin/audit").json() if l["action"] == "auth.fail") == core.LOGIN_TRIES
+
+
+def test_unread_counts_survive_a_reload(admin, client):
+    """Unread chat is counted on the server, per account and per tech laptop."""
+    rid = admin.get("/api/bootstrap").json()["rooms"][0]["id"]
+    ch = next(c for c in admin.get("/api/comms/channels").json() if c["kind"] == "room" and c["room_id"] == rid)
+    code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
+    tok = admin.post("/api/nodes/enrol", json={"code": code, "name": "lap-u", "kind": "tech"}).json()["token"]
+    h = {"Authorization": f"Node {tok}"}
+    assert client.post("/api/nodes/me/start", headers=h, json={"operator": "Amy", "room_id": rid, "mode": "main"}).status_code == 200
+    unread = lambda: next(c for c in client.get("/api/comms/channels", headers=h).json() if c["id"] == ch["id"])["unread"]
+    before = unread()
+    client.cookies.clear()
+    client.post("/api/auth/login", json={"username": "admin", "password": "correct-horse"})
+    mid = client.post(f"/api/comms/channels/{ch['id']}/messages", json={"body": "Mic 2 flat"}).json()["id"]
+    mine = next(c for c in client.get("/api/comms/channels").json() if c["id"] == ch["id"])["unread"]
+    client.cookies.clear()
+    assert unread() == before + 1 and mine == 0  # your own message isn't unread for you
+    assert client.post(f"/api/comms/channels/{ch['id']}/read", headers=h, json={"up_to": mid}).status_code == 200
+    assert unread() == 0

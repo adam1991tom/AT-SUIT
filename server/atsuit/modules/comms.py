@@ -3,7 +3,9 @@ Replaces AT-RoomComms."""
 from __future__ import annotations
 
 import mimetypes
+import time
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -96,8 +98,27 @@ def list_channels(p: Principal = Depends(require_user)):
                 other = [m for m in dm_members(ch) if m != p.id]
                 a = c.execute("SELECT display_name FROM accounts WHERE id=?", (other[0] if other else p.id,)).fetchone()
                 ch["name"] = a["display_name"] if a else "Direct message"
+            ch["unread"] = unread_count(c, ch["id"], p)
             out.append(ch)
         return out
+
+
+UNREAD_DAYS = 7  # older messages never count as unread (a new account doesn't start with years of chat)
+
+
+def reader_id(p: Principal) -> int:
+    """Who read a message: an account, or a tech laptop (stored negative, so it can't clash with an account)."""
+    return p.id if p.kind == "account" else -p.id
+
+
+def unread_count(c, channel_id: int, p: Principal) -> int:
+    since = datetime.fromtimestamp(time.time() - UNREAD_DAYS * 86400, timezone.utc).isoformat(timespec="seconds")
+    return c.execute(
+        "SELECT COUNT(*) FROM messages m WHERE m.channel_id=? AND m.deleted_at IS NULL AND m.created_at>=? "
+        "AND (m.sender_id IS NULL OR m.sender_id!=? OR ?!='account') "
+        "AND NOT EXISTS (SELECT 1 FROM message_reads r WHERE r.message_id=m.id AND r.account_id=?)",
+        (channel_id, since, p.id, p.kind, reader_id(p)),
+    ).fetchone()[0]
 
 
 @router.get("/api/comms/people")
@@ -244,14 +265,14 @@ class ReadIn(BaseModel):
 
 @router.post("/api/comms/channels/{channel_id}/read")
 def mark_read(channel_id: int, body: ReadIn, p: Principal = Depends(require_user)):
-    if p.kind != "account":
+    if p.kind not in ("account", "node"):
         return {"ok": True}
     with db.tx() as c:
         get_channel(c, channel_id, p)
         c.execute(
             "INSERT OR IGNORE INTO message_reads(message_id,account_id,read_at) "
             "SELECT id,?,? FROM messages WHERE channel_id=? AND id<=?",
-            (p.id, db.now_iso(), channel_id, body.up_to),
+            (reader_id(p), db.now_iso(), channel_id, body.up_to),
         )
     return {"ok": True}
 

@@ -46,8 +46,8 @@ def test_go_next_previous_and_skip(admin):
     assert s["running"]
     s = admin.post(f"/api/timers/{rid}/toggle").json()
     assert s["playback"] == "pause"
-    s = admin.post(f"/api/timers/{rid}/go").json()  # past the last cue: stop
-    assert s["playback"] == "stop" and s["cue"] is None
+    r = admin.post(f"/api/timers/{rid}/go")  # past the last cue: says so and leaves the stage alone (Stop stops)
+    assert r.status_code == 409 and admin.get(f"/api/timers/{rid}").json()["playback"] == "pause"
 
 
 def test_end_actions_run_on_the_server(admin):

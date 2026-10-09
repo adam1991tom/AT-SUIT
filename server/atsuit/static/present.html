@@ -37,8 +37,9 @@
   const fmtWhen = (iso) => {
     if (!iso) return "";
     if (!iso.includes("T")) return iso;
-    const d = new Date(iso);
-    return d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }) + ", " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    // Session times are the venue's own clock (24-hour, like the end time), not the presenter's time zone.
+    const d = new Date(iso.slice(0, 10) + "T12:00:00");
+    return d.toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" }) + ", " + iso.slice(11, 16);
   };
   let data;
 

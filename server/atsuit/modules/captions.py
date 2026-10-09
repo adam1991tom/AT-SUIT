@@ -67,6 +67,7 @@ class RoomState:
         self.started: float = 0
         self.level: float = -100.0
         self.finals: deque[str] = deque(maxlen=8)
+        self.finals_at: deque[float] = deque(maxlen=8)  # when each final was said, so a screen that reloads doesn't show old lines as new
         self.history: deque[dict] = deque(maxlen=HISTORY_SIZE)
         self.partial: str = ""
         self.transcript = None
@@ -342,6 +343,7 @@ async def audio_in(ws: WebSocket, room_id: int):
 async def caption_event(room_id: int, st: RoomState, kind: str, text: str, words: list[dict] | None = None) -> None:
     if kind == "final":
         st.finals.append(text)
+        st.finals_at.append(time.time())
         st.history.append({"id": f"{time.time():.3f}", "text": text, "words": words or [], "ts": time.time()})
         st.partial = ""
         _write_final(st, text)
@@ -371,8 +373,8 @@ def recent(room_id: int):
     st = rooms.get(room_id)
     with db.ro() as c:
         appearance = room_config(c, room_id)["appearance"]
-    return {"finals": list(st.finals) if st else [], "partial": st.partial if st else "",
-            "live": bool(st and st.ws), "appearance": appearance}
+    return {"finals": list(st.finals) if st else [], "finals_at": list(st.finals_at) if st else [], "now": time.time(),
+            "partial": st.partial if st else "", "live": bool(st and st.ws), "appearance": appearance}
 
 
 @router.get("/api/captions/{room_id}/appearance")
@@ -518,6 +520,7 @@ async def clear(room_id: int, p: Principal = Depends(require_tech)):
     st = rooms.get(room_id)
     if st:
         st.finals.clear()
+        st.finals_at.clear()
         st.partial = ""
     await hub.publish(f"captions:{room_id}", "clear", {})
     return {"ok": True}

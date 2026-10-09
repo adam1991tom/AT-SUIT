@@ -60,7 +60,7 @@
   .onstage:empty { display: none; }
   .tag { font-size: 1.05vw; padding: .4vh .7vw; border-radius: .4vw; background: #1a1f28; border: 1px solid var(--line); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tag b { color: var(--dim); font-weight: 800; font-size: .8vw; letter-spacing: .1em; margin-right: .5vw; }
-  .tag.msg { border-color: var(--accent); white-space: normal; }
+  .tag.msg { border-color: var(--accent); white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; } /* a long message keeps to three lines */
   .tag.alert { border-color: var(--red); color: var(--red); font-weight: 800; }
 
   /* now and next */
@@ -97,9 +97,9 @@
   /* portrait or small screens: stack */
   @media (max-aspect-ratio: 1/1) {
     .bs { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0, 1fr); overflow: auto; }
-    #studio { width: min(70vw, 42vh); }
-    .top .room { font-size: 5vw; } .top .date, .lamp { font-size: 2.6vw; }
-    #timer { font-size: 15vw; } .facts, .tag, #list .q, #help .call .d { font-size: 2.6vw; } .lab { font-size: 2vw; } .nn .t { font-size: 3.4vw; } .nn .m { font-size: 2.2vw; }
+    #studio { width: min(58vw, 28vh); }
+    .top .room { font-size: 5vw; } .top .date, .lamp { font-size: 3vw; }
+    #timer { font-size: 15vw; } .facts, .tag, #list .q, #help .call .d { font-size: 3.2vw; } .lab { font-size: 2.6vw; } .nn .t { font-size: 4vw; } .nn .m { font-size: 2.8vw; }
   }
 </style>
 </head>
@@ -141,6 +141,8 @@
   const pad = (n) => String(n).padStart(2, "0");
   let s = await AT.api(`/api/timers/${roomId}`), cues = [], board = { calls: [], open_elsewhere: 0 };
   const got = (x) => { x._rx = Date.now(); s = x; };
+  // Re-read the venue clock every few minutes, so a screen left up overnight keeps time across a clock change.
+  setInterval(() => AT.api(`/api/timers/${roomId}`).then(got).catch(() => {}), 300000);
   got(s);
   $("room").textContent = s.room;
   document.title = `Backstage · ${s.room}`;
@@ -177,7 +179,8 @@
     return (ms < 0 ? "-" : "") + (h ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`);
   };
   const dur = (ms) => AT.fmtTime(ms).replace(/^\+/, "");
-  const date = () => new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+  // The venue's date (from the server), not the screen's own: a screen set to another time zone still shows the right day.
+  const date = () => (s.venue_date ? new Date(s.venue_date + "T12:00:00") : new Date()).toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
   const ago = (iso) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000)); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ${m % 60} min ago`; };
 
   function drawClock() {

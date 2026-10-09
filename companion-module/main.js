@@ -1,5 +1,5 @@
 const { InstanceBase, InstanceStatus, Regex, combineRgb, runEntrypoint } = require("@companion-module/base");
-const { PRESETS, QUICK_MESSAGES, SECONDARY_CMDS, baseUrl, fmt, request, secondaryText } = require("./lib");
+const { PRESETS, QUICK_MESSAGES, SECONDARY_CMDS, baseUrl, inDanger, request, secondaryText, timeLeft } = require("./lib");
 
 const NAVY = combineRgb(11, 16, 32), ORANGE = combineRgb(255, 122, 26), RED = combineRgb(200, 30, 30), GREEN = combineRgb(30, 140, 60), WHITE = combineRgb(255, 255, 255);
 
@@ -47,7 +47,7 @@ class AtSuit extends InstanceBase {
       const r = await fetch(`${baseUrl(this.config)}/api/timers/${this.config.room}`, { signal: AbortSignal.timeout(2500) });
       if (!r.ok) throw new Error(String(r.status));
       this.state = await r.json(); this.state._rx = Date.now(); this.updateStatus(InstanceStatus.Ok);
-      this.setVariableValues({ time_left: fmt(this.state.remaining_ms), running: this.state.running ? "yes" : "no", title: this.state.title || "", message: this.state.message || "", cue: this.state.cue ? this.state.cue.title : "", secondary: secondaryText(this.state) });
+      this.setVariableValues({ time_left: timeLeft(this.state), running: this.state.running ? "yes" : "no", title: this.state.title || "", message: this.state.message || "", cue: this.state.cue ? this.state.cue.title : "", secondary: secondaryText(this.state) });
       this.checkFeedbacks();
     } catch (e) { this.updateStatus(InstanceStatus.ConnectionFailure, e.message); }
   }
@@ -79,7 +79,7 @@ class AtSuit extends InstanceBase {
     const flag = (name, key) => ({ type: "boolean", name, defaultStyle: { bgcolor: RED, color: WHITE }, options: [], callback: () => !!this.state[key] });
     return {
       running: { type: "boolean", name: "Timer is running", defaultStyle: { bgcolor: GREEN, color: WHITE }, options: [], callback: () => !!this.state.running },
-      danger: { type: "boolean", name: "Timer is in the danger zone", defaultStyle: { bgcolor: RED, color: WHITE }, options: [], callback: () => this.state.remaining_ms != null && this.state.remaining_ms <= (this.state.danger_ms || 0) },
+      danger: { type: "boolean", name: "Timer is in the danger zone", defaultStyle: { bgcolor: RED, color: WHITE }, options: [], callback: () => inDanger(this.state) },
       blink: flag("Blink is on", "message_blink"), clock: flag("Clock is showing", "show_clock"), blackout: flag("Blackout is on", "blackout"),
       message: flag("A stage message is showing", "message_visible"),
       quick_message: { type: "boolean", name: "This message is on stage", defaultStyle: { bgcolor: ORANGE, color: NAVY }, options: [{ type: "textinput", id: "text", label: "Message", default: QUICK_MESSAGES[0] }],

@@ -303,6 +303,9 @@ def app_download(filename: str):
 async def upload_app(files: list[UploadFile], p: Principal = Depends(require_admin)):
     """Publish a Windows app release: the Setup .exe, its .blockmap and latest.yml
     from the GitHub release. Installed apps update next time they close."""
+    given = [os.path.basename(f.filename or "") for f in files]
+    if "latest.yml" not in given or not any(n.lower().endswith(".exe") for n in given):
+        raise HTTPException(400, "Upload the Setup .exe and latest.yml together (and the .blockmap if there is one), all from the same release")
     names = []
     for file in files:
         name = os.path.basename(file.filename or "")
@@ -543,8 +546,12 @@ class NodeEdit(BaseModel):
 async def edit_node(node_id: int, body: NodeEdit, p: Principal = Depends(require_manager)):
     with db.tx() as c:
         n = c.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
-        if not n:
+        if not n or (p.site_id is not None and n["site_id"] not in (None, p.site_id)):
             raise HTTPException(404, "Node not found")
+        if body.room_id is not None:
+            room = c.execute("SELECT site_id FROM rooms WHERE id=?", (body.room_id,)).fetchone()
+            if not room or (p.site_id is not None and room["site_id"] != p.site_id):
+                raise HTTPException(404, "Room not found")
         # A manager moves laptops and screens between rooms; renaming or re-siting them is for an admin.
         if p.role != "admin" and ((body.name and norm_host(body.name) != n["name"]) or (body.site_id and body.site_id != n["site_id"])
                                   or (body.kind and body.kind != n["kind"])):

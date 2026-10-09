@@ -17,7 +17,7 @@
       <p class="muted">This sets up the server for your venue. Everything here can be changed later in Admin.</p>
       <label>Organisation name</label><input name="organisation" required placeholder="e.g. Grand Hall Events">
       <label>Venue (site) name</label><input name="site_name" required placeholder="e.g. Main Venue">
-      <label>Time zone</label><input name="timezone" value="Europe/London">
+      <label>Time zone</label><input name="timezone" value="Europe/London" list="zones" autocomplete="off"><datalist id="zones"></datalist>
     </section>
 
     <section data-step="1" class="hidden">
@@ -81,6 +81,10 @@
   };
   show();
 })();
+</script>
+<script>
+// Offer the real time zone names, so the venue clocks aren't set to one that doesn't exist.
+try { document.getElementById("zones").innerHTML = Intl.supportedValuesOf("timeZone").map((z) => `<option value="${z}">`).join(""); } catch (_) {}
 </script>
 </body>
 </html>

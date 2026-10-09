@@ -245,4 +245,9 @@ async def route_roomcomms(file: UploadFile, site_id: int | None = None, p: Princ
                     key = z.read(keyname)
         else:
             (tmpdir / "src.db").write_bytes(data)
-        return import_roomcomms(tmpdir / "src.db", key, site_id)
+        if not (tmpdir / "src.db").read_bytes()[:16].startswith(b"SQLite format 3"):
+            raise HTTPException(400, "That isn't a RoomComms database. Upload the zip of its data folder, or roomcomms.db.")
+        try:
+            return import_roomcomms(tmpdir / "src.db", key, site_id)
+        except sqlite3.DatabaseError as e:
+            raise HTTPException(400, f"That database couldn't be read as RoomComms: {e}")

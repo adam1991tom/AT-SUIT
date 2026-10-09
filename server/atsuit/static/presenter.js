@@ -26,6 +26,7 @@ const PresenterPage = (() => {
 
     function render() {
       const tabs = { order: "Running order", review: "File review", import: "Import", ...(isAdmin ? { settings: "Settings" } : {}) };
+      if (!tabs[tab]) tab = "order"; // e.g. a manager following a link to Settings
       const pending = events.find((e) => e.id === eventId)?.pending || 0;
       el.innerHTML = `<div class="row" style="justify-content:space-between"><h1>Presenters</h1>
           <div class="row">${events.length ? `<select id="prEvent" style="width:auto">${events.map((e) => `<option value="${e.id}" ${e.id === eventId ? "selected" : ""}>${esc(e.name)}</option>`).join("")}</select>` : ""}
@@ -274,7 +275,7 @@ const PresenterPage = (() => {
           <table style="margin-top:.6rem">${s.rooms.map((r) => `<tr><td>${esc(r.name)} <span class="muted small">${esc(r.site)}</span></td><td><code>${esc(r.sync_code || "none")}</code></td><td><button class="small" data-code="${r.id}">${r.sync_code ? "New code" : "Make code"}</button></td></tr>`).join("")}</table></div></div>`;
       const f = body.querySelector("#prefs");
       f.onsubmit = (e) => { e.preventDefault(); guard(() => put("/api/presenter/settings", { upload_limit_mb: +f.upload_limit_mb.value, portal_note: f.portal_note.value, ai_url: f.ai_url.value.trim(), ai_model: f.ai_model.value.trim() })).then(() => toast("Saved", "good")); };
-      body.querySelectorAll("[data-code]").forEach((b) => (b.onclick = () => guard(() => post(`/api/presenter/rooms/${b.dataset.code}/sync-code`)).then(() => renderSettings(body))));
+      body.querySelectorAll("[data-code]").forEach((b) => (b.onclick = () => (!b.textContent.includes("New") || confirm("Make a new sync code? This room's laptop stops syncing until it is given the new code.")) && guard(() => post(`/api/presenter/rooms/${b.dataset.code}/sync-code`)).then(() => renderSettings(body))));
     }
 
     let pendingLoad = null;

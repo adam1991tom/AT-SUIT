@@ -80,7 +80,7 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
       $("[data-msgs]").innerHTML = msgs.map((m, i) => `<button data-mi="${i}" class="${onStage(m) ? "on" : ""}">${esc(m)}</button>`).join("") || '<span class="muted small">No quick messages.</span>';
       $("[data-msgs]").querySelectorAll("[data-mi]").forEach((b) => b.onclick = () => {
         const t = msgs[+b.dataset.mi];
-        guard(() => onStage(t) ? post(`/api/timers/${roomId}/message/hide`) : post(`/api/timers/${roomId}/message/show`, { text: t, blink: blinkMsg })).then(shown, () => {});
+        guard(() => onStage(t) ? post(`/api/timers/${roomId}/message/hide`) : post(`/api/timers/${roomId}/message/show`, { text: t, blink: blinkMsg || undefined }) /* unticked leaves the Blink switch as it is */).then(shown, () => {});
       });
       $("[data-medit]").classList.toggle("hidden", !canEdit || editing);
     }

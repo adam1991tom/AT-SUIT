@@ -37,7 +37,7 @@ var Layout = (() => { // var: desk.js looks for window.Layout
     t.el.classList.toggle("tile-off", !!s.hidden);
     const i = state.order.indexOf(id);
     t.el.style.order = i < 0 ? 100 + [...tiles.keys()].indexOf(id) : i;
-    t.el.dataset.w = w;
+    t.el.dataset.cols = w; // not data-w: a window keeps its own pixel width there for when it floats again
     const lab = t.el.querySelector(":scope > .tile-tools .tt-size");
     if (lab) lab.textContent = `${w} wide${h ? ` · ${h} high` : ""}`;
   }

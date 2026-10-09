@@ -1,5 +1,5 @@
 const test = require("node:test"), assert = require("node:assert");
-const { PRESETS, QUICK_MESSAGES, baseUrl, fmt, request, secondaryText } = require("../lib");
+const { PRESETS, QUICK_MESSAGES, baseUrl, fmt, inDanger, request, secondaryText, timeLeft } = require("../lib");
 
 test("presets are 3 to 60 in the agreed steps", () => assert.deepStrictEqual(PRESETS, [3, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]));
 test("address", () => {
@@ -28,4 +28,11 @@ test("second line", () => {
   assert.strictEqual(secondaryText({ secondary: { visible: true, mode: "timer", remaining_ms: 65000, running: false } }), "01:05");
   assert.strictEqual(secondaryText({ secondary: { visible: true, mode: "text", text: "Q&A" } }), "Q&A");
   assert.strictEqual(secondaryText({ secondary: { visible: false, mode: "text", text: "Q&A" } }), "");
+});
+test("danger only while a count-down runs or is paused under its danger time", () => {
+  assert.strictEqual(inDanger({ playback: "stop", remaining_ms: 0, danger_ms: 60000 }), false);
+  assert.strictEqual(inDanger({ playback: "play", remaining_ms: 30000, danger_ms: 60000, timer_type: "count-down" }), true);
+  assert.strictEqual(inDanger({ playback: "play", remaining_ms: 30000, danger_ms: 60000, timer_type: "count-up" }), false);
+  assert.strictEqual(timeLeft({ playback: "stop", remaining_ms: 0 }), "--:--");
+  assert.strictEqual(timeLeft({ playback: "play", remaining_ms: 65000 }), "01:05");
 });

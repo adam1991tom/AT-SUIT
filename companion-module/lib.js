@@ -52,4 +52,15 @@ function secondaryText(state, now = Date.now()) {
   return fmt(x.running && state._rx ? x.remaining_ms - (now - state._rx) : x.remaining_ms);
 }
 
-module.exports = { PRESETS, QUICK_MESSAGES, SECONDARY_CMDS, baseUrl, fmt, request, secondaryText };
+// Danger only for a count-down that is running or paused and under its danger time
+// (a stopped timer has 0 left, which isn't danger).
+function inDanger(st) {
+  if (!st || st.remaining_ms == null || !["play", "pause"].includes(st.playback)) return false;
+  if (st.timer_type && st.timer_type !== "count-down") return false;
+  return st.remaining_ms <= (st.danger_ms || 0);
+}
+
+// The time left for a button: --:-- when nothing is loaded or it has been stopped.
+const timeLeft = (st) => (!st || st.remaining_ms == null || !["play", "pause", "armed"].includes(st.playback) ? "--:--" : fmt(st.remaining_ms));
+
+module.exports = { PRESETS, QUICK_MESSAGES, SECONDARY_CMDS, baseUrl, fmt, inDanger, request, secondaryText, timeLeft };

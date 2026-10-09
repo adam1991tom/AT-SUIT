@@ -111,7 +111,7 @@ const Chat = (() => {
       if (existing) { existing.outerHTML = msgHtml(m); wireDeletes(listEl); }
     }
     function wireDeletes(scope) {
-      scope.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => guard(() => AT.del(`/api/comms/messages/${b.dataset.del}`)));
+      scope.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => confirm("Delete this message?") && guard(() => AT.del(`/api/comms/messages/${b.dataset.del}`)));
       scope.querySelectorAll("[data-rx]").forEach((b) => b.onclick = () => toggle(+b.dataset.rx, b.dataset.e));
       scope.querySelectorAll("[data-react]").forEach((b) => b.onclick = () => {
         // the six most used straight away, everything else from the picker
@@ -175,6 +175,7 @@ const Chat = (() => {
 
     async function load(preferId) {
       channels = await api("/api/comms/channels");
+      channels.forEach((c) => { unread[c.id] = c.unread || 0; }); // kept on the server, so a reload doesn't lose them
       renderChans();
       await open(preferId ?? opts.prefer ?? (channels.some((c) => c.id === current?.id) ? current.id : channels[0]?.id));
     }

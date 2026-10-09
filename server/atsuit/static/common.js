@@ -2,6 +2,19 @@
 const AT = (() => {
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+  // A validation error from the server, in words: "Start: use h:mm, like 9:30" rather than a regex.
+  function fieldMsg(d) {
+    const f = String((d.loc || []).slice(-1)[0] || "").replace(/_/g, " ");
+    const name = f && f !== "body" ? f[0].toUpperCase() + f.slice(1) : "";
+    let m = d.msg || "Not valid";
+    if (d.type === "string_pattern_mismatch") m = /\\d\{1,2\}:/.test(String(d.ctx && d.ctx.pattern)) ? "use a time like 9:30" : "not in the right format";
+    else if (d.type === "string_too_short") m = d.ctx && d.ctx.min_length > 1 ? `needs at least ${d.ctx.min_length} characters` : "can't be empty";
+    else if (d.type === "string_too_long") m = `can be at most ${d.ctx && d.ctx.max_length} characters`;
+    else if (d.type === "missing") m = "is needed";
+    m = m.replace(/^Value error, /, "");
+    return name ? `${name}: ${m}` : m;
+  }
+
   async function api(path, opts = {}) {
     const init = { method: opts.method || "GET", headers: { ...(opts.headers || {}) }, credentials: "same-origin" };
     if (opts.form) init.body = opts.form;
@@ -13,7 +26,7 @@ const AT = (() => {
     const type = r.headers.get("content-type") || "";
     const data = type.includes("json") ? await r.json() : await r.text();
     if (!r.ok) {
-      const msg = (data && data.detail) ? (typeof data.detail === "string" ? data.detail : data.detail.map((d) => d.msg).join(", ")) : r.statusText;
+      const msg = (data && data.detail) ? (typeof data.detail === "string" ? data.detail : data.detail.map(fieldMsg).join(". ")) : r.statusText;
       const err = new Error(msg);
       err.status = r.status;
       throw err;
@@ -53,9 +66,12 @@ const AT = (() => {
     setTimeout(() => t.remove(), 4500);
   }
 
+  // Runs an action and shows its error. It still rejects (so a caller's .then() is skipped),
+  // but an error it has shown isn't reported again as an unhandled rejection.
   async function guard(fn) {
-    try { return await fn(); } catch (e) { toast(e.message, "bad"); throw e; }
+    try { return await fn(); } catch (e) { toast(e.message, "bad"); if (e && typeof e === "object") e.shown = true; throw e; }
   }
+  addEventListener("unhandledrejection", (e) => { if (e.reason && e.reason.shown) e.preventDefault(); });
 
   function fmtTime(ms) {
     const neg = ms < 0; ms = Math.abs(ms);

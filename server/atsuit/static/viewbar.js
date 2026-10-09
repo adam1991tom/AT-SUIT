@@ -76,7 +76,7 @@
     };
     lift(); addEventListener("resize", lift); setInterval(lift, 5000);
     await load();
-    setInterval(load, 2000);
+    setInterval(load, 1000);
     setInterval(draw, 250);
     draw();
   }
