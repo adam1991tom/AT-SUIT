@@ -417,14 +417,14 @@
       if (!["sites", "accounts", "links", "audit"].includes(sub)) sub = "sites";
     } else if (sub === "import" || sub === "audit") sub = "data";
     const tabs = isAdminRole
-      ? { general: "General", appearance: "Appearance", info: "Info", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", chat: "Chat", data: "Import, backup & audit" }
+      ? { general: "General", appearance: "Appearance", info: "Info", servers: "Servers", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", chat: "Chat", data: "Import, backup & audit" }
       : { sites: "Rooms", accounts: "People", links: "Links", audit: "Audit log" };
     if (boot.modules.dashboard === false) delete tabs.links;
     if (boot.modules.fleet === false) delete tabs.fleet;
     if (!tabs[sub] && sub !== "data") sub = Object.keys(tabs)[0];
     el.innerHTML = `<h1>Admin</h1><div class="tabs">${Object.entries(tabs).map(([k, v]) => `<button class="${k === sub ? "on" : ""}" onclick="location.hash='#/admin/${k}'">${v}</button>`).join("")}</div><div id="adm"></div>`;
     const a = el.querySelector("#adm");
-    ({ general: admGeneral, info: admInfo, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, chat: admChat, data: admData, audit: admAudit, appearance: admAppearance }[sub] || admGeneral)(a);
+    ({ general: admGeneral, info: admInfo, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, chat: admChat, data: admData, audit: admAudit, appearance: admAppearance, servers: admServers }[sub] || admGeneral)(a);
   }
 
   const copyText = async (text, what = "Copied") => {
@@ -735,6 +735,47 @@
       for (const d of dms) await guard(() => del(`/api/admin/comms/dms/${d.id}`)).catch(() => {});
       admChat(a);
     });
+  }
+
+  // Helper servers: other machines that take caption work off this one.
+  async function admServers(a) {
+    const SPEECH = { ready: "Ready", loading: "Loading", downloading: "Downloading", off: "Off", unavailable: "Not installed", error: "Error" };
+    const pct = (x) => `${Math.round((x || 0) * 100)}%`;
+    const row = (s) => `<tr><td><b>${esc(s.name)}</b>${s.main ? ' <span class="pill">main</span>' : ""}</td>
+      <td><span class="pill ${s.online ? "good" : "bad"}">${s.online ? "Online" : "Offline"}</span></td>
+      <td>${esc(SPEECH[s.speech] || s.speech || "–")}</td><td>${s.online ? `${s.rooms} of ${s.capacity}` : "–"}</td>
+      <td>${s.online ? pct(s.load) : "–"}</td><td class="small muted">${esc(s.version || "")}</td>
+      <td>${s.main ? "" : `<button class="small danger" data-rm="${s.id}" data-name="${esc(s.name)}">Remove</button>`}</td></tr>`;
+    let code = null;
+    const draw = async () => {
+      if (!a.isConnected) return clearInterval(tick);
+      const d = await api("/api/admin/helpers");
+      const names = Object.fromEntries((boot.rooms || []).map((r) => [r.id, r.name]));
+      a.innerHTML = `<div class="panel"><h2>Servers</h2>
+          <p class="small muted">This is the main server: it holds the rooms, people and screens. Add a helper server to share the heavy work, starting with live captions. If a helper goes offline, its rooms carry on here or on another helper.</p>
+          <table style="margin-top:.6rem"><tr><th>Server</th><th>Status</th><th>Speech</th><th>Rooms captioning</th><th>CPU</th><th>Version</th><th></th></tr>
+            <tbody>${row(d.main)}${d.helpers.map(row).join("")}</tbody></table>
+          <p class="small muted">Together they can caption ${d.capacity} room${d.capacity === 1 ? "" : "s"} at once.${d.placed.length ? " Now: " + d.placed.map((p) => `${esc(names[p.room_id] || "Room " + p.room_id)} on ${esc(p.server)}`).join(", ") + "." : ""}</p></div>
+        <div class="panel" style="margin-top:1rem"><h2>How to share the work</h2>
+          <div class="seg" id="mode">${[["share", "Share", "Each room goes to whichever server is least busy, this one included."], ["offload", "Offload", "Helpers take the work first; this server only steps in when they are full or offline."]].map(([k, t, h]) => `<button data-mode="${k}" class="${d.mode === k ? "on" : ""}" title="${h}">${t}</button>`).join("")}</div>
+          <p class="small muted" id="modehelp"></p></div>
+        <div class="panel" style="margin-top:1rem"><h2>Add a helper</h2>
+          <p class="small muted">On the new machine run AT-SUIT with <code>ATSUIT_ROLE=helper</code>, open its page in a browser and type this server's address and the code below. Or start it with <code>ATSUIT_MAIN_URL</code> and <code>ATSUIT_JOIN_CODE</code> set. A code works once, for 15 minutes.</p>
+          <div class="row"><button class="primary" id="mk">Make a join code</button><span id="code" style="font:600 1.4rem var(--num-font);letter-spacing:.12em">${code ? esc(code) : ""}</span></div>
+          <p class="small muted">This server's address: <code>${esc(location.origin)}</code></p></div>`;
+      const help = { share: "Each room goes to whichever server is least busy, this one included.", offload: "Helpers take the work first; this server only steps in when they are full or offline." };
+      a.querySelector("#modehelp").textContent = help[d.mode];
+      a.querySelectorAll("[data-mode]").forEach((b) => b.onclick = () => guard(async () => {
+        await api("/api/admin/helpers/mode", { method: "PUT", body: { mode: b.dataset.mode } }); toast("Saved", "good"); draw();
+      }));
+      a.querySelector("#mk").onclick = () => guard(async () => { code = (await api("/api/admin/helpers/code", { method: "POST" })).code; draw(); });
+      a.querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => guard(async () => {
+        if (!confirm(`Remove ${b.dataset.name}? Its rooms move to another server, and it needs a new code to join again.`)) return;
+        await api(`/api/admin/helpers/${b.dataset.rm}`, { method: "DELETE" }); toast("Removed", "good"); draw();
+      }));
+    };
+    const tick = setInterval(() => draw().catch(() => {}), 5000);
+    await draw();
   }
 
   async function admAudit(a) {

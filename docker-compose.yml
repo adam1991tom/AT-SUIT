@@ -18,6 +18,11 @@ services:
       ATSUIT_PUBLIC_URL: ${ATSUIT_PUBLIC_URL:-}
       ATSUIT_ASR: ${ATSUIT_ASR:-1}
       ATSUIT_ASR_MAX_ROOMS: ${ATSUIT_ASR_MAX_ROOMS:-0}
+      # Helper servers: set ATSUIT_ROLE=helper on the extra machine (see docs/INSTALL.md).
+      ATSUIT_ROLE: ${ATSUIT_ROLE:-main}
+      ATSUIT_MAIN_URL: ${ATSUIT_MAIN_URL:-}
+      ATSUIT_JOIN_CODE: ${ATSUIT_JOIN_CODE:-}
+      ATSUIT_HELPER_NAME: ${ATSUIT_HELPER_NAME:-}
       ATSUIT_FLEET_SSH_USER: ${ATSUIT_FLEET_SSH_USER:-adam}
       TZ: ${TZ:-Europe/London}
     volumes:

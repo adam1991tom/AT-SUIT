@@ -148,6 +148,11 @@ MIGRATIONS: list[str] = [
     CREATE TABLE message_reactions(message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
         who TEXT NOT NULL, name TEXT NOT NULL, emoji TEXT NOT NULL, PRIMARY KEY(message_id, who, emoji));
     """,
+    # 9: helper servers that take work off this one
+    """
+    CREATE TABLE helpers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL COLLATE NOCASE,
+        secret_hash TEXT UNIQUE NOT NULL, added_at TEXT NOT NULL, last_seen TEXT);
+    """,
 ]
 
 

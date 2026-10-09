@@ -3,7 +3,7 @@
   "name": "at-suit",
   "shortname": "AT-SUIT",
   "description": "Control AT-SUIT room timers, messages, overlays and caption screens",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "license": "UNLICENSED",
   "repository": "https://github.com/adam1991tom/AT-SUIT",
   "bugs": "https://github.com/adam1991tom/AT-SUIT/issues",

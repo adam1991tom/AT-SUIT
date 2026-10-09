@@ -79,6 +79,32 @@ reinstalled: change the server address in their agent config to
 `http://SERVER:8180`. They appear in Nodes as "old agent". To reboot or
 update them from AT-SUIT, upload the fleet SSH key in Admin → Node setup.
 
+## Helper servers
+
+One server is the **main** server: it holds the rooms, people, chat and every
+screen. Any other machine can run the same install as a **helper** and take
+heavy work off it. Today that is live caption speech recognition; each helper
+adds the rooms it can caption to the total.
+
+1. On the main server, go to **Admin → Servers → Make a join code**. A code
+   works once, for 15 minutes.
+2. On the helper, install AT-SUIT as above with `ATSUIT_ROLE=helper` in `.env`,
+   then open `http://<helper>:8080` and type the main server's address and the
+   code. Or set `ATSUIT_MAIN_URL` and `ATSUIT_JOIN_CODE` in `.env` before the
+   first start. Use the main server's plain `http://` address on the venue
+   network.
+3. The helper connects out to the main server, so it needs no open ports of
+   its own, and reconnects by itself after a restart.
+
+On **Admin → Servers** choose how rooms are spread:
+
+- **Share**: each room goes to whichever server is least busy, the main one included.
+- **Offload**: helpers take rooms first, and the main server only steps in when they are full or offline.
+
+If a helper goes offline mid-show, its rooms move to another helper or the
+main server within a second, and the laptops keep sending audio as before.
+**Remove** on that page disconnects a helper; it needs a new code to join again.
+
 ## Backups and updates
 
 ```bash

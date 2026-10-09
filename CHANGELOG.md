@@ -4,6 +4,15 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.7.2
+
+**Helper servers**
+- Add more machines to share the work. The main server stays the brain (rooms, people, screens); a helper runs the same install with `ATSUIT_ROLE=helper`, joins with a one-time code from Admin → Servers, and takes live caption speech recognition off the main server.
+- Admin → Servers lists every server with its status, speech engine, rooms captioning and CPU, and chooses **Share** (least busy server wins) or **Offload** (helpers first). Admin only.
+- If a helper goes offline mid-show, its rooms move to another helper or the main server within a second; the laptops carry on as before.
+- Helpers connect out to the main server, so they need no open ports, and reconnect on their own after a restart. Removing one disconnects it and it needs a new code to come back.
+- Vocabulary changes reach every helper.
+
 ## 0.7.1
 
 **Appearance (site-wide, admin only)**

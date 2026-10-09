@@ -11,9 +11,9 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import VERSION, asr, db
+from . import VERSION, asr, config, db
 from .hub import can_subscribe, hub
-from .modules import captions, comms, core, dashboard, fleet, imports, overlays, pairing, presenter, timers
+from .modules import captions, cluster, comms, core, dashboard, fleet, imports, overlays, pairing, presenter, timers
 from .security import ws_principal
 
 STATIC = Path(__file__).parent / "static"
@@ -42,6 +42,7 @@ async def lifespan(app: FastAPI):
     db.migrate()
     asr.engine = asr.Engine()
     captions.rooms.clear()
+    cluster.reset()
     pairing.reset()
     tasks = [asyncio.create_task(housekeeping()), asyncio.create_task(captions.load_engine()),
              asyncio.create_task(timers.end_actions())]
@@ -51,11 +52,15 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    if config.cfg.role == "helper":
+        from .helper import create_helper_app
+        return create_helper_app()
     app = FastAPI(title="AT-SUIT", version=VERSION, lifespan=lifespan, docs_url="/api/docs", redoc_url=None)
-    for module in (core, comms, timers, fleet, pairing, captions, overlays, dashboard, presenter, imports):
+    for module in (core, comms, timers, fleet, pairing, captions, cluster, overlays, dashboard, presenter, imports):
         app.include_router(module.router)
     app.include_router(fleet.legacy)
     app.include_router(captions.ws_router)
+    app.include_router(cluster.ws_router)
     app.include_router(timers.public)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 

@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from .. import asr, config, db, dsp
 from ..hub import hub
 from ..security import Principal, require_admin, require_tech, require_user, ws_principal
+from . import cluster
 from .core import modules_enabled, require_module, room_or_404, site_ok
 
 router = APIRouter(dependencies=[Depends(require_module("captions"))])
@@ -83,7 +84,10 @@ rooms: dict[int, RoomState] = {}
 def engine_status() -> dict:
     s = asr.engine.status()
     s["active_rooms"] = sum(1 for r in rooms.values() if r.ws)
-    s["max_rooms"] = config.cfg.asr_max_rooms
+    s["max_rooms"] = cluster.capacity()
+    s["helpers"] = sum(1 for h in cluster.links.values() if h.ready)
+    if s["state"] != "ready" and s["helpers"]:  # a helper is doing the listening
+        s.update(state="ready", detail="")
     return s
 
 
@@ -106,7 +110,9 @@ def hotwords_score(c) -> float:
 async def load_engine() -> None:
     with db.ro() as c:
         score = hotwords_score(c)
-    await asyncio.to_thread(asr.engine.load, all_vocabulary(), True, score)
+    vocab = all_vocabulary()
+    await cluster.push_config(vocab, score)
+    await asyncio.to_thread(asr.engine.load, vocab, True, score)
     await hub.publish("fleet", "captions.engine", engine_status())
 
 
@@ -290,12 +296,12 @@ async def audio_in(ws: WebSocket, room_id: int):
         return
     st = apply_room_config(room_id, cfg)
     active = sum(1 for r in rooms.values() if r.ws)
-    if not st.ws and active >= config.cfg.asr_max_rooms:
+    if not st.ws and active >= cluster.capacity():
         await ws.send_json({"type": "error", "message": "The server is captioning as many rooms as it can"})
         await ws.close(code=4001)
         return
     try:
-        session = asr.engine.session(st.options)
+        session = await cluster.start_session(room_id, st.options)
     except RuntimeError as exc:
         await ws.send_json({"type": "error", "message": str(exc)})
         await ws.close(code=4002)
@@ -322,7 +328,12 @@ async def audio_in(ws: WebSocket, room_id: int):
             if not data:
                 continue
             samples = st.eq.process(dsp.pcm16_to_float(data))
-            events = await asyncio.to_thread(session.feed_samples, samples)
+            try:
+                events = await session.feed(samples)
+            except RuntimeError as exc:  # its helper went and nothing else has room
+                await ws.send_json({"type": "error", "message": str(exc)})
+                await ws.close(code=4002)
+                break
             now = time.time()
             if now - last_level > 0.25:
                 last_level = now
@@ -333,6 +344,7 @@ async def audio_in(ws: WebSocket, room_id: int):
     except WebSocketDisconnect:
         pass
     finally:
+        await session.close()
         if st.ws is ws:
             st.ws, st.source, st.partial, st.session = None, "", "", None
             if st.auto_transcript:  # one started by hand keeps going until Stop
@@ -470,7 +482,7 @@ async def save_settings(room_id: int, body: SettingsIn, p: Principal) -> dict:
     apply_room_config(room_id, cfg)
     if appearance_changed:
         await hub.publish(f"captions:{room_id}", "appearance", cfg["appearance"])
-    if reload_engine and asr.engine.state in ("ready", "error"):
+    if reload_engine and (asr.engine.state in ("ready", "error") or cluster.links):
         asyncio.get_running_loop().create_task(load_engine())
     return out
 
@@ -585,7 +597,7 @@ async def correct(room_id: int, body: CorrectionIn, p: Principal = Depends(requi
         room_or_404(c, room_id, p)
         added = add_correction(c, room_id, original, corrected, p.name)
         db.audit(c, p.name, "captions.correction", f"room {room_id}: {original} -> {corrected}")
-    if added and asr.engine.state in ("ready", "error"):
+    if added and (asr.engine.state in ("ready", "error") or cluster.links):
         # Rooms already captioning keep going and pick up the new word at their next pause.
         asyncio.get_running_loop().create_task(load_engine())
     return {"ok": True, "added_to_vocabulary": added}
