@@ -443,3 +443,15 @@ def test_unread_counts_survive_a_reload(admin, client):
     assert unread() == before + 1 and mine == 0  # your own message isn't unread for you
     assert client.post(f"/api/comms/channels/{ch['id']}/read", headers=h, json={"up_to": mid}).status_code == 200
     assert unread() == 0
+
+
+def test_site_wide_appearance_is_admin_only(admin, client):
+    assert client.get("/api/public/branding").json()["appearance"]["theme"] == "dark"
+    assert admin.put("/api/admin/settings", json={"appearance": {"theme": "futuristic", "corners": "square"}}).status_code == 200
+    assert admin.put("/api/admin/settings", json={"appearance": {"theme": "pink"}}).status_code == 400
+    a = client.get("/api/public/branding").json()["appearance"]
+    assert a["theme"] == "futuristic" and a["corners"] == "square" and a["density"] == "normal"
+    assert admin.post("/api/admin/accounts", json={"username": "mo", "password": "password1", "role": "manager"}).status_code == 200
+    client.cookies.clear()
+    client.post("/api/auth/login", json={"username": "mo", "password": "password1"})
+    assert client.put("/api/admin/settings", json={"appearance": {"theme": "light"}}).status_code == 403

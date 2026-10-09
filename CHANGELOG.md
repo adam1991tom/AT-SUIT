@@ -4,6 +4,14 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.7.1
+
+**Appearance (site-wide, admin only)**
+- New Admin → Appearance page sets one look for the whole site: Dark, Light, Modern or Futuristic, plus spacing (compact, normal, roomy), corners (square, rounded, round), font (system, brand, rounded, mono) and animation on or off.
+- Changes preview live; "Save for everyone" applies them to the console, every tech workspace, setup, the guide, presenter and captions control. Techs and managers can't change it.
+- Each screen remembers the last look so it paints in the right theme straight away.
+- Changing the look is recorded in the audit log.
+
 ## 0.7.0
 
 The bug-sweep release: every screen was gone through as admin, manager, tech and stage screen, and 58 of the 61 problems found are fixed. Still open: the top bar wraps on 1400px screens, the console Timers page is wide on a phone (both go with the rebuild), and the Companion module keeps port 8180 on purpose (the documented port next to the old apps).

@@ -417,14 +417,14 @@
       if (!["sites", "accounts", "links", "audit"].includes(sub)) sub = "sites";
     } else if (sub === "import" || sub === "audit") sub = "data";
     const tabs = isAdminRole
-      ? { general: "General", info: "Info", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", chat: "Chat", data: "Import, backup & audit" }
+      ? { general: "General", appearance: "Appearance", info: "Info", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", chat: "Chat", data: "Import, backup & audit" }
       : { sites: "Rooms", accounts: "People", links: "Links", audit: "Audit log" };
     if (boot.modules.dashboard === false) delete tabs.links;
     if (boot.modules.fleet === false) delete tabs.fleet;
     if (!tabs[sub] && sub !== "data") sub = Object.keys(tabs)[0];
     el.innerHTML = `<h1>Admin</h1><div class="tabs">${Object.entries(tabs).map(([k, v]) => `<button class="${k === sub ? "on" : ""}" onclick="location.hash='#/admin/${k}'">${v}</button>`).join("")}</div><div id="adm"></div>`;
     const a = el.querySelector("#adm");
-    ({ general: admGeneral, info: admInfo, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, chat: admChat, data: admData, audit: admAudit }[sub] || admGeneral)(a);
+    ({ general: admGeneral, info: admInfo, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, chat: admChat, data: admData, audit: admAudit, appearance: admAppearance }[sub] || admGeneral)(a);
   }
 
   const copyText = async (text, what = "Copied") => {
@@ -459,6 +459,53 @@
       const modules = Object.fromEntries(Object.keys(s.modules).map((m) => [m, mf[m].checked]));
       guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value })).then(() => location.reload());
     };
+  }
+
+  // One look for every staff page on the site: the console, the tech workspaces, setup and the presenter page.
+  // Changes show on this page straight away; Save sends them to everyone.
+  async function admAppearance(a) {
+    const s = await api("/api/admin/settings"), saved = { ...s.branding.appearance };
+    let cur = { ...saved };
+    const THEMES = [
+      ["dark", "Dark", "The AT-SUIT look: dark and calm for the control room.", ["#0e1116", "#161b24", "#2a3342", "#e8ebf2"]],
+      ["light", "Light", "Bright and clear for the office or a sunny foyer.", ["#f3f5f9", "#ffffff", "#d6dce6", "#141a26"]],
+      ["modern", "Modern", "Soft, rounded and roomy, with gentle shadows.", ["#0f1115", "#181b22", "#20242d", "#eef0f5"]],
+      ["futuristic", "Futuristic", "Glass panels, glowing edges and a mono font for the numbers.", ["#04070e", "#0a1222", "#16314f", "#dbeafe"]],
+    ];
+    const OPTS = {
+      density: [["compact", "Compact"], ["normal", "Normal"], ["roomy", "Roomy"]],
+      corners: [["square", "Square"], ["rounded", "Rounded"], ["round", "Round"]],
+      font: [["system", "System"], ["brand", "AT-SUIT (Saira)"], ["rounded", "Rounded"], ["mono", "Mono"]],
+      motion: [["on", "On"], ["off", "Off (no flashing or animation)"]],
+    };
+    const accent = s.branding.accent || "#FF7A1A";
+    const card = ([k, name, about, [bg, panel, line, text]]) => `<button type="button" class="theme-card${cur.theme === k ? " on" : ""}" data-theme-pick="${k}">
+        <span class="theme-sw" style="background:${bg};border-color:${line}"><i style="background:${panel};border-color:${line}"><b style="background:${accent}"></b><u style="background:${text}"></u><u style="background:${line}"></u></i><i style="background:${panel};border-color:${line}"><u style="background:${text}"></u></i></span>
+        <b>${name}</b><span class="muted small">${about}</span></button>`;
+    const seg = (key) => `<div class="seg">${OPTS[key].map(([v, t]) => `<button type="button" data-opt="${key}" data-v="${v}" class="${cur[key] === v ? "on" : ""}">${t}</button>`).join("")}</div>`;
+    const draw = () => {
+      a.innerHTML = `<div class="panel"><h2>Theme</h2><p class="muted small" style="margin-top:0">One look for the whole site: every console, tech workspace, setup and presenter page. Stage, caption and backstage screens keep their own look. The accent colour is in <a href="#/admin/general">General</a>.</p>
+        <div class="theme-grid">${THEMES.map(card).join("")}</div></div>
+        <div class="grid" style="margin-top:var(--gap)">
+          <div class="panel"><h2>Spacing</h2>${seg("density")}</div>
+          <div class="panel"><h2>Corners</h2>${seg("corners")}</div>
+          <div class="panel"><h2>Font</h2>${seg("font")}</div>
+          <div class="panel"><h2>Animation</h2>${seg("motion")}</div>
+        </div>
+        <div class="panel" style="margin-top:var(--gap)"><h2>Preview</h2><div class="row"><button class="primary">Primary</button><button>Button</button><button class="danger">Danger</button>
+          <span class="pill good">online</span><span class="pill warn">paused</span><span class="pill bad">help</span><input placeholder="A text box" style="max-width:14rem"></div>
+          <div class="clock bigclock" style="margin-top:.6rem">12:34</div></div>
+        <div class="row" style="margin-top:var(--gap)"><button class="primary" id="apSave">Save for everyone</button><button id="apUndo">Undo changes</button>
+          <span class="muted small">${JSON.stringify(cur) === JSON.stringify(saved) ? "This is the look everyone has now." : "Only you can see these changes until you save."}</span></div>`;
+      a.querySelectorAll("[data-theme-pick]").forEach((b) => (b.onclick = () => set({ theme: b.dataset.themePick })));
+      a.querySelectorAll("[data-opt]").forEach((b) => (b.onclick = () => set({ [b.dataset.opt]: b.dataset.v })));
+      a.querySelector("#apSave").onclick = () => guard(() => put("/api/admin/settings", { appearance: cur })).then(() => { Object.assign(saved, cur); ATTheme.remember(cur); toast("Saved. Every page picks it up when it next loads.", "good"); draw(); });
+      a.querySelector("#apUndo").onclick = () => set({ ...saved });
+    };
+    const set = (change) => { cur = { ...cur, ...change }; ATTheme.apply(cur); draw(); };
+    draw();
+    // leaving the tab without saving puts the site's look back
+    addEventListener("hashchange", function back() { removeEventListener("hashchange", back); ATTheme.apply(saved); });
   }
 
   async function admInfo(a) {

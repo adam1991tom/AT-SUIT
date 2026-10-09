@@ -5,6 +5,7 @@
 <title>Caption settings</title>
 <link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
 <link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
 <style>
   body { padding: 0; }
   header { display: flex; gap: .8rem; align-items: center; padding: .7rem 1rem; background: var(--panel); border-bottom: 3px solid var(--accent);
@@ -22,6 +23,7 @@
 // Caption settings on their own page: /static/captions-control.html?room=<id>
 (async () => {
   const { api, esc } = AT;
+  AT.branding();
   const q = new URLSearchParams(location.search);
   let st;
   try { st = await api("/api/captions/status"); }

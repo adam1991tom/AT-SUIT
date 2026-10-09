@@ -51,11 +51,28 @@ DEFAULT_BRANDING = {
 }
 OLD_DEFAULT_ACCENT = "#4f7cff"  # before the AT-SUIT logo; servers set up then still store it
 
+# How every staff page looks (the console, the tech workspace, setup and the presenter
+# page). One look for the whole site, set by an admin; stage screens keep their own.
+APPEARANCE_CHOICES = {
+    "theme": ("dark", "light", "modern", "futuristic"),
+    "density": ("compact", "normal", "roomy"),
+    "corners": ("square", "rounded", "round"),
+    "font": ("system", "brand", "rounded", "mono"),
+    "motion": ("on", "off"),
+}
+DEFAULT_APPEARANCE = {"theme": "dark", "density": "normal", "corners": "rounded", "font": "system", "motion": "on"}
+
+
+def get_appearance(c) -> dict:
+    saved = db.get_setting(c, "appearance", {})
+    return {k: saved.get(k) if saved.get(k) in choices else DEFAULT_APPEARANCE[k] for k, choices in APPEARANCE_CHOICES.items()}
+
 
 def get_branding(c) -> dict:
     b = {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {})}
     if b.get("accent", "").lower() == OLD_DEFAULT_ACCENT:
         b["accent"] = DEFAULT_BRANDING["accent"]
+    b["appearance"] = get_appearance(c)
     return b
 
 
@@ -312,6 +329,7 @@ def get_settings(p: Principal = Depends(require_admin)):
 
 class SettingsIn(BaseModel):
     branding: dict | None = None
+    appearance: dict | None = None
     modules: dict | None = None
     legacy_fleet_api: bool | None = None
     message_retention_days: int | None = None
@@ -323,6 +341,12 @@ def put_settings(body: SettingsIn, p: Principal = Depends(require_admin)):
         if body.branding is not None:
             allowed = {k: str(v)[:300] for k, v in body.branding.items() if k in DEFAULT_BRANDING}
             db.set_setting(c, "branding", {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {}), **allowed})
+        if body.appearance is not None:
+            bad = [k for k, v in body.appearance.items() if k not in APPEARANCE_CHOICES or v not in APPEARANCE_CHOICES[k]]
+            if bad:
+                raise HTTPException(400, f"Unknown appearance setting: {', '.join(bad)}")
+            db.set_setting(c, "appearance", {**get_appearance(c), **body.appearance})
+            db.audit(c, p.name, "appearance.edit", ", ".join(f"{k}={v}" for k, v in body.appearance.items()))
         if body.modules is not None:
             db.set_setting(c, "modules", {m: bool(body.modules.get(m, True)) for m in licence.ALL_MODULES})
         if body.legacy_fleet_api is not None:

@@ -118,6 +118,7 @@ const AT = (() => {
       document.documentElement.style.setProperty("--accent", b.accent || "#FF7A1A");
       document.documentElement.style.setProperty("--accent-ink", ink(b.accent || "#FF7A1A"));
       document.querySelectorAll("[data-product]").forEach((el) => (el.textContent = b.product_name));
+      if (window.ATTheme && b.appearance) { ATTheme.apply(b.appearance); ATTheme.remember(b.appearance); }
       return b;
     } catch (_) { return {}; }
   }

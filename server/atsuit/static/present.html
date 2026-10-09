@@ -7,6 +7,7 @@
 <title>Your presentation</title>
 <link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
 <link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
 <style>
   body { height: auto; min-height: 100%; }
   .wrap { max-width: 640px; margin: 0 auto; padding: 1.2rem 1rem 3rem; }
@@ -46,6 +47,7 @@
   try { data = await api(`/api/present/${encodeURIComponent(token)}`); }
   catch (e) { $("app").innerHTML = `<div class="panel" style="margin-top:2rem"><h1>Link not valid</h1><p>${esc(e.message)}</p></div>`; return; }
   document.documentElement.style.setProperty("--accent", data.branding.accent || "#FF7A1A");
+  if (window.ATTheme && data.branding.appearance) ATTheme.apply(data.branding.appearance);
   render();
 
   function render() {
