@@ -1,0 +1,141 @@
+{
+  "brand": "AT-SUIT",
+  "colours": {
+    "orange": {
+      "name": "AT-SUIT Orange",
+      "hex": "#FF7A1A",
+      "use": "The gear. Primary accent: buttons, active tabs, highlights, links on dark.",
+      "rgb": [
+        255,
+        122,
+        26
+      ]
+    },
+    "black": {
+      "name": "Outline Black",
+      "hex": "#000000",
+      "use": "Outer outline of the gear and the letters. Never removed.",
+      "rgb": [
+        0,
+        0,
+        0
+      ]
+    },
+    "white": {
+      "name": "Letter White",
+      "hex": "#FFFFFF",
+      "use": "Letters and the thin band inside the gear outline.",
+      "rgb": [
+        255,
+        255,
+        255
+      ]
+    },
+    "navy": {
+      "name": "Night Navy",
+      "hex": "#0B1020",
+      "use": "Brand background: banners, social images, splash screens, the logo plate.",
+      "rgb": [
+        11,
+        16,
+        32
+      ]
+    },
+    "ui_dark": {
+      "name": "App Dark",
+      "hex": "#0E1116",
+      "use": "AT-SUIT app UI background (dark theme).",
+      "rgb": [
+        14,
+        17,
+        22
+      ]
+    },
+    "orange_dark": {
+      "name": "Ember",
+      "hex": "#C85400",
+      "use": "Orange pressed / hover-dark state, orange text on white (AA large).",
+      "rgb": [
+        200,
+        84,
+        0
+      ]
+    },
+    "orange_light": {
+      "name": "Glow",
+      "hex": "#FFB27A",
+      "use": "Orange tints, subtle highlights on dark UI.",
+      "rgb": [
+        255,
+        178,
+        122
+      ]
+    }
+  },
+  "family": [
+    {
+      "brand": "AT GROUP",
+      "hex": "#0A9EFC",
+      "rgb": [
+        10,
+        158,
+        252
+      ],
+      "note": "Parent brand"
+    },
+    {
+      "brand": "AT SOLUTIONS",
+      "hex": "#FDD600",
+      "rgb": [
+        253,
+        214,
+        0
+      ],
+      "note": "CCTV & network systems"
+    },
+    {
+      "brand": "AT NET",
+      "hex": "#9B0AFF",
+      "rgb": [
+        155,
+        10,
+        255
+      ],
+      "note": "Networking"
+    },
+    {
+      "brand": "AT EVENTS",
+      "hex": "#0AFF2A",
+      "rgb": [
+        10,
+        255,
+        42
+      ],
+      "note": "Events"
+    },
+    {
+      "brand": "AT HANDYMAN",
+      "hex": "#FC05E2",
+      "rgb": [
+        252,
+        5,
+        226
+      ],
+      "note": "Handyman services (sampled)"
+    },
+    {
+      "brand": "AT SUIT",
+      "hex": "#FF7A1A",
+      "rgb": [
+        255,
+        122,
+        26
+      ],
+      "note": "Room control software (this brand)"
+    }
+  ],
+  "fonts": {
+    "logo": "Saira ExtraBold 800 (outlined in the logo files)",
+    "ui": "Saira 700/800 for headings, system UI font for body"
+  }
+}

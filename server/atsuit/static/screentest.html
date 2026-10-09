@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Screen test</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#000000">
+<style>
+  @font-face { font-family: "Saira"; font-weight: 700; src: url("/static/brand/fonts/saira-700.woff2") format("woff2"); }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 14px/1.4 system-ui, "Segoe UI", sans-serif; color: #fff; }
+  body.hidecursor { cursor: none; }
+  #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  /* the control strip only shows while the mouse moves, so a test screen stays clean */
+  #bar { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; justify-content: center;
+    background: rgba(11,16,32,.92); border: 1px solid #2a3342; border-top: 3px solid #FF7A1A; border-radius: 10px; padding: .5rem .7rem; max-width: 94vw; z-index: 5; transition: opacity .25s; }
+  #bar.hide { opacity: 0; pointer-events: none; }
+  #bar b { font-family: "Saira", system-ui, sans-serif; font-weight: 700; margin-right: .3rem; }
+  #bar select, #bar button { background: #1d2430; color: #fff; border: 1px solid #2a3342; border-radius: 7px; padding: .3rem .6rem; font: inherit; cursor: pointer; }
+  #bar button:hover { border-color: #FF7A1A; }
+  #bar .lbl { color: #93a0b4; }
+  #info { position: fixed; left: 14px; bottom: 14px; background: rgba(0,0,0,.72); color: #fff; padding: .55rem .8rem; border-radius: 8px; z-index: 4; font-variant-numeric: tabular-nums; white-space: pre; pointer-events: none; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="info"></div>
+<div id="bar" class="hide">
+  <b>Screen test</b>
+  <select id="pat" aria-label="Test pattern"></select>
+  <span id="adjust" class="hidden"><span class="lbl" id="adjLbl"></span> <button id="adjMinus" aria-label="Smaller">−</button><button id="adjPlus" aria-label="Bigger">+</button></span>
+  <span id="rowsBox" class="hidden"><span class="lbl">Rows</span> <button id="rowsMinus" aria-label="Fewer rows">−</button><button id="rowsPlus" aria-label="More rows">+</button></span>
+  <button id="infoBtn">Info</button><button id="full">Full screen</button>
+</div>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const cv = $("c"), g = cv.getContext("2d");
+  const Q = new URLSearchParams(location.search);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // ---------------------------------------------------------------- patterns
+  // Most animate on purpose (breathing, scrolling, inverting) so a stuck pixel or
+  // burn-in stands out; the geometry and text ones hold still to be measured.
+  const solid = (name, rgb) => ({ name, draw: (c, t) => { const k = 0.9 + 0.1 * Math.sin(t / 1500); c.fillStyle = `rgb(${rgb.map((v) => Math.round(v * k))})`; c.fillRect(0, 0, W, H); } });
+  const P = {
+    black: { name: "Solid black", draw: (c) => { c.fillStyle = "#000"; c.fillRect(0, 0, W, H); } },
+    white: solid("Solid white", [255, 255, 255]),
+    red: solid("Solid red", [255, 0, 0]),
+    green: solid("Solid green", [0, 255, 0]),
+    blue: solid("Solid blue", [0, 0, 255]),
+    gray: solid("50% gray", [128, 128, 128]),
+    colorbars: { name: "Colour bars", draw: (c, t) => {
+      const n = 8, shift = (t / 40) % 360;
+      for (let i = 0; i < n; i++) { c.fillStyle = `hsl(${(i * 360 / n + shift) % 360} 100% 50%)`; c.fillRect(Math.floor(i * W / n), 0, Math.ceil(W / n), H); }
+    } },
+    grayramp: { name: "Grey gradient", draw: (c, t) => {
+      const off = (t / 20) % W, gr = c.createLinearGradient(0, 0, W, 0); gr.addColorStop(0, "#000"); gr.addColorStop(1, "#fff");
+      c.fillStyle = gr; c.save(); c.translate(-off, 0); c.fillRect(0, 0, W, H); c.translate(W, 0); c.fillRect(0, 0, W, H); c.restore();
+    } },
+    rgbramp: { name: "RGB gradient", draw: (c, t) => {
+      const off = (t / 20) % W;
+      c.save(); c.translate(-off, 0);
+      for (let r = 0; r < 2; r++) {
+        ["#f00", "#0f0", "#00f"].forEach((col, i) => { const gr = c.createLinearGradient(0, 0, W, 0); gr.addColorStop(0, "#000"); gr.addColorStop(1, col); c.fillStyle = gr; c.fillRect(0, i * H / 3, W, Math.ceil(H / 3)); });
+        c.translate(W, 0);
+      }
+      c.restore();
+    } },
+    checker: { name: "Pixel checkerboard", adj: { label: "Cell", key: "cell", def: 1, min: 1, max: 64 }, draw: (c, t) => {
+      const s = S.cell * DPR, inv = Math.floor(t / 1000) % 2;
+      c.fillStyle = "#000"; c.fillRect(0, 0, W, H); c.fillStyle = "#fff";
+      for (let y = 0, r = 0; y < H; y += s, r++) for (let x = 0, k = 0; x < W; x += s, k++) if (((r + k + inv) & 1) === 0) c.fillRect(x, y, s, s);
+    } },
+    crosshatch: { name: "Crosshatch and geometry", draw: (c) => {
+      c.fillStyle = "#000"; c.fillRect(0, 0, W, H); c.strokeStyle = "#fff"; c.lineWidth = Math.max(1, DPR);
+      const cell = Math.round(H / 10); c.beginPath();
+      for (let x = W / 2 % cell; x < W; x += cell) { c.moveTo(x + .5, 0); c.lineTo(x + .5, H); }
+      for (let y = H / 2 % cell; y < H; y += cell) { c.moveTo(0, y + .5); c.lineTo(W, y + .5); }
+      c.stroke(); c.strokeStyle = "#FF7A1A"; c.lineWidth = 2 * DPR; c.beginPath(); c.moveTo(W / 2, 0); c.lineTo(W / 2, H); c.moveTo(0, H / 2); c.lineTo(W, H / 2); c.stroke();
+      c.strokeStyle = "#0f0"; c.beginPath(); c.arc(W / 2, H / 2, H / 2 - 2 * DPR, 0, 7); c.stroke();           // a circle that must stay round
+      c.strokeStyle = "#f0f"; c.strokeRect(1, 1, W - 2, H - 2); c.strokeRect(W * .05, H * .05, W * .9, H * .9);
+      c.fillStyle = "#fff"; c.font = `${14 * DPR}px system-ui`; c.textAlign = "center"; c.fillText("The circle must be round and the squares square.", W / 2, H - 16 * DPR); c.textAlign = "left";
+    } },
+    sharpness: { name: "Sharpness and text", draw: (c) => {
+      c.fillStyle = "#000"; c.fillRect(0, 0, W, H); c.fillStyle = "#fff"; let y = 8 * DPR;
+      for (const px of [8, 9, 10, 11, 12, 14, 16, 20, 24, 32, 48]) {
+        c.font = `${px * DPR}px system-ui, sans-serif`; y += px * DPR * 1.25; c.fillText(`${px}px  The quick brown fox jumps over the lazy dog 0123456789`, 16 * DPR, y);
+      }
+      const x0 = W * .62, size = 14 * DPR; c.fillStyle = "#fff";                               // single-pixel lines, vertical and horizontal
+      for (let i = 0; i < 40; i++) { if (i % 2 === 0) c.fillRect(x0 + i * 2 * DPR, 40 * DPR, DPR, H * .3); }
+      for (let i = 0; i < 40; i++) { if (i % 2 === 0) c.fillRect(x0, H * .4 + i * 2 * DPR, size * 14, DPR); }
+    } },
+    motion: { name: "Motion line", adj: { label: "Speed", key: "speed", def: 8, min: 1, max: 60 }, draw: (c, t) => {
+      c.fillStyle = "#000"; c.fillRect(0, 0, W, H); const w = 16 * DPR, x = (t / 1000 * S.speed * 60 * DPR) % (W + w) - w;
+      c.fillStyle = "#fff"; c.fillRect(x, 0, w, H);
+    } },
+    overscan: { name: "Overscan border", draw: (c, t) => {
+      c.fillStyle = "#101010"; c.fillRect(0, 0, W, H); const dash = 24 * DPR, off = (t / 40 * DPR) % (dash * 2);
+      c.lineWidth = 4 * DPR; c.setLineDash([dash, dash]); c.lineDashOffset = -off; c.strokeStyle = "#fff"; c.strokeRect(2 * DPR, 2 * DPR, W - 4 * DPR, H - 4 * DPR);
+      c.strokeStyle = "#FF7A1A"; c.strokeRect(W * .05, H * .05, W * .9, H * .9); c.setLineDash([]);
+      c.fillStyle = "#fff"; c.font = `${18 * DPR}px system-ui`; c.textAlign = "center";
+      c.fillText("White: the edge of the picture. Orange: the 5% safe area.", W / 2, H / 2); c.textAlign = "left";
+    } },
+    ledmap: { name: "LED tile map", adj: { label: "Columns", key: "cols", def: 8, min: 1, max: 40 }, rows: true, draw: (c, t) => {
+      const cols = S.cols, rows = S.rows, tw = W / cols, th = H / rows, n = cols * rows, hi = Math.floor(t / 500) % n;
+      for (let r = 0; r < rows; r++) for (let k = 0; k < cols; k++) {
+        const x = k * tw, y = r * th, on = r * cols + k === hi;
+        c.fillStyle = on ? "#fff" : `hsl(${k * 360 / cols} 70% 38%)`; c.fillRect(x, y, Math.ceil(tw), Math.ceil(th));
+        c.strokeStyle = "#000"; c.lineWidth = DPR; c.strokeRect(x + .5, y + .5, tw - 1, th - 1);
+        c.fillStyle = on ? "#000" : "#fff"; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.min(tw, th) * .22, y); c.lineTo(x, y + Math.min(tw, th) * .22); c.fill();   // top-left corner mark shows rotation
+        const f = Math.max(10 * DPR, Math.min(tw / 5, th / 4));
+        c.font = `700 ${f}px system-ui`; c.textAlign = "center"; c.textBaseline = "middle";
+        c.fillText(`R${r + 1} C${k + 1}`, x + tw / 2, y + th / 2 - f * .4);
+        c.font = `${f * .5}px system-ui`; c.fillText(`${Math.round(tw)}×${Math.round(th)} px`, x + tw / 2, y + th / 2 + f * .5);
+        c.fillText(`@ ${Math.round(x)},${Math.round(y)}`, x + tw / 2, y + th / 2 + f * 1.05);
+      }
+      c.textAlign = "left"; c.textBaseline = "alphabetic";
+    } },
+  };
+  window.ATSUIT_SCREENTEST = Object.fromEntries(Object.entries(P).map(([k, v]) => [k, v.name]));   // the server keeps the same list
+
+  // -------------------------------------------------------------------- state
+  // Values from the address are clamped: cell=-1 would loop forever, p=constructor isn't a pattern.
+  const num = (k, d, lo, hi) => { const v = Math.round(+Q.get(k)); return Number.isFinite(v) && v ? Math.min(hi, Math.max(lo, v)) : d; };
+  const S = { p: Object.hasOwn(P, Q.get("p") || "") ? Q.get("p") : "colorbars", cell: num("cell", 1, 1, 256), speed: num("speed", 8, 1, 100), cols: num("cols", 8, 1, 64), rows: num("rows", 4, 1, 64), info: Q.get("info") !== "0" };
+  let W = 1, H = 1, DPR = 1;
+  const keep = () => { const q = new URLSearchParams(); q.set("p", S.p); ["cell", "speed", "cols", "rows"].forEach((k) => q.set(k, S[k])); if (!S.info) q.set("info", "0"); history.replaceState(null, "", `?${q}`); };
+
+  function fit() {
+    DPR = window.devicePixelRatio || 1; W = cv.width = Math.round(innerWidth * DPR); H = cv.height = Math.round(innerHeight * DPR);
+  }
+  addEventListener("resize", fit); fit();
+
+  $("pat").innerHTML = Object.entries(P).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join("");
+  function setup() {
+    const p = P[S.p]; $("pat").value = S.p;
+    $("adjust").classList.toggle("hidden", !p.adj); if (p.adj) $("adjLbl").textContent = p.adj.label;
+    $("rowsBox").classList.toggle("hidden", !p.rows); keep();
+  }
+  $("pat").onchange = () => { S.p = $("pat").value; setup(); };
+  const bump = (key, d, min, max) => { S[key] = clamp(S[key] + d, min, max); keep(); };
+  $("adjMinus").onclick = () => { const a = P[S.p].adj; bump(a.key, -1, a.min, a.max); };
+  $("adjPlus").onclick = () => { const a = P[S.p].adj; bump(a.key, 1, a.min, a.max); };
+  $("rowsMinus").onclick = () => bump("rows", -1, 1, 40); $("rowsPlus").onclick = () => bump("rows", 1, 1, 40);
+  $("infoBtn").onclick = () => { S.info = !S.info; keep(); };
+  $("full").onclick = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {}));
+
+  // Show the control strip while the mouse moves; hide it (and the cursor) after a few seconds.
+  let idle = null;
+  const wake = () => { $("bar").classList.remove("hide"); document.body.classList.remove("hidecursor"); clearTimeout(idle); idle = setTimeout(() => { $("bar").classList.add("hide"); document.body.classList.add("hidecursor"); }, 3500); };
+  ["mousemove", "mousedown", "touchstart"].forEach((e) => addEventListener(e, wake, { passive: true }));
+  addEventListener("keydown", (e) => {
+    const keys = Object.keys(P), i = keys.indexOf(S.p);
+    if (e.key === "ArrowRight" || e.key === " ") { S.p = keys[(i + 1) % keys.length]; setup(); e.preventDefault(); }
+    else if (e.key === "ArrowLeft") { S.p = keys[(i + keys.length - 1) % keys.length]; setup(); }
+    else if (e.key === "+" || e.key === "=") $("adjPlus").click();
+    else if (e.key === "-") $("adjMinus").click();
+    else if (e.key.toLowerCase() === "i") $("infoBtn").click();
+    else if (e.key.toLowerCase() === "f") $("full").click();
+    wake();
+  });
+
+  const t0 = performance.now();
+  function frame(now) {
+    const p = P[S.p]; g.setTransform(1, 0, 0, 1, 0, 0); p.draw(g, now - t0);
+    const inf = $("info"); inf.classList.toggle("hidden", !S.info);
+    if (S.info) inf.textContent = `${p.name}\n${W} × ${H} px   ${innerWidth} × ${innerHeight} css px   scale ${DPR.toFixed(2)}\n${(W / H).toFixed(3)}:1   ←/→ pattern  +/− adjust  I info  F full screen`;
+    requestAnimationFrame(frame);
+  }
+  setup(); wake(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

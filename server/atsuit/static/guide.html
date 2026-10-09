@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Companion guide</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
+<style>
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 1.2rem 1.2rem 4rem; }
+  .guide h1 { margin-top: .5rem; } .guide h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .3rem; } .guide h3 { margin-top: 1.4rem; }
+  .guide table { margin: .6rem 0 1rem; display: block; overflow-x: auto; font-size: .9rem; } .guide td, .guide th { vertical-align: top; }
+  .guide code { background: var(--panel2); border: 1px solid var(--line); border-radius: 5px; padding: .05rem .35rem; font-size: .88em; word-break: break-word; }
+  .guide pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .7rem .9rem; overflow-x: auto; } .guide pre code { border: 0; background: none; padding: 0; }
+  .guide ul, .guide ol { padding-left: 1.4rem; } .guide p { margin: .5rem 0; }
+  .topbar { display: flex; align-items: center; gap: .7rem; padding: .7rem 1.2rem; background: var(--navy); border-bottom: 3px solid var(--accent); }
+  .topbar img { height: 28px; } .topbar b { font-family: var(--brand-font); font-weight: 800; }
+</style>
+</head>
+<body>
+<div class="topbar"><img src="/static/brand/icon-96.png" alt=""><b>AT-SUIT</b><span class="muted">Companion and API guide</span><span class="grow" style="flex:1"></span><a href="/#/admin/keys">API keys</a><a href="/api/docs" target="_blank">Full API reference</a></div>
+<div class="wrap guide" id="g"><p class="muted">Loading…</p></div>
+<script>
+  // A small Markdown renderer for the one document this page shows (headings, tables, lists, code, bold, links).
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const inline = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, t, u) => /^(https?:|\/|#)/.test(u) ? `<a href="${u}" target="_blank" rel="noopener">${t}</a>` : t);
+  function md(src) {
+    const L = src.replace(/\r/g, "").split("\n"), out = []; let i = 0;
+    const cells = (l) => l.trim().replace(/^\||\|$/g, "").split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, "|"));
+    while (i < L.length) {
+      const l = L[i];
+      if (/^```/.test(l)) { const b = []; i++; while (i < L.length && !/^```/.test(L[i])) b.push(L[i++]); i++; out.push(`<pre><code>${esc(b.join("\n"))}</code></pre>`); continue; }
+      let m;
+      if ((m = /^(#{1,4})\s+(.*)$/.exec(l))) { out.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`); i++; continue; }
+      if (/^\|/.test(l) && /^\|[\s:|-]+\|?\s*$/.test(L[i + 1] || "")) {
+        const head = cells(l); i += 2; const rows = [];
+        while (i < L.length && /^\|/.test(L[i])) rows.push(cells(L[i++]));
+        out.push(`<table><tr>${head.map((c) => `<th>${inline(c)}</th>`).join("")}</tr>${rows.map((r) => `<tr>${r.map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</table>`); continue;
+      }
+      if (/^\s*([-*]|\d+\.)\s+/.test(l)) {
+        const ord = /^\s*\d+\./.test(l), items = [];
+        while (i < L.length && /^\s*([-*]|\d+\.)\s+/.test(L[i])) { let t = L[i++].replace(/^\s*([-*]|\d+\.)\s+/, ""); while (i < L.length && /^\s{2,}\S/.test(L[i]) && !/^\s*([-*]|\d+\.)\s+/.test(L[i])) t += " " + L[i++].trim(); items.push(t); }
+        out.push(`<${ord ? "ol" : "ul"}>${items.map((t) => `<li>${inline(t)}</li>`).join("")}</${ord ? "ol" : "ul"}>`); continue;
+      }
+      if (!l.trim()) { i++; continue; }
+      const p = [l]; i++;
+      while (i < L.length && L[i].trim() && !/^(#{1,4}\s|```|\||\s*([-*]|\d+\.)\s)/.test(L[i])) p.push(L[i++]);
+      out.push(`<p>${inline(p.join(" "))}</p>`);
+    }
+    return out.join("\n");
+  }
+  fetch("/api/guide/companion").then((r) => r.ok ? r.text() : Promise.reject(new Error("The guide isn't available on this server."))).then((t) => { document.getElementById("g").innerHTML = md(t); document.title = "Companion guide"; })
+    .catch((e) => { document.getElementById("g").innerHTML = `<p class="muted">${esc(e.message)}</p>`; });
+</script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+/* The workspace desktop. Colours, corners and spacing come from the site's
+   theme tokens in app.css, so every theme applies here too. */
+.dk { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.dk-area { position: relative; flex: 1; min-height: 0; padding: .5rem; overflow: hidden; }
+.dk-root { position: absolute; inset: .5rem; display: flex; }
+.dk-root > .dk-split, .dk-root > .dk-win { flex: 1; }
+.dk-split { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.dk-split.dk-col { flex-direction: column; }
+.dk-cell { display: flex; min-width: 0; min-height: 0; }
+.dk-cell > .dk-win, .dk-cell > .dk-split { flex: 1; }
+.dk-bar { flex: 0 0 .5rem; cursor: col-resize; touch-action: none; position: relative; }
+.dk-split.dk-col > .dk-bar { cursor: row-resize; }
+.dk-bar::after { content: ""; position: absolute; inset: 0; margin: auto; border-radius: 2px; background: transparent; transition: background .15s; }
+.dk-split.dk-row > .dk-bar::after { width: 2px; height: 32px; }
+.dk-split.dk-col > .dk-bar::after { height: 2px; width: 32px; }
+.dk-bar:hover::after { background: var(--accent); }
+.dk-empty { position: absolute; inset: 0; display: grid; place-items: center; }
+
+/* a window */
+.dk-win { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); overflow: hidden; position: relative; }
+.dk-win.focus { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.dk-win.float { position: absolute; z-index: 10; box-shadow: var(--shadow); }
+.dk-win.float.focus { z-index: 11; }
+.dk-win.max { position: absolute; inset: .5rem; z-index: 30; box-shadow: var(--shadow); width: auto !important; height: auto !important; }
+.dk-head { display: flex; align-items: stretch; gap: .25rem; min-height: 2.1rem; padding: 0 .25rem 0 .2rem; background: var(--panel2);
+  border-bottom: 1px solid var(--line); cursor: grab; user-select: none; touch-action: none; }
+.dragging, .dragging * { cursor: grabbing !important; }
+.dk-tabs { display: flex; gap: .15rem; min-width: 0; flex: 1; overflow: hidden; align-items: flex-end; padding-top: .25rem; }
+.dk-tab { border: 1px solid transparent; border-bottom: 0; border-radius: var(--ctl-radius) var(--ctl-radius) 0 0; background: transparent; color: var(--muted);
+  padding: .25rem .7rem; font-size: .85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14rem; flex-shrink: 1; }
+.dk-tab.on { background: var(--panel); border-color: var(--line); color: var(--strong); margin-bottom: -1px; }
+.dk-tab:hover { border-color: var(--line); }
+.dk-tab .unread, .dk-item .unread { margin-left: .35rem; }
+.dk-btns { display: flex; align-items: center; gap: .1rem; }
+.dk-btns button { padding: .1rem .45rem; font-size: .85rem; line-height: 1.2; background: transparent; border-color: transparent; color: var(--muted); }
+.dk-btns button:hover { color: var(--strong); border-color: var(--line); }
+.dk-body { flex: 1; min-height: 0; overflow: auto; }
+.dk-pane { padding: .75rem; min-height: 100%; container-type: inline-size; }
+.dk-pane[hidden] { display: none; }
+/* a part that brings its own panel look sits flat inside its window */
+.dk-pane > .panel, .dk-pane > .win, .dk-pane > details.panel { border: 0; background: transparent; box-shadow: none; margin: 0; padding: 0; position: static; }
+.dk-pane > details > summary { display: none; }
+
+/* floating window edges */
+.dk-edge { position: absolute; z-index: 2; touch-action: none; }
+.dk-edge.n, .dk-edge.s { left: 8px; right: 8px; height: 6px; cursor: ns-resize; }
+.dk-edge.e, .dk-edge.w { top: 8px; bottom: 8px; width: 6px; cursor: ew-resize; }
+.dk-edge.n { top: -3px; } .dk-edge.s { bottom: -3px; } .dk-edge.e { right: -3px; } .dk-edge.w { left: -3px; }
+.dk-edge.ne, .dk-edge.nw, .dk-edge.se, .dk-edge.sw { width: 12px; height: 12px; }
+.dk-edge.ne { top: -3px; right: -3px; cursor: nesw-resize; } .dk-edge.sw { bottom: -3px; left: -3px; cursor: nesw-resize; }
+.dk-edge.nw { top: -3px; left: -3px; cursor: nwse-resize; } .dk-edge.se { bottom: -3px; right: -3px; cursor: nwse-resize; }
+
+/* dragging: where it will land */
+.dk-ghost { position: absolute; z-index: 40; border: 1px dashed var(--accent); border-radius: var(--radius); background: color-mix(in srgb, var(--panel) 50%, transparent); pointer-events: none; }
+.dk-preview { position: absolute; z-index: 41; border: 2px solid var(--accent); border-radius: var(--radius); background: color-mix(in srgb, var(--accent) 22%, transparent); pointer-events: none; transition: all .08s; }
+.dk-compass { position: absolute; z-index: 45; width: 0; height: 0; }
+.dk-guide { position: absolute; z-index: 45; width: 34px; height: 34px; border-radius: 6px; background: var(--panel2); border: 2px solid var(--accent);
+  box-shadow: var(--shadow); opacity: .92; }
+.dk-guide::after { content: ""; position: absolute; background: var(--accent); opacity: .7; border-radius: 2px; }
+.dk-guide.hot { background: var(--accent); }
+.dk-compass .center { left: -17px; top: -17px; } .dk-compass .center::after { inset: 7px; }
+.dk-compass .left { left: -57px; top: -17px; } .dk-compass .left::after { left: 5px; top: 5px; bottom: 5px; width: 8px; }
+.dk-compass .right { left: 23px; top: -17px; } .dk-compass .right::after { right: 5px; top: 5px; bottom: 5px; width: 8px; }
+.dk-compass .top { left: -17px; top: -57px; } .dk-compass .top::after { left: 5px; right: 5px; top: 5px; height: 8px; }
+.dk-compass .bottom { left: -17px; top: 23px; } .dk-compass .bottom::after { left: 5px; right: 5px; bottom: 5px; height: 8px; }
+.dk-guide.root.top { top: 10px; left: calc(50% - 17px); } .dk-guide.root.top::after { left: 5px; right: 5px; top: 5px; height: 8px; }
+.dk-guide.root.bottom { bottom: 10px; left: calc(50% - 17px); } .dk-guide.root.bottom::after { left: 5px; right: 5px; bottom: 5px; height: 8px; }
+.dk-guide.root.left { left: 10px; top: calc(50% - 17px); } .dk-guide.root.left::after { left: 5px; top: 5px; bottom: 5px; width: 8px; }
+.dk-guide.root.right { right: 10px; top: calc(50% - 17px); } .dk-guide.root.right::after { right: 5px; top: 5px; bottom: 5px; width: 8px; }
+
+/* the taskbar */
+.dk-task { display: flex; align-items: center; gap: .4rem; padding: .35rem .5rem; background: var(--panel); border-top: 1px solid var(--line); min-height: 2.6rem; }
+.dk-items { display: flex; gap: .3rem; overflow-x: auto; flex: 1; min-width: 0; scrollbar-width: thin; }
+.dk-item { white-space: nowrap; font-size: .85rem; padding: .3rem .7rem; position: relative; }
+.dk-item.front, .dk-item.open { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); color: var(--strong); }
+.dk-item.front { background: color-mix(in srgb, var(--accent) 25%, var(--panel2)); }
+.dk-item.front::after, .dk-item.open::after, .dk-item.min::after, .dk-item.tab::after, .dk-item.popped::after { content: ""; position: absolute; left: 30%; right: 30%; bottom: 1px; height: 2px; border-radius: 2px; background: var(--accent); }
+.dk-item.min, .dk-item.tab { color: var(--muted); }
+.dk-item.min::after, .dk-item.tab::after { background: var(--muted); }
+.dk-item.closed { color: var(--muted); background: transparent; border-style: dashed; }
+.dk-item.popped::after { background: var(--good); }
+.dk-start { font-weight: 700; white-space: nowrap; font-size: .85rem; }
+.dk-start.on { border-color: var(--accent); }
+.dk-menuwrap { position: relative; }
+.dk-menu { position: absolute; bottom: calc(100% + .5rem); left: 0; z-index: 1000; width: 300px; max-height: 70vh; overflow: auto; display: flex; flex-direction: column; gap: .3rem;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem; box-shadow: var(--shadow); }
+.dk-menu > button, .dk-mi > button:first-child { text-align: left; justify-content: flex-start; }
+.dk-mi { display: flex; gap: .3rem; } .dk-mi > button:first-child { flex: 1; }
+.dk-mi > button.on { border-color: var(--accent); }
+.dk-menu hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: .2rem 0; }
+.dk-menu p { margin: .2rem 0; }
+
+/* phones and narrow windows: one column, nothing floats */
+.dk.narrow .dk-area { overflow: visible; padding: .5rem; }
+.dk.narrow .dk-root { position: static; display: block; }
+.dk.narrow .dk-split, .dk.narrow .dk-cell { display: block; }
+.dk.narrow .dk-bar, .dk.narrow .dk-edge, .dk.narrow .dk-btns button:nth-child(3) { display: none; }
+.dk.narrow .dk-win, .dk.narrow .dk-win.float, .dk.narrow .dk-win.max { position: relative; inset: auto; left: auto !important; top: auto !important; width: auto !important; height: auto !important;
+  margin-bottom: .6rem; z-index: auto; }
+.dk.narrow .dk-head { cursor: default; }
+.dk.narrow .dk-body { overflow: visible; }
+.dk.narrow .dk-task { position: sticky; bottom: 0; z-index: 50; }
+
+/* a pane in its own window */
+.dk-popbody { margin: 0; display: flex; flex-direction: column; height: 100vh; }
+.dk-popbar { display: flex; align-items: center; gap: .6rem; padding: .4rem .7rem; background: var(--panel2); border-bottom: 1px solid var(--line); }
+.dk-popmain { flex: 1; overflow: auto; padding: .8rem; container-type: inline-size; }
+.dk-popmain > .panel, .dk-popmain > .win, .dk-popmain > details.panel { border: 0; background: transparent; box-shadow: none; margin: 0; padding: 0; position: static; }
+.dk-popmain > details > summary { display: none; }
+/* chat and other parts that manage their own scrolling fill their window exactly */
+.dk-pane:has(> .chat-pane) { height: 100%; }
+.dk-popmain:has(> .chat-pane) { display: flex; flex-direction: column; } .dk-popmain > .chat-pane { flex: 1; min-height: 0; }

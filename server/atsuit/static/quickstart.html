@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tech quick start</title>
+<link rel="icon" href="/static/brand/icon-96.png">
+<style>
+  /* A one-page card to print and leave by each tech laptop. Always light, so it prints cleanly. */
+  :root { --ink: #14171c; --muted: #5b6370; --line: #d9dde3; --accent: #f26b1d; --accent-ink: #fff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #eef0f3; color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .bar { display: flex; gap: .6rem; align-items: center; justify-content: center; padding: .8rem 1rem; }
+  .bar button { font: inherit; padding: .5rem 1rem; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+  .bar span { color: var(--muted); }
+  .card { width: 210mm; max-width: calc(100% - 32px); margin: 0 auto 2rem; background: #fff; padding: 12mm 13mm; border-radius: 6px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+  header { display: flex; align-items: center; gap: .8rem; border-bottom: 3px solid var(--accent); padding-bottom: .6rem; margin-bottom: .9rem; }
+  header img { height: 40px; }
+  header h1 { margin: 0; font-size: 1.5rem; }
+  header p { margin: 0; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem 1.4rem; }
+  section { break-inside: avoid; }
+  h2 { font-size: 1rem; margin: .2rem 0 .3rem; display: flex; gap: .45rem; align-items: center; }
+  h2 b { display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: .85rem; flex: none; }
+  ul { margin: 0; padding-left: 1.1rem; }
+  li { margin: .12rem 0; }
+  kbd { font: 600 .82em system-ui, sans-serif; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 .3rem; background: #f7f8fa; white-space: nowrap; }
+  .wide { grid-column: 1 / -1; }
+  .note { background: #fff4ec; border: 1px solid #f7c9a8; border-radius: 6px; padding: .5rem .7rem; }
+  footer { margin-top: .9rem; color: var(--muted); font-size: .85rem; display: flex; justify-content: space-between; gap: 1rem; border-top: 1px solid var(--line); padding-top: .5rem; }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } .card { padding: 1rem; } }
+  @media print {
+    @page { size: A4; margin: 8mm; }
+    body { background: #fff; }
+    .bar { display: none; }
+    .card { width: auto; max-width: none; margin: 0; padding: 0; box-shadow: none; }
+  }
+</style>
+</head>
+<body>
+<div class="bar"><button onclick="print()">Print</button><span>One A4 page. Leave one by every tech laptop.</span></div>
+<main class="card">
+  <header>
+    <img id="logo" src="/static/brand/icon-96.png" alt="">
+    <div><h1><span data-product>AT-SUIT</span>: tech quick start</h1><p>Your room's timer, cues, chat, help and captions in one workspace.</p></div>
+  </header>
+  <div class="grid">
+    <section>
+      <h2><b>1</b>Start your day</h2>
+      <ul>
+        <li>Open <b>AT-SUIT Node</b>. It starts with Windows.</li>
+        <li>Type your name and pick your room.</li>
+        <li>Choose <b>Main PC</b> for the laptop on the projector, or <b>Backup PC</b> for the one beside you.</li>
+        <li>No password: the laptop is already enrolled.</li>
+      </ul>
+    </section>
+    <section>
+      <h2><b>2</b>Main or Backup</h2>
+      <ul>
+        <li><b>Main PC</b> never shows a pop-up or a notification.</li>
+        <li><b>Backup PC</b> shows chat, urgent messages and help calls bottom-right, over full-screen slides. They never make a sound and never take the keyboard.</li>
+        <li>Change it any time in <b>This laptop</b>.</li>
+      </ul>
+    </section>
+    <section>
+      <h2><b>3</b>Run the timer</h2>
+      <ul>
+        <li><kbd>GO ▶</kbd> loads the next cue and starts it.</li>
+        <li><kbd>Start / pause</kbd>, <kbd>Stop</kbd>, <kbd>◀ Prev</kbd>, <kbd>Next ▶</kbd>.</li>
+        <li>Quick timers: tap a number of minutes. <kbd>🕒 Clock</kbd> shows the time of day on stage.</li>
+        <li>Quick messages show on the stage screens; tick <b>Blink</b> to make them flash.</li>
+      </ul>
+    </section>
+    <section>
+      <h2><b>4</b>The cue list</h2>
+      <ul>
+        <li>Add a cue for each session, with its length.</li>
+        <li>Put them in order with <kbd>↑</kbd> <kbd>↓</kbd>.</li>
+        <li>Each cue says what happens at zero: keep going into overtime, stop, load the next or play the next.</li>
+      </ul>
+    </section>
+    <section>
+      <h2><b>5</b>Chat and help</h2>
+      <ul>
+        <li><b>Chat</b>: talk to your room, the whole crew or one person.</li>
+        <li>Something wrong? Press <kbd>Help</kbd>, pick Audio, Video, Presenter… say what's wrong and <kbd>Send</kbd>. The crew sees it at once.</li>
+        <li>When someone answers you'll see <b>On my way</b>; it closes when it's <b>Resolved</b>.</li>
+      </ul>
+    </section>
+    <section>
+      <h2><b>6</b>Captions</h2>
+      <ul>
+        <li>Press <kbd>Send my mic</kbd> to caption your room from this laptop's audio input.</li>
+        <li>Check the words appear, then leave it running.</li>
+        <li><kbd>Open captions</kbd> shows what the audience sees.</li>
+      </ul>
+    </section>
+    <section class="wide">
+      <h2><b>7</b>Arrange your screen</h2>
+      <ul>
+        <li>Every part is a window. Drag a window by its title onto the guides to dock it beside another or add it as a tab; let go anywhere else and it floats.</li>
+        <li><kbd>–</kbd> minimise, <kbd>□</kbd> maximise (or double-click the title), <kbd>✕</kbd> close. The taskbar at the bottom brings any window back.</li>
+        <li><kbd>⧉</kbd> pops a window out onto a second monitor. Close it to put it back.</li>
+        <li><b>Layouts</b> on the taskbar saves an arrangement you like; <b>Reset to the starting layout</b> puts every window back.</li>
+      </ul>
+    </section>
+    <section class="wide note">
+      <h2><b>!</b>If something goes wrong</h2>
+      <ul>
+        <li><b>"Can't reach the server"</b>: check the network cable or Wi-Fi. The app keeps trying and comes back by itself.</li>
+        <li><b>A window is missing</b>: click its button on the taskbar, or <b>Layouts → Reset to the starting layout</b>.</li>
+        <li><b>Wrong room</b>: only an admin can move a laptop to another room. Ask in Chat or press Help.</li>
+        <li><b>End of the day</b>: press <kbd>Sign out</kbd>, or leave it; it signs out by itself at 05:00.</li>
+      </ul>
+    </section>
+  </div>
+  <footer><span data-product>AT-SUIT</span><span id="site"></span></footer>
+</main>
+<script src="/static/common.js"></script>
+<script>
+  // Product name, accent colour and logo from the venue's branding (the card itself stays light).
+  AT.branding().then((b) => {
+    if (b.logo_url) document.getElementById("logo").src = b.logo_url;
+    document.getElementById("site").textContent = [b.organisation, location.host].filter(Boolean).join(" · ");
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AT-SUIT Brand Guide</title>
+<link rel="icon" href="../app/favicon.svg">
+<style>
+@font-face { font-family: "Saira"; font-weight: 800; src: url("../fonts/saira-800.ttf") format("truetype"); }
+@font-face { font-family: "Saira"; font-weight: 700; src: url("../fonts/saira-700.ttf") format("truetype"); }
+@page { size: A4 landscape; margin: 0; }
+:root {
+  --orange: #FF7A1A; --ember: #C85400; --glow: #FFB27A;
+  --navy: #0B1020; --ui: #0E1116; --ink: #141821; --muted: #5B6475;
+  --line: #E3E6EC; --paper: #FFFFFF; --desk: #E9ECF1;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--desk); color: var(--ink);
+  font: 13px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { width: 297mm; height: 210mm; margin: 12mm auto; background: var(--paper);
+  position: relative; overflow: hidden; padding: 16mm 18mm 14mm; box-shadow: 0 6px 30px rgba(10,16,32,.12);
+  display: flex; flex-direction: column; break-after: page; page-break-after: always; }
+.page:last-child { break-after: auto; page-break-after: auto; }
+@media print { body { background: none; } .page { margin: 0; box-shadow: none; } }
+@media screen and (max-width: 1150px) {
+  .page { width: auto; height: auto; min-height: 0; margin: 16px; padding: 24px 16px; }
+  .cols, .grid4, .grid3, .grid2 { grid-template-columns: 1fr !important; }
+}
+h1, h2, h3, .saira { font-family: "Saira", system-ui, sans-serif; letter-spacing: .01em; }
+h2 { font-weight: 800; font-size: 26px; margin: 0 0 2mm; text-transform: uppercase; }
+h2 .n { color: var(--orange); margin-right: 8px; }
+h3 { font-weight: 700; font-size: 15px; margin: 0 0 1.5mm; text-transform: uppercase; }
+p { margin: 0 0 2.5mm; }
+.lead { color: var(--muted); font-size: 14px; max-width: 200mm; margin-bottom: 6mm; }
+.foot { position: absolute; left: 18mm; right: 18mm; bottom: 7mm; display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 2mm; }
+.foot b { color: var(--orange); }
+.cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: 10mm; flex: 1; min-height: 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5mm; }
+.tile { border: 1px solid var(--line); border-radius: 3mm; padding: 4mm; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2mm; text-align: center; }
+.tile img { max-width: 100%; display: block; }
+.tile .cap { font-size: 11px; color: var(--muted); }
+.dark { background: var(--navy); color: #fff; border-color: var(--navy); }
+.dark .cap { color: #AEB6C6; }
+.ui { background: var(--ui); color: #fff; border-color: var(--ui); }
+.checker { background-color: #fff; background-image:
+  linear-gradient(45deg,#EEF0F4 25%,transparent 25%),linear-gradient(-45deg,#EEF0F4 25%,transparent 25%),
+  linear-gradient(45deg,transparent 75%,#EEF0F4 75%),linear-gradient(-45deg,transparent 75%,#EEF0F4 75%);
+  background-size: 16px 16px; background-position: 0 0,0 8px,8px -8px,-8px 0; }
+.grey { background: #8A8F99; border-color: #8A8F99; }
+table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+th, td { text-align: left; padding: 1.6mm 2mm; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: "Saira", sans-serif; font-weight: 700; text-transform: uppercase; font-size: 11px; color: var(--muted); }
+code { font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #F3F4F7; padding: 0 3px; border-radius: 3px; }
+ul { margin: 0 0 2mm; padding-left: 5mm; } li { margin: 0 0 1mm; }
+.swatch { border-radius: 3mm; overflow: hidden; border: 1px solid var(--line); display: flex; flex-direction: column; }
+.swatch .chip { height: 26mm; }
+.swatch .info { padding: 2.5mm 3mm; font-size: 11px; }
+.swatch .info b { font-family: "Saira", sans-serif; font-size: 13px; display: block; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.do, .dont { font-family: "Saira", sans-serif; font-weight: 800; font-size: 12px; text-transform: uppercase; }
+.do { color: #12863A; } .dont { color: #C62828; }
+.x { position: relative; }
+.x::after { content: ""; position: absolute; inset: 0; background:
+  linear-gradient(45deg, transparent 48.5%, rgba(198,40,40,.85) 48.5%, rgba(198,40,40,.85) 51.5%, transparent 51.5%); pointer-events: none; }
+/* cover */
+.cover { background: var(--navy); color: #fff; justify-content: center; align-items: flex-start; padding: 22mm 24mm; }
+.cover::before { content: ""; position: absolute; inset: 0;
+  background: radial-gradient(70% 90% at 95% 100%, rgba(255,122,26,.38), transparent 70%),
+              radial-gradient(55% 70% at 0% 0%, rgba(42,58,140,.55), transparent 70%); }
+.cover > * { position: relative; }
+.cover h1 { font-weight: 800; font-size: 46px; line-height: 1.05; margin: 8mm 0 3mm; text-transform: uppercase; }
+.cover h1 span { color: var(--orange); }
+.cover p { color: #C7CEDB; font-size: 15px; max-width: 170mm; }
+.cover .meta { position: absolute; left: 24mm; bottom: 14mm; font-size: 11px; color: #8E97AA; }
+.toc { columns: 2; column-gap: 12mm; margin-top: 6mm; font-size: 13px; color: #DCE1EA; padding: 0; list-style: none; }
+.toc li { margin-bottom: 1.5mm; } .toc b { color: var(--orange); font-family: "Saira", sans-serif; margin-right: 6px; }
+.note { border-left: 3px solid var(--orange); background: #FFF6EF; padding: 2.5mm 3.5mm; font-size: 12px; border-radius: 0 2mm 2mm 0; }
+.sizes td:first-child { font-family: "Saira", sans-serif; font-weight: 700; }
+.family { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4mm; }
+.family .tile { padding: 3mm; }
+.family .tile.me { outline: 2px solid var(--orange); outline-offset: 2px; }
+.family .name { font-family: "Saira", sans-serif; font-weight: 800; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- 1. Cover -->
+<section class="page cover">
+  <img src="../logo/atsuit-wordmark.svg" alt="AT SUIT logo" style="width:150mm">
+  <h1>Brand <span>guide</span></h1>
+  <p>How to use the AT-SUIT logo, colours and app icons. AT-SUIT is the room-control software of the AT family: one app for every room: timers, chat, captions, presenters and screens.</p>
+  <ol class="toc">
+    <li><b>01</b>The logo and its parts</li>
+    <li><b>02</b>The AT family</li>
+    <li><b>03</b>Colour palette</li>
+    <li><b>04</b>Clear space and minimum sizes</li>
+    <li><b>05</b>Approved versions</li>
+    <li><b>06</b>Backgrounds and placement</li>
+    <li><b>07</b>App icon</li>
+    <li><b>08</b>Do's and don'ts</li>
+    <li><b>09</b>Files: which one to use</li>
+  </ol>
+  <div class="meta">AT-SUIT brand guide · version 1.0 · October 2026 · in-house use</div>
+</section>
+
+<!-- 2. The logo -->
+<section class="page">
+  <h2><span class="n">01</span>The logo and its parts</h2>
+  <p class="lead">The AT-SUIT logo uses the same build as every AT brand: an orange gear shaped like a C, the letters AT inside it, and the product name, SUIT, to the right. Every part has a thick black outline.</p>
+  <div class="cols">
+    <div style="display:flex;flex-direction:column;gap:5mm">
+      <div class="tile" style="flex:1"><img src="../logo/atsuit-wordmark.svg" alt="" style="width:100%"><div class="cap">Primary logo (wordmark): gear + AT + SUIT</div></div>
+      <div class="grid2">
+        <div class="tile"><img src="../logo/atsuit-icon.svg" alt="" style="height:38mm"><div class="cap">Icon: gear + AT</div></div>
+        <div class="tile"><img src="../logo/atsuit-stacked.svg" alt="" style="height:38mm"><div class="cap">Stacked: icon above AT SUIT</div></div>
+      </div>
+    </div>
+    <div>
+      <h3>How the mark is built</h3>
+      <div class="grid4" style="margin-bottom:4mm">
+        <div class="tile"><img src="img/layer-black.svg" alt=""><div class="cap">1. Black outline</div></div>
+        <div class="tile grey"><img src="img/layer-white.svg" alt=""><div class="cap" style="color:#fff">2. White band</div></div>
+        <div class="tile"><img src="img/layer-orange.svg" alt=""><div class="cap">3. Orange gear</div></div>
+        <div class="tile"><img src="img/layer-letters.svg" alt=""><div class="cap">4. AT letters</div></div>
+      </div>
+      <ul>
+        <li><b>The gear</b> is a ring with 8 round notches, one every 45°. The right side is cut open by two straight edges, which turns the gear into a C.</li>
+        <li><b>The layers</b>, from outside in: a thick black outline, a thin white band, then the orange body.</li>
+        <li><b>AT</b> is set in bold rounded-square capitals, white with a black outline. It sits inside the ring, and the T reaches towards the opening.</li>
+        <li><b>SUIT</b> uses the same letters. It is centred on the gear and its cap height is about one third of the gear's height, the same as AT GROUP and AT EVENTS.</li>
+        <li><b>Lettering</b> is Saira ExtraBold, converted to outlines. The logo files need no font. Don't retype the logo.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span><b>AT-SUIT</b> brand guide</span><span>01 · Logo</span></div>
+</section>
+
+<!-- 3. Family -->
+<section class="page">
+  <h2><span class="n">02</span>The AT family</h2>
+  <p class="lead">Every AT company uses the same gear and letters. Only the colour of the gear changes. AT-SUIT is orange, a colour no other member uses, so it is easy to tell apart when it appears next to its siblings.</p>
+  <div class="family" style="margin-bottom:7mm">
+    <div class="tile"><img src="img/family-at-group.svg" alt="" style="width:26mm"><div class="name">AT GROUP</div><div class="cap mono">#0A9EFC</div><div class="cap">Parent brand</div></div>
+    <div class="tile"><img src="img/family-at-solutions.svg" alt="" style="width:26mm"><div class="name">AT SOLUTIONS</div><div class="cap mono">#FDD600</div><div class="cap">CCTV &amp; networks</div></div>
+    <div class="tile"><img src="img/family-at-net.svg" alt="" style="width:26mm"><div class="name">AT NET</div><div class="cap mono">#9B0AFF</div><div class="cap">Networking</div></div>
+    <div class="tile"><img src="img/family-at-events.svg" alt="" style="width:26mm"><div class="name">AT EVENTS</div><div class="cap mono">#0AFF2A</div><div class="cap">Events</div></div>
+    <div class="tile"><img src="img/family-at-handyman.svg" alt="" style="width:26mm"><div class="name">AT HANDYMAN</div><div class="cap mono">#FC05E2</div><div class="cap">Handyman</div></div>
+    <div class="tile me"><img src="img/family-at-suit.svg" alt="" style="width:26mm"><div class="name">AT SUIT</div><div class="cap mono">#FF7A1A</div><div class="cap">Room-control software</div></div>
+  </div>
+  <div class="grid2">
+    <div>
+      <h3>Where AT-SUIT sits</h3>
+      <p>AT-SUIT is a product brand. It is the software that AT GROUP and AT EVENTS crews use to run rooms at events. It is not a separate company. On materials that show several brands, put AT GROUP first, at the top or on the left, and give the other brands equal size below it or to the right.</p>
+      <p>When AT-SUIT appears next to AT EVENTS (for example, on a crew screen), keep both logos the same height and leave at least two A-heights between them.</p>
+    </div>
+    <div>
+      <h3>Rules that apply to every member</h3>
+      <ul>
+        <li>The gear geometry, letter style and black outline never change between brands.</li>
+        <li>Each brand keeps its own colour. Never put another member's colour on the AT-SUIT gear.</li>
+        <li>The family uses the same plate rule on photos and busy backgrounds: put the logo on a dark navy plate.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span><b>AT-SUIT</b> brand guide</span><span>02 · Family</span></div>
+</section>
+
+<!-- 4. Colours -->
+<section class="page">
+  <h2><span class="n">03</span>Colour palette</h2>
+  <p class="lead">Orange is the AT-SUIT colour. Navy and App Dark are the backgrounds. Black and white are only for the logo outline and letters. The values are also in <code>colours.json</code>.</p>
+  <div class="grid4" style="grid-template-columns:repeat(4,1fr);margin-bottom:5mm">
+    <div class="swatch"><div class="chip" style="background:#FF7A1A"></div><div class="info"><b>AT-SUIT Orange</b><span class="mono">#FF7A1A · RGB 255 122 26</span><br>The gear. Primary accent: buttons, active tabs, highlights and links on dark.</div></div>
+    <div class="swatch"><div class="chip" style="background:#0B1020"></div><div class="info"><b>Night Navy</b><span class="mono">#0B1020 · RGB 11 16 32</span><br>Brand background: banners, social images, splash screens and the logo plate.</div></div>
+    <div class="swatch"><div class="chip" style="background:#0E1116"></div><div class="info"><b>App Dark</b><span class="mono">#0E1116 · RGB 14 17 22</span><br>AT-SUIT app UI background (dark theme).</div></div>
+    <div class="swatch"><div class="chip" style="background:#000;border-bottom:1px solid var(--line)"></div><div class="info"><b>Outline Black</b><span class="mono">#000000 · RGB 0 0 0</span><br>Outline of the gear and letters. Always present.</div></div>
+    <div class="swatch"><div class="chip" style="background:#fff;border-bottom:1px solid var(--line)"></div><div class="info"><b>Letter White</b><span class="mono">#FFFFFF · RGB 255 255 255</span><br>Letters and the thin band inside the gear outline.</div></div>
+    <div class="swatch"><div class="chip" style="background:#C85400"></div><div class="info"><b>Ember</b><span class="mono">#C85400 · RGB 200 84 0</span><br>Pressed / hover state. Use for orange text on white.</div></div>
+    <div class="swatch"><div class="chip" style="background:#FFB27A"></div><div class="info"><b>Glow</b><span class="mono">#FFB27A · RGB 255 178 122</span><br>Tints and soft highlights on dark UI.</div></div>
+    <div class="swatch"><div class="chip" style="background:linear-gradient(135deg,#0B1020 40%,#5a2a10 100%)"></div><div class="info"><b>Brand gradient</b><span class="mono">#0B1020 → orange 35% glow</span><br>Background for the banner and social images only.</div></div>
+  </div>
+  <div class="note"><b>Text contrast.</b> Orange #FF7A1A on navy or App Dark is fine for any size of text. On white, orange only passes for large, bold text. For small orange text on a light background, use Ember #C85400. Never set body text in orange on white.</div>
+  <div class="foot"><span><b>AT-SUIT</b> brand guide</span><span>03 · Colour</span></div>
+</section>
+
+<!-- 5. Clear space + min sizes -->
+<section class="page">
+  <h2><span class="n">04</span>Clear space and minimum sizes</h2>
+  <p class="lead">The unit of measure is <b>x</b>, the height of the "A" in the logo. Keep at least <b>1x</b> of empty space on every side of the logo. Text, edges, photos and other logos all stay outside this space.</p>
+  <div class="cols" style="grid-template-columns:1.5fr 1fr">
+    <div>
+      <div class="tile" style="padding:3mm"><img src="img/clearspace.svg" alt="Clear space diagram" style="width:100%"><div class="cap">Orange dashed line = the minimum clear area. The shaded squares are 1x.</div></div>
+      <div style="display:flex;gap:4mm;align-items:center;margin-top:4mm">
+        <img src="img/unit-a.svg" alt="" style="width:22mm">
+        <p style="margin:0">x = the cap height of the A. For the icon on its own, use the A in the icon. In the wordmark, x is about one third of the gear's height.</p>
+      </div>
+    </div>
+    <div>
+      <h3>Minimum sizes</h3>
+      <table class="sizes">
+        <tr><th>Version</th><th>Screen</th><th>Print</th></tr>
+        <tr><td>Wordmark</td><td>180 px wide</td><td>40 mm wide</td></tr>
+        <tr><td>Stacked</td><td>120 px wide</td><td>25 mm wide</td></tr>
+        <tr><td>Icon (full detail)</td><td>48 px</td><td>12 mm</td></tr>
+        <tr><td>Small app icon</td><td>16–40 px</td><td>not for print</td></tr>
+        <tr><td>One-colour icon</td><td>24 px</td><td>8 mm</td></tr>
+      </table>
+      <p style="margin-top:4mm">Below 48 px, the white band and thin outlines blur together. At those sizes use the simplified small icon (<code>app/favicon.svg</code>, <code>app/tray-16.png</code>, <code>tray-32.png</code>). It has a heavier outline, no white band and a larger AT.</p>
+      <div style="display:flex;gap:5mm;align-items:flex-end">
+        <img src="../app/tray-16.png" alt="" style="width:16px;image-rendering:auto">
+        <img src="../app/tray-32.png" alt="" style="width:32px">
+        <img src="img/small-icon.svg" alt="" style="width:64px">
+        <span class="cap" style="font-size:11px;color:var(--muted)">Small icon at 16, 32 and 64 px</span>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span><b>AT-SUIT</b> brand guide</span><span>04 · Clear space &amp; sizes</span></div>
+</section>
+
+<!-- 6. Approved versions -->
+<section class="page">
+  <h2><span class="n">05</span>Approved versions</h2>
+  <p class="lead">Use the full-colour logo wherever you can. Because of its black outline, the same file works on both light and dark backgrounds. Use the one-colour versions only when colour is not possible: engraving, stamps, single-colour vinyl, fax or watermarks.</p>
+  <div class="grid3" style="grid-template-columns:repeat(3,1fr);flex:1">
+    <div class="tile dark"><img src="../logo/atsuit-wordmark.svg" alt="" style="width:85%"><div class="cap">Full colour on dark (preferred)</div></div>
+    <div class="tile"><img src="../logo/atsuit-wordmark.svg" alt="" style="width:85%"><div class="cap">Full colour on light</div></div>
+    <div class="tile ui"><img src="../logo/atsuit-icon.svg" alt="" style="width:30mm"><div class="cap" style="color:#AEB6C6">Icon on App Dark #0E1116</div></div>
+    <div class="tile"><img src="../logo/atsuit-wordmark-black.svg" alt="" style="width:85%"><div class="cap">One colour, black (light backgrounds)</div></div>
+    <div class="tile dark"><img src="../logo/atsuit-wordmark-white.svg" alt="" style="width:85%"><div class="cap">One colour, white (dark backgrounds)</div></div>
+    <div class="tile"><div style="display:flex;gap:6mm;align-items:center"><img src="../logo/atsuit-icon-black.svg" alt="" style="width:24mm"><img src="../logo/atsuit-stacked-black.svg" alt="" style="width:22mm"></div><div class="cap">One-colour icon and stacked versions</div></div>
+  </div>
+  <p style="margin-top:4mm">In the one-colour versions, the gear and the letters are each one solid shape, separated by a small gap. These versions come in pure black or pure white only. Don't make them in orange or any other colour.</p>
+  <div class="foot"><span><b>AT-SUIT</b> brand guide</span><span>05 · Versions</span></div>
+</section>
+
+<!-- 7. Backgrounds -->
+<section class="page">
+  <h2><span class="n">06</span>Backgrounds and placement</h2>
+  <p class="lead">Navy is the logo's home. On plain dark or plain light backgrounds, place the full-colour logo directly. On photos, video, patterns or anything busy, put the logo on a navy plate (#0B1020, at least 90% opaque) with 1x of padding around it.</p>
+  <div class="grid4" style="margin-bottom:5mm">
+    <div class="tile dark" style="height:46mm"><img src="../logo/atsuit-wordmark.svg" alt="" style="width:90%"><div class="cap"><span class="do">Do</span> · navy</div></div>
+    <div class="tile ui" style="height:46mm"><img src="../logo/atsuit-wordmark.svg" alt="" style="width:90%"><div class="cap" style="color:#AEB6C6"><span class="do">Do</span> · App Dark</div></div>
+    <div class="tile" style="height:46mm;background:#F4F5F8"><img src="../logo/atsuit-wordmark.svg" alt="" style="width:90%"><div class="cap"><span class="do">Do</span> · white / light grey</div></div>
+    <div class="tile" style="height:46mm;background:repeating-linear-gradient(60deg,#3a6ea5 0 14px,#e7b84a 14px 28px,#c2453b 28px 42px)">
+      <div style="background:rgba(11,16,32,.92);padding:3mm 4mm;border-radius:2mm"><img src="../logo/atsuit-wordmark.svg" alt="" style="width:40mm"></div>
+      <div class="cap" style="color:#fff;background:rgba(0,0,0,.5);padding:0 2mm;border-radius:2mm"><span class="do" style="color:#7CF29C">Do</span> · busy background with navy plate</div></div>
+  </div>
+  <div class="grid2">
+    <div>
+      <h3>Placement</h3>
+      <ul>
+        <li><b>Web and app headers:</b> put the icon or wordmark at the top left, vertically centred in the bar. The usual height is 28–40 px.</li>
+        <li><b>Room screens and overlays:</b> place the icon in a corner, no taller than 6% of the screen height. It must never cover the timer, captions or presenter.</li>
+        <li><b>Documents:</b> place the wordmark at the top left of the first page, 40–60 mm wide.</li>
+        <li><b>Banners and social images:</b> centre the logo on navy, with the orange glow coming from one corner.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Mid-tones and orange</h3>
+      <p>Mid-grey backgrounds are fine, because the black outline separates the logo from them. Never place the logo on an orange or warm-orange background, because the gear disappears into it. If the background has to be orange, use the white one-colour logo.</p>
+    </div>
+  </div>
+  <div class="foot"><span><b>AT-SUIT</b> brand guide</span><span>06 · Backgrounds</span></div>
+</section>
+
+<!-- 8. App icon -->
+<section class="page">
+  <h2><span class="n">07</span>App icon</h2>
+  <p class="lead">The app icon is the logo's icon version with no extra plate, so it shows on whatever background the system uses. Two sources cover every size: the full icon for 48 px and above, and the simplified small icon for 16–40 px.</p>
+  <div class="cols" style="grid-template-columns:1fr 1fr">
+    <div>
+      <div class="grid3" style="margin-bottom:4mm">
+        <div class="tile checker"><img src="../app/icon-512.png" alt="" style="width:30mm"><div class="cap">icon-512 / icon.ico (48–256)</div></div>
+        <div class="tile"><img src="../app/apple-touch-icon.png" alt="" style="width:24mm;border-radius:5mm"><div class="cap">apple-touch-icon (navy plate)</div></div>
+        <div class="tile checker"><div style="display:flex;gap:4mm;align-items:flex-end"><img src="../app/tray-16.png" alt="" style="width:16px"><img src="../app/tray-32.png" alt="" style="width:32px"></div><div class="cap">tray-16, tray-32 (simplified)</div></div>
+      </div>
+      <div class="grid2">
+        <div class="tile ui" style="justify-content:flex-start;align-items:flex-start;padding:3mm">
+          <div style="display:flex;gap:2mm;align-items:center;font-size:11px;color:#C7CEDB"><img src="../app/tray-16.png" alt="" style="width:16px">AT-SUIT · Control</div>
+          <div class="cap" style="color:#8E97AA">Browser tab (favicon.svg)</div></div>
+        <div class="tile" style="background:#1F3A5F;border-color:#1F3A5F;align-items:flex-start;padding:3mm">
+          <div style="display:flex;gap:3mm;align-items:center;color:#fff;font-size:11px"><img src="../app/icon-192.png" alt="" style="width:40px">AT-SUIT</div>
+          <div class="cap" style="color:#C7CEDB">Desktop shortcut (icon.ico)</div></div>
+      </div>
+    </div>
+    <div>
+      <h3>Rules</h3>
+      <ul>
+        <li>Use the files as they are. Don't add rounded squares, shadows or gloss. On iOS, the apple-touch-icon already has a navy plate, because iOS fills transparent areas with black.</li>
+        <li>On Windows, <code>icon.ico</code> contains 16, 24, 32, 48, 64, 128 and 256 px. The 16, 24 and 32 px sizes use the simplified small icon.</li>
+        <li>For the PWA / web manifest, use <code>icon-192.png</code> and <code>icon-512.png</code>.</li>
+        <li>On Linux, use <code>icon-512.png</code> or <code>icon-1024.png</code> for the system tray and the .desktop file.</li>
+        <li>Never put a word next to the app icon inside the icon file. The OS shows the app name.</li>
+      </ul>
+      <div class="note">Web: <code>&lt;link rel="icon" href="/favicon.svg" type="image/svg+xml"&gt;</code>, with <code>/favicon.ico</code> as a fallback and <code>&lt;link rel="apple-touch-icon" href="/apple-touch-icon.png"&gt;</code>.</div>
+    </div>
+  </div>
+  <div class="foot"><span><b>AT-SUIT</b> brand guide</span><span>07 · App icon</span></div>
+</section>
+
+<!-- 9. Do / don't -->
+<section class="page">
+  <h2><span class="n">08</span>Do's and don'ts</h2>
+  <p class="lead">The logo only works if every copy is the same. Always use the supplied files. Never redraw or edit the logo.</p>
+  <div class="grid4" style="grid-template-columns:repeat(4,1fr);margin-bottom:4mm">
+    <div class="tile"><div class="x"><img src="img/dont-recolour.svg" alt="" style="width:30mm"></div><div class="cap"><span class="dont">Don't</span> recolour the gear in another family colour (or any other colour)</div></div>
+    <div class="tile"><div class="x"><img src="../logo/atsuit-icon.svg" alt="" style="width:30mm;height:22mm;object-fit:fill"></div><div class="cap"><span class="dont">Don't</span> stretch, squash or skew the logo</div></div>
+    <div class="tile"><div class="x"><img src="img/dont-no-outline.svg" alt="" style="width:30mm"></div><div class="cap"><span class="dont">Don't</span> drop the black outline</div></div>
+    <div class="tile"><div class="x"><img src="img/dont-no-band.svg" alt="" style="width:30mm"></div><div class="cap"><span class="dont">Don't</span> remove the white band (except in the small app icon)</div></div>
+    <div class="tile" style="background:repeating-linear-gradient(60deg,#3a6ea5 0 12px,#e7b84a 12px 24px,#c2453b 24px 36px)"><div class="x"><img src="../logo/atsuit-icon.svg" alt="" style="width:30mm"></div><div class="cap" style="color:#fff;background:rgba(0,0,0,.55);padding:0 2mm;border-radius:2mm"><span class="dont" style="color:#FF8A80">Don't</span> place on busy backgrounds without the navy plate</div></div>
+    <div class="tile"><div class="x" style="display:flex;align-items:center;gap:2mm"><img src="../logo/atsuit-gear.svg" alt="" style="width:20mm"><span style="font:italic 700 26px Georgia,serif">AT Suit</span></div><div class="cap"><span class="dont">Don't</span> retype the letters in another font</div></div>
+    <div class="tile"><div class="x"><img src="img/dont-orange-letters.svg" alt="" style="width:30mm"></div><div class="cap"><span class="dont">Don't</span> colour the letters; they are always white with a black outline</div></div>
+    <div class="tile"><div class="x"><img src="../logo/atsuit-icon.svg" alt="" style="width:30mm;transform:rotate(-14deg);filter:drop-shadow(4px 6px 3px rgba(0,0,0,.5))"></div><div class="cap"><span class="dont">Don't</span> rotate it or add shadows, glows or bevels</div></div>
+  </div>
+  <div class="grid2">
+    <div><span class="do">Do</span> use the supplied SVG and PNG files, keep 1x of clear space, use navy as the home background, use the small icon below 48 px, and use the white one-colour version on orange or photos where a plate is impossible.</div>
+    <div><span class="dont">Don't</span> rearrange the parts (for example, SUIT above the gear), change the spacing, add a tagline inside the clear space, outline it a second time, or use the old neon "AT Live Caption" style logo for AT-SUIT.</div>
+  </div>
+  <div class="foot"><span><b>AT-SUIT</b> brand guide</span><span>08 · Do's &amp; don'ts</span></div>
+</section>
+
+<!-- 10. Files -->
+<section class="page">
+  <h2><span class="n">09</span>Files: which one to use</h2>
+  <p class="lead">Every file is generated by <code>branding/make_brand.py</code>. To fix or update the logo, edit the script and run it again. Don't edit the exported files by hand.</p>
+  <table>
+    <tr><th style="width:23%">Use</th><th style="width:40%">File</th><th>Notes</th></tr>
+    <tr><td>Web page, app header</td><td><code>logo/atsuit-wordmark.svg</code>, <code>logo/atsuit-icon.svg</code></td><td>SVG scales to any size. Use the transparent versions on dark or light backgrounds.</td></tr>
+    <tr><td>Print (posters, signs, docs)</td><td><code>logo/*.svg</code> (vector), or <code>atsuit-wordmark.png</code> (2000 px)</td><td>Use the SVG for print shops. They can convert it to PDF/EPS. Black/white one-colour files are for single-ink jobs.</td></tr>
+    <tr><td>Office documents / email</td><td><code>logo/atsuit-wordmark.png</code>, <code>atsuit-wordmark-on-light.png</code></td><td>PNG with a transparent background, or with a white plate if the program flattens transparency.</td></tr>
+    <tr><td>Presentations / video</td><td><code>logo/atsuit-wordmark-on-dark.png</code>, <code>atsuit-stacked-on-dark.png</code></td><td>Navy plate built in.</td></tr>
+    <tr><td>Windows app / installer</td><td><code>app/icon.ico</code></td><td>Contains 16–256 px. Small sizes use the simplified mark.</td></tr>
+    <tr><td>Browser tab</td><td><code>app/favicon.svg</code>, <code>app/favicon.ico</code></td><td>The SVG is the simplified mark. The .ico contains 16, 32 and 48 px.</td></tr>
+    <tr><td>iPhone / iPad home screen</td><td><code>app/apple-touch-icon.png</code> (180)</td><td>Navy plate built in.</td></tr>
+    <tr><td>PWA / Android / Linux</td><td><code>app/icon-192.png</code>, <code>app/icon-512.png</code>, <code>app/icon.png</code> (512), <code>app/icon-1024.png</code></td><td>Transparent.</td></tr>
+    <tr><td>System tray</td><td><code>app/tray-16.png</code>, <code>app/tray-32.png</code></td><td>Simplified mark.</td></tr>
+    <tr><td>GitHub</td><td><code>social/github-social-preview.png</code> (1280×640), <code>social/readme-banner.png</code> (1600×400)</td><td>Upload the preview under Settings → Social preview. Put the banner at the top of README.md.</td></tr>
+    <tr><td>Social media</td><td><code>social/github-social-preview.png</code>, <code>logo/atsuit-icon-on-dark.png</code></td><td>The icon on navy works as a profile picture. It crops cleanly to a circle.</td></tr>
+    <tr><td>Colours in code</td><td><code>colours.json</code></td><td>Hex and RGB, with where to use each colour.</td></tr>
+  </table>
+  <p style="margin-top:4mm;font-size:11px;color:var(--muted)">Lettering: Saira ExtraBold, © 2020 The Saira Project Authors, SIL Open Font License 1.1 (<code>fonts/OFL.txt</code>). The logo files contain outlines only. Embedding the font is not needed.</p>
+  <div class="foot"><span><b>AT-SUIT</b> brand guide</span><span>09 · Files</span></div>
+</section>
+
+</body>
+</html>

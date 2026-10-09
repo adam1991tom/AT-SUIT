@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tech workspace</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/ui/desk.css">
+<script src="/static/theme.js"></script>
+<style>
+  .top { display: flex; gap: .8rem; align-items: center; padding: .7rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .wrap { padding: 1rem; }
+  #kiosk { position: fixed; inset: 0; border: 0; width: 100%; height: 100%; background: #000; }
+  #ident { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12vw; font-weight: 800; background: var(--accent); color: #fff; z-index: 50; }
+  .bigclock { font-size: clamp(3rem, 9vw, 6rem); line-height: 1; }
+  .helpbtn { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 700; font-size: 1.05rem; padding: .8rem 1.2rem; }
+  .top { position: sticky; top: 0; z-index: 900; border-bottom: 3px solid var(--accent); border-image: linear-gradient(90deg, var(--ember), var(--accent) 40%, var(--glow)) 1; }
+  .top b[data-product] { font-family: var(--brand-font); font-weight: 800; letter-spacing: .02em; }
+  .winbar { display: flex; gap: .3rem; flex-wrap: wrap; }
+  .winbar button.on { border-color: var(--accent); color: var(--strong); background: color-mix(in srgb, var(--accent) 35%, var(--panel2)); }
+  .winbar .unread { margin-left: .3rem; }
+  /* the workspace fills the window under the top bar: windows and a taskbar (static/ui/desk.js) */
+  #ws:not(.hidden) { display: flex; flex-direction: column; height: 100vh; }
+  #desk { flex: 1; min-height: 0; display: flex; }
+  .tile-timer .row > input.grow { width: auto; flex-basis: 9rem; } /* the stage message and its Show / Hide on one line */
+  .tile-timer .bigclock { font-size: clamp(2.4rem, 17cqw, 8rem); line-height: 1; margin: .2rem 0; }
+  .cap-line { min-height: 2.6rem; margin: .4rem 0; font-size: .95rem; }
+  @media (max-width: 900px) { #ws:not(.hidden) { height: auto; min-height: 100vh; } }
+  .scr + .scr, .ov + .ov { border-top: 1px solid var(--line); margin-top: .7rem; padding-top: .7rem; }
+  /* drop-downs from the top bar: notifications and help */
+  .drop { position: relative; }
+  .dropdown { position: absolute; right: 0; top: calc(100% + .4rem); width: min(380px, 92vw); max-height: 70vh; overflow: auto; z-index: 1000;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: .8rem; box-shadow: var(--shadow); }
+  #helpBox { border-color: var(--bad); }
+  .helpbtn .unread, #bellBtn .unread { margin-left: .35rem; background: #fff; color: var(--bad); }
+  #bellBtn .unread { background: var(--accent); color: #fff; }
+  .note { padding: .5rem .6rem; border-left: 3px solid var(--line); background: var(--panel2); border-radius: 0 6px 6px 0; margin-top: .45rem; cursor: pointer; }
+  .note.n-urgent, .note.n-error { border-left-color: var(--bad); } .note.n-timer { border-left-color: var(--warn); } .note.n-good { border-left-color: var(--good); } .note.n-chat { border-left-color: var(--accent); }
+  #toasts { bottom: 3.6rem; z-index: 1100; }
+  .scr .row select, .scr .row input { width: auto; flex: 1 1 0 !important; min-width: 0; }
+  /* chat inside its window */
+  .chat-pane { display: flex; flex-direction: column; height: 100%; min-height: 320px; }
+  .chat-pane .chat-mount { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .chat-pane .msgs { min-height: 0 !important; display: flex; flex-direction: column; }
+  .chat-pane .msgs .list { flex: 1; max-height: none; min-height: 0; }
+  .chat-pane .tabs button { padding: .2rem .5rem; font-size: .8rem; }
+  /* phones: the top bar scrolls away instead of covering a third of the screen */
+  @media (max-width: 700px) { .top { position: static; } }
+  @media (max-width: 600px) { .dropdown { position: fixed; left: .5rem; right: .5rem; top: 4rem; width: auto; } } /* the bell and Help lists stay on screen */
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .opt { display: block; margin: 0; padding: .7rem .8rem; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); color: var(--text); cursor: pointer; font-size: .9rem; }
+  .opt input { width: auto; margin-right: .35rem; }
+  .opt span { display: block; color: var(--muted); font-size: .82rem; margin-top: .25rem; }
+  .opt:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  #startRooms .tile.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+  /* previews: live thumbnails of the room's outputs */
+  .pv-grid { display: grid; gap: .7rem; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .pv { margin: 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .pv-frame { position: relative; width: 100%; background: #000; overflow: hidden; }
+  .pv-frame iframe { position: absolute; left: 0; top: 0; width: 1280px; height: 720px; border: 0; transform-origin: 0 0; pointer-events: none; }
+  .pv-none { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: .8rem; }
+  .pv figcaption { display: flex; align-items: center; gap: .3rem; padding: .35rem .5rem; font-size: .85rem; }
+  .pv-big { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.75); display: grid; place-items: center; }
+  .pv-bigbox { width: min(92vw, 1200px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .8rem; }
+  .pv-bigframe { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; } .pv-bigframe iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+</style>
+</head>
+<body>
+<div id="boot" class="gear-load"><img src="/static/brand/gear-64.png" alt=""><span>Starting AT-SUIT…</span></div>
+<div id="enrol" class="center hidden">
+  <form class="panel card" id="enrolForm">
+    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
+    <h1>Set up this laptop</h1>
+    <p class="muted">An admin can find the enrolment code in Laptops & screens → Add laptops.</p>
+    <label>Laptop name</label><input name="name" required placeholder="e.g. ATLAP3">
+    <label>Enrolment code</label><input name="code" required placeholder="ABCD-1234-EF56" style="text-transform:uppercase">
+    <label>This laptop is a</label><select name="kind"><option value="tech">Tech workspace</option><option value="kiosk">Kiosk screen</option><option value="caption">Caption source only</option></select>
+    <p id="enrolErr" class="muted" style="color:#fecaca"></p>
+    <div class="row" style="justify-content:space-between"><a href="#" id="skip">Skip, just sign in</a><button class="primary">Set up</button></div>
+  </form>
+</div>
+
+<div id="login" class="center hidden">
+  <form class="panel card" id="loginForm">
+    <h1><span id="nodeName"></span> · sign in</h1>
+    <label>Username</label><input name="username" autocomplete="username" required>
+    <label>Password</label><input name="password" type="password" autocomplete="current-password" required>
+    <p id="loginErr" class="muted" style="color:#fecaca"></p>
+    <div class="row" style="justify-content:flex-end"><button class="primary">Sign in</button></div>
+  </form>
+</div>
+
+<div id="start" class="center hidden">
+  <form class="panel card" id="startForm" autocomplete="off">
+    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
+    <h1>Start on <span id="startNode"></span></h1>
+    <p class="muted small" style="margin-top:0">This resets each morning, so the next tech starts fresh.</p>
+    <label>Your name</label><input name="operator" required maxlength="60" placeholder="e.g. Adam">
+    <label>Room</label><div class="tiles" id="startRooms"></div>
+    <label>This PC is the</label>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="mode" value="main" required><b>Main PC</b><span>The laptop on screen. No pop-ups or notifications at all.</span></label>
+      <label class="opt"><input type="radio" name="mode" value="backup"><b>Backup PC</b><span>Pop-ups on top for chat and help. Never any sound.</span></label>
+    </div>
+    <p id="startErr" class="muted" style="color:#fecaca"></p>
+    <div class="row" style="justify-content:flex-end"><button class="primary">Start</button></div>
+  </form>
+</div>
+
+<div id="ws" class="hidden">
+  <div class="top">
+    <img class="brand-mark" src="/static/brand/icon-96.png" alt=""><b data-product>AT-SUIT</b>
+    <span class="muted" id="who"></span><span class="pill hidden" id="modePill"></span>
+    <select id="room" style="width:auto"></select>
+    <span class="grow"></span>
+    <span class="pill" id="conn">connecting</span>
+    <div class="drop"><button id="bellBtn" title="Notifications" aria-label="Notifications">🔔<span class="unread hidden" id="bellCount"></span></button>
+      <div class="dropdown hidden" id="bellBox"></div></div>
+    <div class="drop"><button class="helpbtn" id="helpTop">Help<span class="unread hidden" id="helpCount"></span></button>
+      <div class="dropdown hidden" id="helpBox">
+        <b>Call for help</b>
+        <div class="row" style="margin-top:.4rem"><select id="helpCat" style="width:auto"><option>Audio</option><option>Video</option><option>Presenter</option><option>Lighting</option><option>Network</option><option>Other</option></select>
+          <input id="helpText" class="grow" placeholder="What's wrong?"></div>
+        <div class="row" style="margin-top:.4rem;justify-content:flex-end"><button class="helpbtn" id="helpBtn">Send</button></div>
+        <div style="margin-top:.6rem"><b class="small">Open requests</b><div id="helpList" class="small" style="margin-top:.3rem"></div></div>
+      </div></div>
+    <button id="laptopBtn" class="hidden">This laptop</button>
+    <a class="btn hidden" id="consoleBtn" href="/#/dashboard" target="_blank">Console</a>
+    <button id="out">Sign out</button>
+  </div>
+  <div id="laptop" class="panel hidden" style="margin:1rem 1rem 0">
+    <h3>This laptop</h3>
+    <div class="opts" id="modeOpts">
+      <label class="opt"><input type="radio" name="lapmode" value="main"><b>Main PC</b><span>No pop-ups or notifications at all.</span></label>
+      <label class="opt"><input type="radio" name="lapmode" value="backup"><b>Backup PC</b><span>Pop-ups on top of everything, including slides. Never any sound.</span></label>
+    </div>
+    <div class="row" style="margin-top:.6rem"><button id="popTest" class="small">Test a pop-up</button><span class="muted small" id="appVer"></span></div>
+  </div>
+
+  <div id="desk"></div>
+  <div hidden>
+    <section class="panel timer" id="timerBox"></section>
+    <section class="panel mini pair-mini" id="pairMini"></section>
+    <section class="panel mini" id="capMini">
+      <div class="row" style="justify-content:space-between"><h3>Captions</h3><span class="pill" id="capState">off</span></div>
+      <div class="cap-line" id="capLine"><span class="muted">Nothing yet.</span></div>
+      <div class="meter"><i id="meter"></i></div>
+      <div class="row" style="margin-top:.5rem"><button class="small" data-openwin="captions" onclick="ATDesk.open('captions')">Open captions</button></div>
+    </section>
+    <section class="panel mini" id="sessMini"></section>
+  </div>
+
+  <section data-win="captions" data-title="Captions" hidden>
+    <div class="cap-live" id="capText"><span class="muted">Captions for this room appear here.</span></div>
+    <div class="row" style="margin-top:.6rem">
+      <select id="mic" class="grow"></select>
+      <button class="primary" id="micBtn">Send my mic</button>
+    </div>
+    <p class="muted small" id="micNote"></p>
+    <div class="row" style="margin-top:.4rem;flex-wrap:wrap">
+      <button class="small" id="capTest">Send a test line</button>
+      <button class="small" id="capClear">Clear the screens</button>
+      <a class="small" id="capScreen" target="_blank">Caption screen</a>
+      <a class="small" id="capOverlay" target="_blank">Overlay (for a video mixer)</a>
+      <a class="small hidden" id="capScript" target="_blank">Latest transcript</a>
+    </div>
+    <p class="muted small" id="capEngine"></p>
+  </section>
+
+  <section data-win="sessions" data-title="Sessions" hidden>
+    <div class="row" style="justify-content:flex-end"><select id="sessDay" style="width:auto"></select><button class="small" id="sessTimer" title="Replaces this room's cue list">Send this day to the timer</button></div>
+    <div id="sessList"></div>
+  </section>
+
+  <section data-win="screens" data-title="Screens" hidden>
+    <p class="muted small" style="margin-top:0">The Linux screens in this room. Pick what each one shows, or put a web page on it.</p>
+    <div id="scrList"></div>
+  </section>
+
+  <section data-win="previews" data-title="Screens preview" hidden><div id="pvBox"></div></section>
+
+  <section data-win="overlays" data-title="Overlays" hidden><div id="atOv"></div><div id="ovList"></div></section>
+
+  <section data-win="links" data-title="Links" hidden><input id="linkFind" placeholder="Find a link" style="margin-bottom:.5rem"><div id="links" style="max-height:60vh;overflow:auto"></div></section>
+
+  <section class="chat-pane" id="chatPane" hidden><div class="chat-mount" id="chat"></div></section>
+</div>
+<iframe id="kiosk" class="hidden" allow="autoplay; fullscreen"></iframe>
+<div id="ident" class="hidden"></div>
+
+<script src="/static/common.js"></script>
+<script src="/static/chat.js"></script>
+<script src="/static/previews.js"></script>
+<script src="/static/ui/desk.js"></script>
+<script src="/static/timerpanel.js"></script>
+<script src="/static/cuelist.js"></script>
+<script src="/static/desk.js"></script>
+<script src="/static/pairing.js"></script><script src="/static/captions-panel.js"></script><!-- screens2: Add a screen + caption settings -->
+<script>
+(async () => {
+  const { esc, api, post, guard, toast } = AT;
+  const $ = (id) => ATDesk.find(id); // here, or in a window popped out of the workspace
+  // Inside the AT-SUIT Node Windows app the app owns enrolment and pop-ups.
+  const APP = window.atsuitApp || null;
+  const VERSION = APP ? `app-${await APP.version()}` : "web-0.1.0";
+  let nodeToken = null, node = null, boot = null, roomId = null, sock = null, chat = null;
+  if (APP) nodeToken = await APP.nodeToken();
+  else try { nodeToken = localStorage.getItem("atsuit_node_token"); } catch (_) {}
+  const nodeHdr = () => (nodeToken ? { Authorization: `Node ${nodeToken}` } : {});
+  await AT.branding();
+
+  // ---------------------------------------------------------------- node --
+  async function nodeMe() {
+    if (!nodeToken) return null;
+    try { return await api("/api/nodes/me", { headers: nodeHdr() }); }
+    catch (e) {
+      if (e.status === 401) {
+        if (APP) { APP.reEnrol(); return null; }
+        try { localStorage.removeItem("atsuit_node_token"); } catch (_) {}
+        nodeToken = null;
+      }
+      return null;
+    }
+  }
+  async function heartbeat() {
+    if (!nodeToken) return;
+    try {
+      const r = await api("/api/nodes/heartbeat", { method: "POST", headers: nodeHdr(), body: { version: VERSION, current_url: $("kiosk").src || location.href,
+        info: { user_agent: navigator.userAgent, screen: `${screen.width}x${screen.height}`, signed_in: boot?.me?.name || "", room_id: roomId } } });
+      // A new working day (or an admin moving this laptop) changes the room: start over.
+      if (techLaptop() && !$("ws").classList.contains("hidden") && (r.room_id || null) !== roomId) location.reload();
+    } catch (_) {}
+  }
+  async function pollCommands() {
+    if (!nodeToken) return;
+    let cmds = [];
+    try { cmds = await api("/api/nodes/commands", { headers: nodeHdr() }); } catch (_) { return; }
+    for (const c of cmds) {
+      let ok = true, detail = "";
+      if (c.kind === "set_url") showKiosk(c.payload.url);
+      else if (c.kind === "reload") setTimeout(() => location.reload(), 500);
+      else if (c.kind === "message") toast(c.payload.text || "Message from the server");
+      else if (c.kind === "identify") { $("ident").textContent = node?.node?.name || "THIS ONE"; $("ident").classList.remove("hidden"); setTimeout(() => $("ident").classList.add("hidden"), 6000); }
+      else if (c.kind === "overlay") {
+        // The AT Overlay window over this laptop's screen (sent from any laptop in the room).
+        if (APP && APP.overlay) { const r = await APP.overlay(c.payload).catch((e) => ({ ok: false, error: String(e) })); ok = !!r.ok; detail = r.error || ""; }
+        else { ok = false; detail = "Only the AT-SUIT Node app has an overlay"; }
+      }
+      else ok = false; // reboot/shutdown/update need the node agent
+      await api(`/api/nodes/commands/${c.id}/ack`, { method: "POST", headers: nodeHdr(), body: { ok, detail: detail || (ok ? "" : "Browser nodes can't do that; run the node agent") } }).catch(() => {});
+    }
+  }
+  function techLaptop() { return node?.node?.kind === "tech"; }
+  function showKiosk(url) {
+    try { localStorage.setItem("atsuit_kiosk_url", url); } catch (_) {}
+    if (node?.node?.kind !== "kiosk") { window.open(url, "_blank"); return; }
+    $("kiosk").src = url; $("kiosk").classList.remove("hidden");
+  }
+
+  node = await nodeMe();
+  if (APP && !node) return; // the app is showing its own set-up screen
+  let signedIn = false;
+  if (!node) { try { signedIn = (await api("/api/auth/me")).kind === "account"; } catch (_) {} }
+  if (!node && !signedIn && !sessionStorage.getItem("atsuit_skip_enrol")) {
+    $("enrol").classList.remove("hidden");
+    $("skip").onclick = (e) => { e.preventDefault(); sessionStorage.setItem("atsuit_skip_enrol", "1"); location.reload(); };
+    const f = $("enrolForm");
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        const r = await post("/api/nodes/enrol", { name: f.name.value, code: f.code.value.trim().toUpperCase(), kind: f.kind.value });
+        localStorage.setItem("atsuit_node_token", r.token);
+        location.reload();
+      } catch (ex) { $("enrolErr").textContent = ex.message; }
+    };
+    return;
+  }
+  if (node) {
+    heartbeat(); setInterval(heartbeat, 10000); setInterval(pollCommands, 3000); pollCommands();
+    if (node.node.kind === "kiosk") {
+      let url = node.node.current_url; try { url = localStorage.getItem("atsuit_kiosk_url") || url; } catch (_) {}
+      if (url) showKiosk(url);
+      else document.body.insertAdjacentHTML("beforeend", `<div class="center"><div class="panel card"><h1>${esc(node.node.name)}</h1><p class="muted">Waiting for a screen. Pick one for this kiosk in Nodes on the console.</p></div></div>`);
+      return;
+    }
+  }
+
+  // ----------------------------------------------------- start the day --
+  // A tech laptop signs in with its own enrolment: the tech gives their name,
+  // the room and whether this is the main or backup PC. Elsewhere (a browser
+  // with no node token) people sign in with their account.
+  if (techLaptop()) {
+    roomId = node.room?.id || null;
+    let me = null;
+    try { me = await api("/api/auth/me"); } catch (_) {}
+    const signedIn = me && me.kind === "node" && me.id === node.node.id;
+    if (!roomId || !node.node.operator || !node.node.mode || !signedIn) {
+      $("start").classList.remove("hidden");
+      $("startNode").textContent = node.node.name;
+      const f = $("startForm");
+      f.operator.value = node.node.operator || "";
+      if (node.node.mode) f.querySelector(`[name=mode][value=${node.node.mode}]`).checked = true;
+      // Once a laptop has its room for the day it keeps it, whoever signs in; only an admin moves it.
+      const locked = roomId;
+      let pick = roomId || null;
+      const tiles = () => {
+        const list = locked ? node.rooms.filter((r) => r.id === locked) : node.rooms;
+        $("startRooms").innerHTML = list.map((r) => `<button type="button" class="tile ${r.id === pick ? "on" : ""}" data-room="${r.id}">${esc(r.name)}</button>`).join("") || '<p class="muted">No rooms yet. A manager or admin adds them in the console under Rooms.</p>';
+        if (locked) $("startRooms").insertAdjacentHTML("beforeend", '<p class="muted small" style="grid-column:1/-1;margin:.3rem 0 0">This laptop is in this room today. An admin can move it from the console (Nodes).</p>');
+        else $("startRooms").querySelectorAll("[data-room]").forEach((b) => (b.onclick = () => { pick = +b.dataset.room; tiles(); }));
+      };
+      tiles();
+      f.onsubmit = async (e) => {
+        e.preventDefault();
+        if (!pick) { $("startErr").textContent = "Pick the room you're in."; return; }
+        const mode = f.querySelector("[name=mode]:checked")?.value;
+        try {
+          await post("/api/auth/logout").catch(() => {}); // this laptop, not someone's account
+          await api("/api/nodes/me/start", { method: "POST", headers: nodeHdr(), body: { operator: f.operator.value, room_id: pick, mode } });
+          if (APP) await APP.setSettings({ popups: mode === "backup" });
+          location.reload();
+        } catch (ex) { $("startErr").textContent = ex.message; }
+      };
+      if (!f.operator.value) f.operator.focus();
+      return;
+    }
+  }
+  try { boot = await api("/api/bootstrap"); if (boot.me.kind !== "account" && !techLaptop()) boot = null; } catch (_) { boot = null; }
+  if (!boot) {
+    $("login").classList.remove("hidden");
+    $("nodeName").textContent = node ? node.node.name : "Tech workspace";
+    const f = $("loginForm");
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      try { await post("/api/auth/login", { username: f.username.value, password: f.password.value }); location.reload(); }
+      catch (ex) { $("loginErr").textContent = ex.message; }
+    };
+    return;
+  }
+  // Main PC: nothing pops up or alerts. Backup PC: silent pop-ups.
+  const mode = techLaptop() ? node.node.mode : "";
+  const quiet = mode === "main";
+
+  // ----------------------------------------------------------- workspace --
+  $("ws").classList.remove("hidden");
+  $("who").textContent = `${boot.me.name}${node ? " on " + node.node.name : ""}`;
+  if (mode) { $("modePill").textContent = quiet ? "Main PC" : "Backup PC"; $("modePill").className = "pill " + (quiet ? "" : "warn"); }
+  $("out").onclick = async () => {
+    if (techLaptop()) { if (APP) await APP.setSettings({ popups: false }); await api("/api/nodes/me/finish", { method: "POST", headers: nodeHdr() }); }
+    else await post("/api/auth/logout");
+    location.reload();
+  };
+  if (!techLaptop()) {
+    let saved = null; try { saved = +localStorage.getItem("atsuit_room") || null; } catch (_) {}
+    roomId = (node?.room?.id) || saved || boot.rooms[0]?.id;
+  }
+  const roomName = boot.rooms.find((r) => r.id === roomId)?.name || "";
+  $("room").innerHTML = boot.rooms.map((r) => `<option value="${r.id}" ${r.id === roomId ? "selected" : ""}>${esc(r.name)}</option>`).join("");
+  if (techLaptop()) {
+    // A tech laptop stays in the room it started the day in; only an admin moves it.
+    $("room").disabled = true;
+    $("room").title = "This laptop's room for today. An admin can move it from the console (Nodes).";
+  } else $("room").onchange = () => { try { localStorage.setItem("atsuit_room", $("room").value); } catch (_) {} location.reload(); };
+  // The console is for admins. On a tech laptop an admin signs in there for a short session (30 minutes, ends with the browser).
+  if (techLaptop()) { $("consoleBtn").textContent = "Admin"; $("consoleBtn").href = "/?shared=1#/dashboard"; $("consoleBtn").title = "For admins: sign in to the console"; $("consoleBtn").classList.remove("hidden"); }
+  else if (["admin", "manager"].includes(boot.me.role)) $("consoleBtn").classList.remove("hidden");
+
+  // This laptop: main or backup PC, and silent pop-ups (Windows app only).
+  if (APP && techLaptop()) {
+    await APP.setSettings({ popups: mode === "backup" }); // the app follows what the tech picked
+    // The overlay follows the room this tech signed in to, so it is already set when it is turned on.
+    if (APP.overlayState && APP.overlay && roomId) {
+      const o = await APP.overlayState().catch(() => null);
+      if (o && o.room_id !== roomId) await APP.overlay({ room_id: roomId, on: o.on }).catch(() => {});
+    }
+    $("laptopBtn").classList.remove("hidden");
+    $("laptopBtn").onclick = () => $("laptop").classList.toggle("hidden");
+    document.querySelector(`[name=lapmode][value=${mode}]`).checked = true;
+    $("appVer").textContent = `AT-SUIT Node ${await APP.version()}`;
+    document.querySelectorAll("[name=lapmode]").forEach((r) => (r.onchange = async () => {
+      await guard(() => api("/api/nodes/me/mode", { method: "PUT", headers: nodeHdr(), body: { mode: r.value } }));
+      await APP.setSettings({ popups: r.value === "backup" });
+      location.reload();
+    }));
+    $("popTest").onclick = async () => {
+      const shown = await APP.notify({ title: "Test pop-up", body: "This is what an alert looks like. It never makes a sound.", kind: "info" });
+      if (!shown) toast("This is the main PC, so nothing pops up. Switch to Backup PC to test.");
+    };
+  }
+
+  // The workspace is a desktop of windows (static/ui/desk.js, built from web/src/desk): every part
+  // docks, tabs, floats, resizes, minimises, maximises and pops out, with a taskbar and saved layouts.
+  // Parts are registered below; the desk starts once they all are.
+  const WINS = ["captions", "sessions", "screens", "previews", "overlays", "links"];
+  const wins = Object.fromEntries(WINS.map((id) => [id, { open: () => ATDesk.open(id), available: (yes) => ATDesk.available(id, yes) }]));
+  if (!boot.modules.timers) $("timerBox").innerHTML = '<p class="muted">Timers are switched off for this site.</p>';
+
+  // Notifications: the main PC shows nothing; elsewhere the bell, a note in
+  // the window and (backup PC) a silent pop-up on top of everything.
+  const alerts = Desk.notifier({ button: $("bellBtn"), box: $("bellBox"), count: $("bellCount"), quiet,
+    popup: APP ? (title, body, kind) => APP.notify({ title, body: String(body || "").slice(0, 300), kind }) : null });
+  const problem = (title, body) => alerts.add("error", title, body);
+
+  // Connection: say so if it stays down, and when it's back.
+  let downTimer = null, wasDown = false;
+  const topics = [...boot.sites.map((s) => `site:${s.id}`), ...boot.rooms.map((r) => `room:${r.id}`), `dm:${boot.me.id}`, `timer:${roomId}`, `captions:${roomId}`];
+  sock = AT.socket(topics, onEvent, (up) => {
+    $("conn").textContent = up ? "live" : "reconnecting"; $("conn").className = "pill " + (up ? "good" : "bad");
+    clearTimeout(downTimer);
+    if (up) { if (wasDown) alerts.add("good", "Connected to AT-SUIT again"); wasDown = false; }
+    else downTimer = setTimeout(() => { wasDown = true; problem("Lost connection to AT-SUIT", "Chat, timer and captions stop updating until it's back."); }, 8000);
+  });
+
+  // timer and cue list: the main thing on screen
+  let cuelist = null;
+  if (boot.modules.timers) cuelist = CueList.mount($("timerBox"), roomId);
+
+  {
+    const box = $("timerBox");
+    if (cuelist) {
+      // The timer's own controls form one tile; quick timers, messages, the second line and the cue list are tiles of their own.
+      const tile = document.createElement("div");
+      tile.className = "panel tile-timer";
+      [...box.children].filter((n) => !n.matches("[data-tp], details")).forEach((n) => tile.appendChild(n));
+      box.prepend(tile);
+      ATDesk.add("timer", AT.detach(tile), "Room timer");
+      const tp = box.querySelectorAll("[data-tp] > div");
+      [["quick", "Quick timers"], ["messages", "Messages"], ["second", "Second line"]].forEach(([id, title], i) => {
+        if (tp[i]) ATDesk.add(id, AT.detach(tp[i]), title);
+      });
+      const cues = box.querySelector("details");
+      if (cues) { cues.open = true; ATDesk.add("cues", AT.detach(cues), "Cue list"); }
+    } else ATDesk.add("timer", box, "Room timer");
+    ATDesk.add("chat", $("chatPane"), "Chat");
+    ATDesk.add("capmini", $("capMini"), "Captions");
+    ATDesk.add("pair", $("pairMini"), "Add a screen");
+    ATDesk.add("sessmini", $("sessMini"), "Now and next");
+    document.querySelectorAll("[data-win]").forEach((w) => ATDesk.add(w.dataset.win, w, w.dataset.title));
+    ATDesk.title("captions", "Captions controls");
+    ["sessmini", "sessions", "overlays", "screens"].forEach((id) => ATDesk.available(id, false)); // until there is something to show
+    ATDesk.available("captions", !!boot.modules.captions); ATDesk.available("capmini", !!boot.modules.captions);
+    ATDesk.available("links", !!boot.modules.dashboard); ATDesk.available("chat", !!boot.modules.comms);
+    // Where everything starts: the timer big on the left with the cue list under it, chat and the room's
+    // other parts on the right. The admin can make any layout the starting one for every laptop.
+    const T = ATDesk.tree, gid = (L, p) => T.groupOf(L, p).id;
+    let F = T.dock(T.empty(), "timer", "root", "center");
+    F = T.dock(F, "chat", "root", "right");
+    F = T.dock(F, "cues", gid(F, "timer"), "bottom");
+    F = T.dock(F, "quick", gid(F, "timer"), "right");
+    F = T.dock(F, ["messages", "second"], gid(F, "quick"), "center");
+    F = T.dock(F, "capmini", gid(F, "chat"), "bottom");
+    F = T.dock(F, ["pair", "sessmini"], gid(F, "capmini"), "center");
+    F = T.activate(F, "quick"); F = T.activate(F, "capmini");
+    F = T.resize(F, [], [0.68, 0.32]); F = T.resize(F, [0], [0.58, 0.42]); F = T.resize(F, [0, 0], [0.62, 0.38]); F = T.resize(F, [1], [0.6, 0.4]);
+    F.closed.push(...WINS);
+    let shared = null;
+    try { shared = (await api("/api/workspace/layout")).layout; } catch (_) {}
+    ATDesk.start($("desk"), { key: "atsuit_desk2", fallback: F, shared, canShare: boot.me.role === "admin",
+      onShare: (layout) => guard(() => AT.put("/api/workspace/layout", { layout })).then(() => toast("Every laptop now starts with this layout", "good")) });
+  }
+  // The timer reaching its warning, danger and overtime is worth a note.
+  let tstate = null, tphase = "", trun = "";
+  if (boot.modules.timers) {
+    api(`/api/timers/${roomId}`).then((s) => { tstate = s; }).catch(() => {});
+    setInterval(() => {
+      if (!tstate || tstate.playback !== "play") return;
+      const run = `${tstate.cue?.id || ""}:${tstate.started_at || tstate.first_started_at || ""}:${tstate.duration_ms}`;
+      if (run !== trun) { trun = run; tphase = AT.timerDisplay(tstate).cls; return; }
+      const cls = AT.timerDisplay(tstate).cls;
+      if (cls && cls !== tphase) {
+        const what = tstate.title || "The timer";
+        if (cls === "warn") alerts.add("timer", `${what}: warning time`, `${AT.timerDisplay(tstate).text} left in ${roomName}`);
+        if (cls === "danger") alerts.add("timer", `${what}: danger time`, `${AT.timerDisplay(tstate).text} left in ${roomName}`);
+        if (cls === "over") alerts.add("urgent", `${what} is over time`, roomName);
+      }
+      tphase = cls;
+    }, 500);
+  }
+
+  // AT Overlay: the room timer in a click-through window on any tech laptop
+  // in this room. From here a tech can turn it on or off on their own laptop
+  // or on the other one (e.g. from the backup PC onto the main PC's screen).
+  const OV_POS = [["top-center", "Top centre"], ["bottom-right", "Bottom right"], ["bottom-left", "Bottom left"], ["top-right", "Top right"], ["top-left", "Top left"], ["bottom-bar", "Bar along the bottom"], ["top-bar", "Bar along the top"]];
+  const OV_SIZE = [["small", "Small"], ["medium", "Medium"], ["large", "Large"]];
+  let atOvCount = 0, lvOvCount = 0;
+  const ovAvail = () => wins.overlays.available(atOvCount + lvOvCount > 0);
+  // Say so when a laptop can't do what was asked: an app too old for Top centre, or the window somewhere else.
+  const older = (v, than) => { const a = String(v || "").split(".").map(Number), b = than.split(".").map(Number); for (let i = 0; i < 3; i++) { if ((a[i] || 0) !== b[i]) return (a[i] || 0) < b[i]; } return false; };
+  function ovNote(r, w, st, on) {
+    const name = (k) => (OV_POS.find(([x]) => x === k) || [k, k])[1].toLowerCase();
+    if (r.app && r.app_version && w.position === "top-center" && older(r.app_version, "0.6.0"))
+      return `<p class="small" style="color:var(--warn);margin:.4rem 0 0">This laptop's AT-SUIT app (${esc(r.app_version)}) is too old for top centre and puts the overlay ${name(st?.position || "bottom-right")}. Quit the app from its tray icon and start it again to finish its update, or install it again from Laptops & screens → Add laptops.</p>`;
+    if (on && st?.position && st.position !== w.position)
+      return `<p class="small" style="color:var(--warn);margin:.4rem 0 0">Asked for ${name(w.position)}, the laptop is showing it ${name(st.position)}. Press Apply to send it again.</p>`;
+    return "";
+  }
+  async function renderAtOverlay() {
+    let rows = [];
+    try { rows = await api(`/api/rooms/${roomId}/overlays`); } catch (_) { rows = []; }
+    atOvCount = rows.length; ovAvail();
+    const meId = node?.node?.id;
+    const opts = (list, v) => list.map(([k, t]) => `<option value="${k}"${k === v ? " selected" : ""}>${t}</option>`).join("");
+    const mine = rows.find((r) => r.id === meId);
+    const displays = mine && APP && APP.overlayState ? ((await APP.overlayState().catch(() => null))?.displays || []) : [];
+    $("atOv").innerHTML = !rows.length ? "" : `<p class="muted small" style="margin:0 0 .5rem">AT Overlay puts the room timer over a laptop's screen. Clicks go through it to whatever is underneath.</p>` +
+      rows.map((r) => {
+        const w = r.want || {}, st = r.state, on = st ? !!st.on : !!w.on;
+        const pill = !r.online ? '<span class="pill">offline</span>' : !r.app ? '<span class="pill">no app</span>' : st?.error ? `<span class="pill bad" title="${esc(st.error)}">problem</span>` : on ? '<span class="pill good">on</span>' : '<span class="pill">off</span>';
+        const who = `${esc(r.operator || r.name)}${r.id === meId ? " (this laptop)" : ""}`;
+        const disp = r.id === meId && displays.length > 1 ? `<select data-o="display" style="width:auto">${displays.map((d) => `<option value="${d.index}"${d.index === (w.display || 0) ? " selected" : ""}>${esc(d.label || "Display " + (d.index + 1))}</option>`).join("")}</select>` : "";
+        return `<div class="ov" data-ov="${r.id}"><div class="row" style="justify-content:space-between"><b>${who}</b><span class="row" style="gap:.3rem">${r.mode ? `<span class="pill">${r.mode === "main" ? "Main" : "Backup"}</span>` : ""}${pill}</span></div>
+          <div class="row" style="margin-top:.4rem;flex-wrap:wrap"><button class="small ${on ? "" : "primary"}" data-on="1">Turn on</button><button class="small" data-on="0">Turn off</button>
+            <select data-o="position" style="width:auto">${opts(OV_POS, w.position)}</select><select data-o="size" style="width:auto">${opts(OV_SIZE, w.size)}</select>${disp}</div>
+          <div class="row" style="margin-top:.4rem"><input data-o="url" class="grow" placeholder="Room timer (or paste a web address)" value="${esc(w.url || "")}"><button class="small" data-apply>Apply</button></div>${ovNote(r, w, st, on)}</div>`;
+      }).join("") + (lvOvCount ? '<hr style="border:0;border-top:1px solid var(--line);margin:.8rem 0">' : "");
+    $("atOv").querySelectorAll("[data-ov]").forEach((card) => {
+      const id = +card.dataset.ov, row = rows.find((x) => x.id === id);
+      const body = (extra) => {
+        const b = { position: card.querySelector('[data-o="position"]').value, size: card.querySelector('[data-o="size"]').value, url: card.querySelector('[data-o="url"]').value.trim(), ...extra };
+        const d = card.querySelector('[data-o="display"]'); if (d) b.display = +d.value;
+        return b;
+      };
+      const send = (extra) => guard(async () => {
+        await api(`/api/fleet/nodes/${id}/overlay`, { method: "PUT", body: body(extra) });
+        if (id === meId && APP && APP.overlay) await APP.overlay(body(extra)); // this laptop: straight away
+        // Only say "sent" when that laptop can actually show it.
+        if (row && (!row.online || !row.app)) toast(`Saved. ${row.online ? "That laptop doesn't have the AT-SUIT app" : "That laptop is offline"}, so it shows when the app is running there.`);
+        else toast(extra.on === false ? "Overlay off" : "Overlay sent", "good");
+      }).then(() => setTimeout(renderAtOverlay, 1500), () => {});
+      card.querySelectorAll("[data-on]").forEach((b) => (b.onclick = () => send({ on: b.dataset.on === "1" })));
+      card.querySelector("[data-apply]").onclick = () => send({});
+    });
+  }
+  let atOvTimer = null;
+  if (boot.modules.fleet) { renderAtOverlay(); setInterval(renderAtOverlay, 30000); }
+
+  // this room's AT LiveOverlay laptops
+  async function renderOverlays() {
+    let targets = [];
+    try { targets = (await api("/api/overlays/targets")).filter((t) => t.room_id === roomId); } catch (_) { return; }
+    lvOvCount = targets.length; ovAvail();
+    $("ovList").innerHTML = targets.map((t) => `<div class="ov" data-t="${t.id}"><div class="row" style="justify-content:space-between"><b>${esc(t.name)}</b><span class="pill" data-st>…</span></div>
+      <div class="row" style="margin-top:.4rem">Overlay <select data-n style="width:auto"><option value="all">All</option></select>
+        <button class="small primary" data-a="show">Show</button><button class="small" data-a="hide">Hide</button><button class="small" data-a="reload">Reload</button></div>
+      <div class="row" style="margin-top:.4rem"><select data-scene class="grow"></select><button class="small" data-load>Load scene</button></div></div>`).join("");
+    $("ovList").querySelectorAll("[data-t]").forEach(async (card) => {
+      const id = card.dataset.t;
+      card.querySelectorAll("[data-a]").forEach((b) => b.onclick = () => guard(() => post(`/api/overlays/targets/${id}/action`, { overlay: card.querySelector("[data-n]").value, action: b.dataset.a })).then(() => toast("Done", "good")));
+      card.querySelector("[data-load]").onclick = () => guard(() => post(`/api/overlays/targets/${id}/scenes/load`, { name: card.querySelector("[data-scene]").value })).then(() => toast("Scene loaded", "good"));
+      const st = card.querySelector("[data-st]");
+      try {
+        const s = await api(`/api/overlays/targets/${id}/status`);
+        const ovs = s.overlays || [];
+        st.textContent = `online · ${ovs.length} overlay${ovs.length === 1 ? "" : "s"}`; st.className = "pill good";
+        card.querySelector("[data-n]").innerHTML = '<option value="all">All</option>' + ovs.map((o, i) => { const n = o.id ?? o.number ?? i + 1; return `<option value="${esc(n)}">${esc(o.name || "Overlay " + n)}</option>`; }).join("");
+        const sc = await api(`/api/overlays/targets/${id}/scenes`);
+        const names = Array.isArray(sc) ? sc : sc.scenes || [];
+        card.querySelector("[data-scene]").innerHTML = names.map((n) => `<option>${esc(typeof n === "string" ? n : n.name)}</option>`).join("");
+      } catch (_) { st.textContent = "offline"; st.className = "pill bad"; }
+    });
+  }
+  if (boot.modules.overlays) renderOverlays();
+
+  // this room's Linux screens: what each shows, or any web page
+  let views = node?.views || [];
+  let pv = null;
+  let screensSig = "";
+  // Other techs and the console change screens too: check every 10 seconds while this page is showing.
+  setInterval(() => { if (!document.hidden && boot.modules.fleet !== false) renderScreens(true); }, 10000);
+  async function renderScreens(quiet = false) {
+    let all = [];
+    try { all = await api("/api/fleet/nodes"); } catch (_) { return; }
+    if (!views.length) try { views = await api("/api/timers-views?screens=1"); } catch (_) {}
+    const screens = all.filter((n) => n.kind === "kiosk" && n.room_id === roomId)
+      .map((n) => ({ ...n, screen_view: n.screen_view === "stage" ? "hcc" : n.screen_view })); // the old Stage view is Standard now
+    // Redraw only when something changed, so a tech typing in the list isn't interrupted by the refresh.
+    const sig = JSON.stringify(screens.map((n) => [n.id, n.name, n.online, n.screen_view]));
+    if (quiet && sig === screensSig) return;
+    screensSig = sig;
+    wins.screens.available(screens.length > 0);
+    if (!pv) pv = Previews.mount($("pvBox"), { roomId });
+    pv.update({ views, screens });
+    const label = (v) => (v.startsWith("url:") ? v.slice(4) : views.find((x) => x.id === v)?.name || v || "nothing yet");
+    $("scrList").innerHTML = screens.map((n) => `<div class="scr" data-s="${n.id}"><div class="row"><span class="dot ${n.online ? "on" : "off"}"></span><b class="grow">${esc(n.name)}</b>
+        <span class="muted small">${esc(label(n.screen_view || ""))}</span></div>
+      <div class="row" style="margin-top:.35rem"><select data-v class="grow">${views.map((v) => `<option value="${esc(v.id)}" ${v.id === n.screen_view ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select><button class="small primary" data-show>Show</button></div>
+      <div class="row" style="margin-top:.35rem"><input data-url class="grow" placeholder="https://… a web page for this screen" value="${esc((n.screen_view || "").startsWith("url:") ? n.screen_view.slice(4) : "")}"><button class="small" data-go>Show page</button>
+        <button class="small" data-id title="Show the screen's name on it">Identify</button></div></div>`).join("");
+    $("scrList").querySelectorAll("[data-s]").forEach((row) => {
+      const id = row.dataset.s;
+      const route = (view) => guard(() => AT.put(`/api/fleet/nodes/${id}/screen`, { room_id: roomId, view })).then(() => { toast("Sent to the screen", "good"); renderScreens(); });
+      row.querySelector("[data-show]").onclick = () => route(row.querySelector("[data-v]").value);
+      row.querySelector("[data-go]").onclick = () => {
+        let u = row.querySelector("[data-url]").value.trim();
+        if (!u) return toast("Put in the web page address first", "bad");
+        if (!/^https?:\/\//i.test(u)) u = "http://" + u;
+        route("url:" + u);
+      };
+      row.querySelector("[data-id]").onclick = () => guard(() => post(`/api/fleet/nodes/${id}/command`, { kind: "identify" })).then(() => toast("Sent", "good"));
+    });
+  }
+  if (boot.modules.fleet !== false) renderScreens();
+  // ---- screens2: "Add a screen" by pairing code (static/pairing.js) and caption settings (static/captions-panel.js) ----
+  if (boot.modules.fleet !== false && window.ATPairing) ATPairing.mount({ roomId, setViews: (v) => { views = v; renderScreens(); }, onPaired: () => renderScreens() }).catch(() => {});
+  if (boot.modules.captions && window.ATCaptionsPanel) ATCaptionsPanel.attach(roomId);
+  // ---- end screens2 ----
+
+  // this room's presenter sessions: who's here, their files, the show files
+  const PR_ST = { pending: ["to review", "warn"], approved: ["approved", "good"], rejected: ["rejected", "bad"] };
+  let sessions = [], sessDay = null, sessTimer = null, seenFiles = null;
+  const sDay = (iso) => (/^\d{4}-\d{2}-\d{2}/.test(iso || "") ? iso.slice(0, 10) : "");
+  const sTime = (iso) => (iso && iso.includes("T") ? iso.slice(11, 16) : iso || "");
+  async function renderSessions() {
+    try { sessions = await api(`/api/presenter/rooms/${roomId}/schedule`); } catch (_) { return; }
+    wins.sessions.available(sessions.length > 0);
+    // A new upload for this room is worth a note.
+    const files = sessions.flatMap((s) => s.presenters.flatMap((p) => p.files.slice(0, 1).map((f) => [f.id, p.full_name, f.original_name, s.title])));
+    if (seenFiles) files.filter(([id]) => !seenFiles.has(id)).forEach(([, who, name, title]) => alerts.add("chat", `New slides from ${who}`, `${name} for ${title}`, () => wins.sessions.open()));
+    seenFiles = new Set(files.map(([id]) => id));
+    const today = new Date().toLocaleDateString("en-CA"), days = [...new Set(sessions.map((s) => sDay(s.starts_at)))].filter(Boolean).sort();
+    if (!days.includes(sessDay)) sessDay = days.includes(today) ? today : days.find((d) => d > today) || days[days.length - 1] || "";
+    $("sessDay").innerHTML = days.map((d) => `<option value="${d}" ${d === sessDay ? "selected" : ""}>${d === today ? "Today" : new Date(d + "T12:00").toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}</option>`).join("");
+    $("sessDay").classList.toggle("hidden", !days.length);
+    const nowHm = new Date().toTimeString().slice(0, 5);
+    const live = (s) => sDay(s.starts_at) === today && sTime(s.starts_at) <= nowHm && (!s.ends_at || sTime(s.ends_at) > nowHm);
+    const shown = sessions.filter((s) => !days.length || sDay(s.starts_at) === sessDay || !sDay(s.starts_at));
+    $("sessList").innerHTML = shown.map((s) => `<div class="ws-sess ${live(s) ? "now" : ""}"><b>${esc(sTime(s.starts_at))}${s.ends_at ? "–" + esc(sTime(s.ends_at)) : ""}</b><div><b>${esc(s.title)}</b>${s.notes ? ` <span class="muted small">${esc(s.notes)}</span>` : ""}</div>` +
+        s.presenters.map((p) => { const f = p.files[0]; return `<div class="f">${esc(p.full_name)} <span class="pill ${p.checked_in_at ? "good" : ""}">${p.checked_in_at ? "here" : "not here"}</span>` +
+          (f ? `<a href="/api/presenter/files/${f.id}">${esc(f.original_name)}</a> <span class="pill ${PR_ST[f.review_status][1]}">${PR_ST[f.review_status][0]}</span>` +
+            (f.review_status !== "approved" ? `<button class="small" data-ok="${f.id}">Approve</button>` : "") + (f.review_status !== "rejected" ? `<button class="small" data-no="${f.id}">Reject</button>` : "")
+            : '<span class="muted">no file yet</span>') +
+          (!p.checked_in_at ? `<button class="small" data-in="${p.id}">Check in</button>` : "") + "</div>"; }).join("") +
+        (s.show_files.length ? `<div class="f"><span class="muted">Show files:</span> ${s.show_files.map((f) => `<a href="/api/presenter/show-files/${f.id}">${esc(f.label)}</a>`).join(", ")}</div>` : "") + "</div>").join("")
+      || '<p class="muted small">No sessions on this day.</p>';
+    $("sessList").querySelectorAll("[data-ok]").forEach((b) => (b.onclick = () => guard(() => AT.put(`/api/presenter/files/${b.dataset.ok}/review`, { status: "approved" }))));
+    $("sessList").querySelectorAll("[data-no]").forEach((b) => (b.onclick = () => { const note = prompt("What should the presenter change? They see this on their page.", ""); if (note !== null) guard(() => AT.put(`/api/presenter/files/${b.dataset.no}/review`, { status: "rejected", note })); }));
+    $("sessList").querySelectorAll("[data-in]").forEach((b) => (b.onclick = () => guard(() => post(`/api/presenter/presenters/${b.dataset.in}/checkin`))));
+    // Now and next on the dashboard.
+    const todays = sessions.filter((s) => sDay(s.starts_at) === today);
+    const now = todays.find(live), next = todays.find((s) => sTime(s.starts_at) > nowHm);
+    ATDesk.available("sessmini", !!(now || next));
+    $("sessMini").innerHTML = `<div class="row" style="justify-content:space-between"><h3>Sessions</h3><button class="small" data-openwin="sessions">Open</button></div>` +
+      [["Now", now], ["Next", next]].filter(([, s]) => s).map(([k, s]) => `<div class="small" style="margin-top:.3rem"><span class="muted">${k} ${esc(sTime(s.starts_at))}</span> <b>${esc(s.title)}</b><div class="muted">${esc(s.presenters.map((p) => p.full_name + (p.checked_in_at ? " ✓" : "")).join(", "))}</div></div>`).join("");
+    $("sessMini").querySelector("[data-openwin]").onclick = () => ATDesk.open("sessions");
+  }
+  if (boot.modules.presenter) {
+    $("sessDay").onchange = (e) => { sessDay = e.target.value; renderSessions(); };
+    $("sessTimer").onclick = () => confirm("Replace this room's cue list with this day's sessions?") &&
+      guard(() => post(`/api/presenter/rooms/${roomId}/to-timer`, { day: sessDay || "" })).then((r) => toast(`${r.cues} cues in the timer`, "good"));
+    renderSessions();
+    setInterval(renderSessions, 60000); // keeps "now" moving
+  }
+
+  // chat: a window like the rest; its taskbar button counts what came in while it was out of sight
+  let chatUnread = 0;
+  const chatSeen = () => ATDesk.isOpen("chat") && !document.hidden;
+  const setDock = (open) => { if (open) ATDesk.open("chat"); };
+  setInterval(() => { if (chatUnread && chatSeen()) { chatUnread = 0; ATDesk.badge("chat", 0); } }, 1000);
+  if (boot.modules.comms) {
+    const chans = await api("/api/comms/channels");
+    chat = Chat.mount($("chat"), { me: boot.me, compact: true, quiet: true /* the workspace's own alerts show urgent messages */, prefer: chans.find((c) => c.room_id === roomId)?.id });
+  }
+
+  // links
+  if (boot.modules.dashboard) {
+    const links = (await api(`/api/dashboard/links?room_id=${roomId}`)).filter((l) => l.room_id === roomId || l.kind === "tool" || l.board === "public");
+    const groups = [["This room", (l) => l.room_id === roomId], ["Tools", (l) => l.kind === "tool"], ["Everything else", () => true]];
+    const drawLinks = () => {
+      const q = $("linkFind").value.trim().toLowerCase(), seen = new Set();
+      const html = groups.map(([name, test]) => {
+        const rows = links.filter((l) => !seen.has(l.id) && test(l) && (!q || l.label.toLowerCase().includes(q)));
+        rows.forEach((l) => seen.add(l.id));
+        return rows.length ? `<h4 style="margin:.6rem 0 .3rem">${name}</h4><div class="tiles">${rows.map((l) => `<a class="tile" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join("")}</div>` : "";
+      }).join("");
+      $("links").innerHTML = html || '<p class="muted small">No links yet. An admin adds them in Links, or imports the old Homarr board.</p>';
+    };
+    $("linkFind").oninput = drawLinks; drawLinks();
+  }
+
+  // help: the red button at the top
+  async function renderHelp() {
+    const rows = (await api("/api/comms/help")).filter((h) => h.status !== "resolved").slice(0, 8);
+    const open = rows.filter((h) => h.status === "open").length;
+    $("helpCount").textContent = open; $("helpCount").classList.toggle("hidden", !open); $("helpTop").classList.toggle("help-alarm", !!open);
+    $("helpList").innerHTML = rows.map((h) => `<div class="row" style="margin:.25rem 0"><span class="pill ${h.status === "open" ? "bad" : "warn"}">${esc(h.status)}</span> <b>${esc(h.room_name)}</b> ${esc(h.category)}: ${esc(h.description)} <span class="muted">${esc(h.assigned_to)}</span>` +
+      `${h.status === "open" ? `<button class="small" data-h="${h.id}" data-s="acknowledged">On my way</button>` : ""}<button class="small" data-h="${h.id}" data-s="resolved">Resolved</button></div>`).join("") || '<span class="muted">No open requests.</span>';
+    $("helpList").querySelectorAll("[data-h]").forEach((b) => b.onclick = () => guard(() => AT.put(`/api/comms/help/${b.dataset.h}`, { status: b.dataset.s })));
+  }
+  $("helpTop").onclick = (e) => {
+    e.stopPropagation();
+    const box = $("helpBox"), opening = box.classList.contains("hidden");
+    document.querySelectorAll(".dropdown").forEach((d) => d.classList.add("hidden"));
+    box.classList.toggle("hidden", !opening);
+    if (opening) { renderHelp(); $("helpText").focus(); }
+  };
+  $("helpBox").onclick = (e) => e.stopPropagation();
+  if (boot.modules.comms) {
+    renderHelp();
+    const send = () => guard(() => post("/api/comms/help", { room_id: roomId, category: $("helpCat").value, description: $("helpText").value, priority: "urgent" }))
+      .then(() => { $("helpText").value = ""; toast("Help call sent. You'll see here when someone is on the way.", "good"); renderHelp(); });
+    $("helpBtn").onclick = send;
+    $("helpText").onkeydown = (e) => { if (e.key === "Enter") send(); };
+  } else $("helpTop").parentElement.classList.add("hidden");
+
+  // captions: a quick look on the dashboard, the full view in its window
+  const finals = [];
+  let partial = "", capLive = false;
+  function renderCaps() {
+    $("capText").innerHTML = finals.slice(-6).map((t) => `<div>${esc(t)}</div>`).join("") + (partial ? `<div class="partial">${esc(partial)}</div>` : "") || '<span class="muted">Captions for this room appear here.</span>';
+    const last = partial || finals[finals.length - 1] || "";
+    $("capLine").innerHTML = last ? esc(last) : '<span class="muted">Nothing yet.</span>';
+  }
+  function capStatus(live, source) {
+    if (capLive && !live) problem(`Captions stopped in ${roomName}`, "Nothing is being captioned. Check the mic in Captions.");
+    capLive = live;
+    $("capState").textContent = live ? (source ? `live · ${source}` : "live") : "off"; $("capState").className = "pill " + (live ? "good" : "");
+  }
+  if (boot.modules.captions) {
+    const r = await api(`/api/captions/${roomId}/recent`);
+    finals.push(...r.finals); partial = r.partial; renderCaps();
+    capStatus(r.live);
+    setupMic();
+    $("capScreen").href = `/captions/${roomId}`; $("capOverlay").href = `/captions/${roomId}/overlay`;
+    $("capTest").onclick = () => guard(() => post(`/api/captions/${roomId}/test`, { text: "Test caption: can everyone read this?", final: true }));
+    $("capClear").onclick = () => guard(() => post(`/api/captions/${roomId}/clear`));
+    api("/api/captions/status").then((st) => { const e = st.engine || {}; $("capEngine").textContent = e.state === "ready" ? "Caption engine ready." : e.state === "off" ? "Caption engine is off. Ask an admin to turn it on." : `Caption engine: ${e.state}${e.detail ? " (" + e.detail + ")" : ""}`; }).catch(() => {});
+    api("/api/captions/transcripts").then((ts) => { const t = ts.find((x) => x.room_id === roomId); if (t) { $("capScript").href = `/api/captions/transcripts/${t.id}`; $("capScript").classList.remove("hidden"); } }).catch(() => {});
+  }
+
+  function onEvent(evt) {
+    chat && chat.onEvent(evt);
+    const own = (m) => (boot.me.kind === "account" ? m.sender_id === boot.me.id : !m.sender_id && m.sender_name === boot.me.name);
+    if (evt.type === "message.new" && !own(evt.data)) {
+      const m = evt.data, dm = evt.topic.startsWith("dm:"), mine = dm || evt.topic === `room:${roomId}` || evt.topic.startsWith("site:");
+      if (!chatSeen()) { chatUnread++; ATDesk.badge("chat", chatUnread); }
+      if (mine || m.priority === "urgent") alerts.add(m.priority === "urgent" ? "urgent" : "chat", dm ? `${m.sender_name} (direct)` : m.sender_name, m.body || "Sent a file", () => setDock(true));
+    }
+    const what = (h) => h.description ? `${h.category}: ${h.description}` : h.category;
+    if (evt.type === "help.new") {
+      // not about the call you just sent yourself
+      if (!(evt.data.room_id === roomId && evt.data.requested_by === boot.me.name)) alerts.add("urgent", `Help needed in ${evt.data.room_name}`, what(evt.data), () => $("helpTop").click());
+      renderHelp();
+    }
+    if (evt.type === "help.updated") {
+      renderHelp();
+      const h = evt.data;
+      if (h.room_id === roomId && h.status === "acknowledged" && h.assigned_to !== boot.me.name) alerts.add("good", `${h.assigned_to || "Someone"} is on the way`, what(h));
+    }
+    cuelist && cuelist.onEvent(evt);
+    if (evt.topic === `timer:${roomId}` && evt.type === "timer") tstate = evt.data;
+    if ((evt.type === "overlay.changed" || evt.type === "node.changed") && evt.topic === `room:${roomId}`) { clearTimeout(atOvTimer); atOvTimer = setTimeout(renderAtOverlay, 400); }
+    if (evt.type === "presenter.changed" && evt.topic === `room:${roomId}` && boot.modules.presenter) { clearTimeout(sessTimer); sessTimer = setTimeout(renderSessions, 300); }
+    if (evt.topic === `captions:${roomId}`) {
+      if (evt.type === "final") { finals.push(evt.data.text); partial = ""; renderCaps(); }
+      else if (evt.type === "partial") { partial = evt.data.text; renderCaps(); }
+      else if (evt.type === "clear") { finals.length = 0; partial = ""; renderCaps(); }
+      else if (evt.type === "level") $("meter").style.width = Math.max(0, Math.min(100, (evt.data.db + 60) / 60 * 100)) + "%";
+      else if (evt.type === "status") capStatus(evt.data.live, evt.data.source);
+    }
+  }
+
+  async function setupMic() {
+    const btn = $("micBtn"), note = $("micNote"), sel = $("mic");
+    if (!window.isSecureContext || !navigator.mediaDevices) {
+      btn.disabled = true; sel.classList.add("hidden");
+      note.textContent = "Browsers only allow the microphone over https. Open this page through the server's https address, or run the node agent for captions.";
+      return;
+    }
+    async function listMics() {
+      const devs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+      sel.innerHTML = devs.map((d, i) => `<option value="${esc(d.deviceId)}">${esc(d.label || "Microphone " + (i + 1))}</option>`).join("");
+      try { const m = localStorage.getItem("atsuit_mic"); if (m) sel.value = m; } catch (_) {}
+    }
+    await listMics();
+    let ctx = null, stream = null, ws = null;
+    async function startMic() {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: sel.value ? { exact: sel.value } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      try { localStorage.setItem("atsuit_mic", sel.value); } catch (_) {}
+      await listMics();
+      ctx = new AudioContext();
+      const worklet = `class P extends AudioWorkletProcessor{constructor(){super();this.r=sampleRate/16000;this.acc=0;this.buf=[]}
+        process(i){const ch=i[0]&&i[0][0];if(!ch)return true;for(let n=0;n<ch.length;n++){this.acc+=1;if(this.acc>=this.r){this.acc-=this.r;let s=Math.max(-1,Math.min(1,ch[n]));this.buf.push(s<0?s*32768:s*32767)}}
+        if(this.buf.length>=1600){this.port.postMessage(Int16Array.from(this.buf).buffer,[]);this.buf=[]}return true}}registerProcessor('p',P)`;
+      await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([worklet], { type: "application/javascript" })));
+      const src = ctx.createMediaStreamSource(stream), proc = new AudioWorkletNode(ctx, "p");
+      src.connect(proc);
+      const q = nodeToken ? `?node_token=${encodeURIComponent(nodeToken)}` : "";
+      ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/audio/${roomId}${q}`);
+      ws.binaryType = "arraybuffer";
+      ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === "error") { problem("Captions mic stopped", m.message); stopMic(); } if (m.type === "replaced") { alerts.add("chat", `${m.by} took over the captions mic`); stopMic(); } };
+      ws.onclose = () => stopMic();
+      proc.port.onmessage = (e) => ws.readyState === 1 && ws.send(e.data);
+      btn.textContent = "Stop my mic"; btn.classList.remove("primary"); btn.classList.add("danger");
+      note.textContent = "Your microphone is captioning this room.";
+    }
+    function stopMic() {
+      if (ws && ws.readyState <= 1) ws.close();
+      stream && stream.getTracks().forEach((t) => t.stop());
+      ctx && ctx.close().catch(() => {});
+      ws = stream = ctx = null;
+      btn.textContent = "Send my mic"; btn.classList.add("primary"); btn.classList.remove("danger");
+      note.textContent = "";
+    }
+    btn.onclick = () => (ws ? stopMic() : startMic().catch((e) => { problem("The mic didn't start", e.message); stopMic(); }));
+  }
+})();
+</script>
+</body>
+</html>

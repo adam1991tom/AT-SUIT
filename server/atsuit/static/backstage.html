@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Backstage</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><meta name="theme-color" content="#000">
+<link rel="stylesheet" href="/static/app.css">
+<style>
+  /* Backstage: a studio clock like a radio station's, with what the stage screen is showing,
+     the running order and the room's help calls beside it. Made for a 16:9 screen. */
+  :root { --bg: #050608; --card: #0f1217; --line: #1f2530; --fg: #f1f5f9; --dim: #7c8796; --faint: #2a313c;
+    --red: #ff2d2d; --amber: #ffcc00; --green: #22c55e; --accent: #ff7a1a; }
+  html, body { background: var(--bg); color: var(--fg); overflow: hidden; cursor: none; margin: 0; height: 100%; font-variant-numeric: tabular-nums; }
+  .bs { height: 100vh; box-sizing: border-box; padding: 2.2vh 2vw; display: grid; gap: 1.6vh 2vw;
+    grid-template-columns: minmax(0, 44fr) minmax(0, 56fr); grid-template-rows: auto minmax(0, 1fr); }
+  .top { grid-column: 1 / -1; display: flex; align-items: center; gap: 1.4vw; }
+  .top .room { font-size: 2.4vw; font-weight: 800; letter-spacing: .02em; }
+  .top .date { color: var(--dim); font-size: 1.3vw; }
+  .top .grow { flex: 1; }
+  .lamp { font-size: 1.35vw; font-weight: 800; letter-spacing: .14em; padding: .45vh 1vw; border-radius: .5vw; border: 2px solid var(--faint); color: var(--faint); }
+  .lamp.play { background: var(--red); border-color: var(--red); color: #fff; box-shadow: 0 0 2.4vw rgba(255, 45, 45, .55); }
+  .lamp.pause { border-color: var(--amber); color: var(--amber); }
+  .lamp.over { background: var(--red); border-color: var(--red); color: #fff; animation: pulse .8s ease-in-out infinite; }
+  #off { color: var(--red); font-size: 1.1vw; }
+
+  /* the studio clock */
+  .clockbox { display: flex; align-items: center; justify-content: center; min-height: 0; }
+  #studio { width: min(100%, 78vh); height: auto; aspect-ratio: 1; }
+  #studio .sec { fill: var(--faint); }
+  #studio .sec.on { fill: var(--red); }
+  #studio .hr { fill: var(--fg); }
+  #studio .ring { fill: none; stroke: var(--faint); stroke-width: 2.2; }
+  #studio .arc { fill: none; stroke: var(--fg); stroke-width: 2.2; stroke-linecap: round; transition: stroke .4s; }
+  #studio .arc.warn { stroke: var(--amber); } #studio .arc.danger, #studio .arc.over { stroke: var(--red); }
+  #studio text { fill: var(--fg); text-anchor: middle; font-weight: 800; font-family: inherit; }
+  #studio .hm { font-size: 38px; letter-spacing: -.5px; }
+  #studio .ss { font-size: 17px; fill: var(--red); }
+  #studio .ap { font-size: 9px; fill: var(--dim); font-weight: 700; letter-spacing: 1px; }
+
+  .col { display: grid; gap: 1.4vh; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: .8vw; padding: 1.4vh 1.3vw; min-width: 0; }
+  .lab { font-size: .85vw; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); display: flex; gap: .8vw; align-items: center; }
+  .lab .grow { flex: 1; }
+
+  /* what the stage screen is showing */
+  .stage-row { display: flex; align-items: baseline; gap: 1.4vw; }
+  #timer { font-size: 7.4vw; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+  #timer.warn { color: var(--amber); } #timer.danger, #timer.over { color: var(--red); }
+  #timer.blink { animation: pulse .8s ease-in-out infinite; }
+  #timer.idle { color: var(--dim); }
+  .facts { display: grid; gap: .3vh; font-size: 1.15vw; color: var(--dim); }
+  .facts b { color: var(--fg); font-weight: 700; }
+  .pill { font-size: .8vw; font-weight: 800; letter-spacing: .1em; padding: .2vh .6vw; border-radius: 99px; border: 1px solid var(--faint); color: var(--dim); }
+  .pill.play { color: var(--green); border-color: var(--green); } .pill.pause, .pill.armed { color: var(--amber); border-color: var(--amber); }
+  .pill.over { color: #fff; background: var(--red); border-color: var(--red); }
+  .bar { position: relative; height: .9vh; background: var(--faint); border-radius: 99px; overflow: hidden; margin-top: 1vh; }
+  .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--fg); border-radius: 99px; transition: width .3s linear, background .4s; }
+  .bar.warn i { background: var(--amber); } .bar.danger i, .bar.over i { background: var(--red); }
+  .onstage { display: flex; flex-wrap: wrap; gap: .6vw; margin-top: 1vh; }
+  .onstage:empty { display: none; }
+  .tag { font-size: 1.05vw; padding: .4vh .7vw; border-radius: .4vw; background: #1a1f28; border: 1px solid var(--line); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag b { color: var(--dim); font-weight: 800; font-size: .8vw; letter-spacing: .1em; margin-right: .5vw; }
+  .tag.msg { border-color: var(--accent); white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; } /* a long message keeps to three lines */
+  .tag.alert { border-color: var(--red); color: var(--red); font-weight: 800; }
+
+  /* now and next */
+  .nn { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2vw; }
+  .nn .t { font-size: 1.7vw; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: .4vh; }
+  .nn .m { font-size: 1.05vw; color: var(--dim); margin-top: .2vh; }
+
+  /* running order */
+  #list { overflow: hidden; display: grid; align-content: start; gap: .2vh; margin-top: .8vh; }
+  #list .q { display: grid; grid-template-columns: 4.5vw 1fr auto; gap: 1vw; align-items: baseline; padding: .7vh .6vw; border-left: .35vw solid transparent; border-radius: .3vw; font-size: 1.25vw; }
+  #list .q.now { background: #1a1f28; font-weight: 800; }
+  #list .q.done { opacity: .35; }
+  #list .q.skip { opacity: .3; text-decoration: line-through; }
+  #list .c { color: var(--dim); } #list .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } #list .d { color: var(--dim); font-size: 1.05vw; }
+  #list .none { color: var(--dim); font-size: 1.1vw; }
+
+  /* help calls */
+  #help.calm { border-color: var(--line); }
+  #help .ok { color: var(--green); font-size: 1.15vw; font-weight: 700; margin-top: .4vh; }
+  #help .call { display: grid; grid-template-columns: auto 1fr auto; gap: 1vw; align-items: center; margin-top: .8vh; padding: 1vh 1vw; border-radius: .5vw; background: #2a0b0b; border: 2px solid var(--red); }
+  #help .call.acknowledged { background: #2a2208; border-color: var(--amber); }
+  #help .call .k { font-size: 1vw; font-weight: 900; letter-spacing: .12em; color: var(--red); }
+  #help .call.acknowledged .k { color: var(--amber); }
+  #help .call .d { font-size: 1.45vw; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #help .call .w { font-size: 1vw; color: var(--dim); text-align: right; white-space: nowrap; }
+  #help .more { font-size: 1vw; color: var(--dim); margin-top: .6vh; }
+  #help.alarm { border-color: var(--red); animation: glow 1s ease-in-out infinite; }
+  #flash { position: fixed; inset: 0; pointer-events: none; border: 0 solid var(--red); z-index: 50; }
+  #flash.on { animation: edge 1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
+  @keyframes glow { 0%, 100% { box-shadow: 0 0 0 rgba(255, 45, 45, 0); } 50% { box-shadow: 0 0 2.4vw rgba(255, 45, 45, .6); } }
+  @keyframes edge { 0%, 100% { border-width: 0; } 50% { border-width: 1.2vw; } }
+
+  /* portrait or small screens: stack */
+  @media (max-aspect-ratio: 1/1) {
+    .bs { grid-template-columns: 1fr; grid-template-rows: auto auto minmax(0, 1fr); overflow: auto; }
+    #studio { width: min(58vw, 28vh); }
+    .top .room { font-size: 5vw; } .top .date, .lamp { font-size: 3vw; }
+    #timer { font-size: 15vw; } .facts, .tag, #list .q, #help .call .d { font-size: 3.2vw; } .lab { font-size: 2.6vw; } .nn .t { font-size: 4vw; } .nn .m { font-size: 2.8vw; }
+  }
+</style>
+</head>
+<body>
+<div class="bs">
+  <div class="top"><span class="room" id="room"></span><span class="date" id="date"></span><span class="grow"></span><span id="off" class="hidden">reconnecting…</span><span class="lamp" id="lamp">ON STAGE</span></div>
+  <div class="clockbox">
+    <svg id="studio" viewBox="0 0 200 200" aria-label="Time of day">
+      <circle class="ring" cx="100" cy="100" r="97"></circle>
+      <path class="arc" id="arc" d=""></path>
+      <g id="dots"></g>
+      <text class="hm" id="hm" x="100" y="103">--:--</text>
+      <text class="ss" id="ss" x="100" y="127">00</text>
+      <text class="ap" id="ap" x="100" y="72"></text>
+    </svg>
+  </div>
+  <div class="col">
+    <div class="box">
+      <div class="lab"><span>On the stage screen</span><span class="grow"></span><span class="pill" id="state">READY</span></div>
+      <div class="stage-row"><div id="timer" class="idle">--:--</div>
+        <div class="facts"><span>Started <b id="started">—</b></span><span>Ends <b id="ends">—</b></span><span id="overunder"></span></div></div>
+      <div class="bar" id="bar"><i></i></div>
+      <div class="onstage" id="onstage"></div>
+    </div>
+    <div class="box nn">
+      <div><div class="lab">Now</div><div class="t" id="nowT">—</div><div class="m" id="nowM"></div></div>
+      <div><div class="lab">Next</div><div class="t" id="nextT">—</div><div class="m" id="nextM"></div></div>
+    </div>
+    <div class="box" style="display:flex;flex-direction:column;min-height:0"><div class="lab"><span>Running order</span><span class="grow"></span><span id="count"></span></div><div id="list"></div></div>
+    <div class="box calm" id="help"><div class="lab"><span>Help calls</span></div><div id="helpBody"><div class="ok">● All clear</div></div></div>
+  </div>
+</div>
+<div id="flash"></div>
+<script src="/static/common.js"></script>
+<script>
+(async () => {
+  const roomId = location.pathname.split("/")[2];
+  const $ = (id) => document.getElementById(id), esc = AT.esc;
+  const pad = (n) => String(n).padStart(2, "0");
+  let s = await AT.api(`/api/timers/${roomId}`), cues = [], board = { calls: [], open_elsewhere: 0 };
+  const got = (x) => { x._rx = Date.now(); s = x; };
+  // Re-read the venue clock every few minutes, so a screen left up overnight keeps time across a clock change.
+  setInterval(() => AT.api(`/api/timers/${roomId}`).then(got).catch(() => {}), 300000);
+  got(s);
+  $("room").textContent = s.room;
+  document.title = `Backstage · ${s.room}`;
+
+  // the studio clock: sixty second dots filling round the face, twelve hour marks inside
+  const NS = "http://www.w3.org/2000/svg", dots = [];
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * 2 * Math.PI - Math.PI / 2, d = document.createElementNS(NS, "circle");
+    d.setAttribute("cx", 100 + 89 * Math.cos(a)); d.setAttribute("cy", 100 + 89 * Math.sin(a)); d.setAttribute("r", 2.6); d.setAttribute("class", "sec");
+    $("dots").appendChild(d); dots.push(d);
+    if (i % 5 === 0) {
+      const h = document.createElementNS(NS, "circle");
+      h.setAttribute("cx", 100 + 79 * Math.cos(a)); h.setAttribute("cy", 100 + 79 * Math.sin(a)); h.setAttribute("r", i % 15 === 0 ? 3.2 : 2.2); h.setAttribute("class", "hr");
+      $("dots").appendChild(h);
+    }
+  }
+  // The outer ring shows how much of the stage timer is left, coloured like the timer.
+  const arcPath = (frac) => {
+    if (frac <= 0) return "";
+    if (frac >= 0.9999) return "M100 3 A97 97 0 1 1 99.99 3";
+    const a = frac * 2 * Math.PI - Math.PI / 2, x = 100 + 97 * Math.cos(a), y = 100 + 97 * Math.sin(a);
+    return `M100 3 A97 97 0 ${frac > 0.5 ? 1 : 0} 1 ${x.toFixed(2)} ${y.toFixed(2)}`;
+  };
+
+  // site time of day, from the server so every screen agrees
+  const todMs = () => ((s.clock_ms + Date.now() - s._rx) % 86400000 + 86400000) % 86400000;
+  const hhmm = (ms) => {
+    const t = Math.floor(((ms % 86400000) + 86400000) % 86400000 / 60000), h = Math.floor(t / 60), m = t % 60;
+    return s.time_format === "12" ? `${h % 12 || 12}:${pad(m)} ${h >= 12 ? "PM" : "AM"}` : `${pad(h)}:${pad(m)}`;
+  };
+  // the Standard screen's style: 4:59, 1:02:03, -0:05 in overtime
+  const fmt = (ms) => {
+    const a = Math.abs(ms), h = Math.floor(a / 3600000), m = Math.floor(a % 3600000 / 60000), sec = Math.floor(a % 60000 / 1000);
+    return (ms < 0 ? "-" : "") + (h ? `${h}:${pad(m)}:${pad(sec)}` : `${m}:${pad(sec)}`);
+  };
+  const dur = (ms) => AT.fmtTime(ms).replace(/^\+/, "");
+  // The venue's date (from the server), not the screen's own: a screen set to another time zone still shows the right day.
+  const date = () => (s.venue_date ? new Date(s.venue_date + "T12:00:00") : new Date()).toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+  const ago = (iso) => { const m = Math.max(0, Math.round((Date.now() - new Date(iso)) / 60000)); return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ${m % 60} min ago`; };
+
+  function drawClock() {
+    const t = todMs(), sec = Math.floor(t / 1000) % 60, h = Math.floor(t / 3600000), m = Math.floor(t / 60000) % 60;
+    dots.forEach((d, i) => d.classList.toggle("on", i <= sec));
+    const hm = s.time_format === "12" ? `${h % 12 || 12}:${pad(m)}` : `${pad(h)}:${pad(m)}`;
+    if ($("hm").textContent !== hm) $("hm").textContent = hm;
+    $("ss").textContent = pad(sec);
+    $("ap").textContent = s.time_format === "12" ? (h >= 12 ? "PM" : "AM") : "";
+    const d = date(); if ($("date").textContent !== d) $("date").textContent = d;
+  }
+
+  function drawStage() {
+    const type = s.timer_type || "count-down", loaded = s.playback !== "stop";
+    const left = s.running ? s.remaining_ms - (Date.now() - s._rx) : s.remaining_ms;
+    const total = s.duration_ms + (s.added_ms || 0);
+    const clock = s.show_clock || type === "clock";
+    let text, phase = "";
+    if (clock) text = hhmm(todMs());
+    else if (!loaded) text = "--:--";
+    else if (type === "none") text = "—";
+    else {
+      text = type === "count-up" ? dur(Math.max(0, total - left)) : fmt(left);
+      phase = left < 0 ? "over" : left <= s.danger_ms ? "danger" : left <= s.warn_ms ? "warn" : "";
+    }
+    const tm = $("timer");
+    if (tm.textContent !== text) tm.textContent = text;
+    tm.className = (phase || (!loaded && !clock ? "idle" : "")) + (s.message_blink ? " blink" : "");
+    const pb = phase === "over" && s.playback === "play" ? "over" : s.playback;
+    const label = { play: "RUNNING", pause: "PAUSED", armed: "READY", stop: "STOPPED", over: "OVERTIME" }[pb] || pb.toUpperCase();
+    $("state").textContent = clock ? "CLOCK" : label; $("state").className = "pill " + (clock ? "" : pb);
+    $("lamp").className = "lamp " + (pb === "over" ? "over" : pb === "play" ? "play" : pb === "pause" ? "pause" : "");
+    $("lamp").textContent = pb === "over" ? "OVERTIME" : pb === "play" ? "ON STAGE" : pb === "pause" ? "PAUSED" : "STANDBY";
+    // when it started and when it will end, by the site clock
+    const now = todMs();
+    $("started").textContent = s.started_at ? hhmm(now - ((s.server_time - s.started_at) * 1000 + (Date.now() - s._rx))) : "—";
+    $("ends").textContent = loaded && !clock && type === "count-down" ? (s.running ? hhmm(now + left) : `${fmt(Math.max(0, left))} left`) : "—";
+    $("overunder").innerHTML = phase === "over" ? `<b style="color:var(--red)">${fmt(-left).replace("-", "")} over</b>` : "";
+    // progress, here and round the clock
+    const frac = loaded && !clock && total > 0 && type === "count-down" ? Math.min(1, Math.max(0, left / total)) : 0;
+    $("bar").className = "bar " + phase; $("bar").firstChild.style.width = (phase === "over" ? 100 : frac * 100) + "%";
+    $("arc").setAttribute("d", phase === "over" ? arcPath(1) : arcPath(frac)); $("arc").setAttribute("class", "arc " + phase);
+    // everything else the stage screen is showing
+    const on = [];
+    if (s.blackout) on.push(`<span class="tag alert">BLACKOUT: the stage screens are blank</span>`);
+    if (s.message_visible && s.message) on.push(`<span class="tag msg"><b>MESSAGE</b>${esc(s.message)}</span>`);
+    const x = s.secondary || {};
+    if (x.visible && (x.mode === "timer" ? x.duration_ms : x.text)) {
+      const l = x.mode === "timer" ? (x.running ? x.remaining_ms - (Date.now() - s._rx) : x.remaining_ms) : 0;
+      on.push(`<span class="tag"><b>SECOND LINE</b>${esc(x.mode === "timer" ? fmt(l) + (x.running ? "" : " (paused)") : x.text)}</span>`);
+    }
+    if (s.message_blink) on.push(`<span class="tag"><b>BLINK</b>on</span>`);
+    if (s.show_clock) on.push(`<span class="tag"><b>CLOCK</b>time of day showing</span>`);
+    const html = on.join("");
+    if ($("onstage").innerHTML !== html) $("onstage").innerHTML = html;
+  }
+
+  function drawCues() {
+    const cur = s.cue, nxt = s.next;
+    $("nowT").textContent = cur ? `${cur.cue ? cur.cue + " · " : ""}${cur.title}` : s.title || (s.playback !== "stop" ? "Quick timer" : "—");
+    $("nowM").textContent = cur ? [cur.time_start && `Planned ${cur.time_start}`, dur(cur.duration_ms)].filter(Boolean).join(" · ") : s.playback !== "stop" ? dur(s.duration_ms) : "Nothing loaded";
+    $("nextT").textContent = nxt ? `${nxt.cue ? nxt.cue + " · " : ""}${nxt.title}` : "—";
+    $("nextM").textContent = nxt ? [nxt.time_start && `Planned ${nxt.time_start}`, dur(nxt.duration_ms)].filter(Boolean).join(" · ") : cues.length ? "End of the running order" : "";
+    const i = cues.findIndex((q) => q.id === cur?.id);
+    $("count").textContent = cues.length ? (i >= 0 ? `${i + 1} of ${cues.length}` : `${cues.length} cues`) : "";
+    $("list").innerHTML = cues.map((q, n) => `<div class="q ${q.id === cur?.id ? "now" : ""} ${i >= 0 && n < i ? "done" : ""} ${q.skip ? "skip" : ""}" style="border-left-color:${esc(q.colour || "transparent")}">` +
+      `<span class="c">${esc(q.cue)}</span><span class="t">${esc(q.title)}</span><span class="d">${q.time_start ? esc(q.time_start) + " · " : ""}${dur(q.duration_ms)}</span></div>`).join("") || '<div class="none">No running order for this room.</div>';
+    // keep the cue on now in view, with what has gone just above it
+    const nowEl = $("list").querySelector(".now");
+    if (nowEl) $("list").scrollTop = Math.max(0, nowEl.offsetTop - $("list").offsetTop - nowEl.offsetHeight * 1.2);
+  }
+
+  function drawHelp() {
+    const calls = board.calls || [], open = calls.some((h) => h.status === "open");
+    // the box glows while a call is open; the whole screen's edge flashes for the first two minutes of one
+    const fresh = calls.some((h) => h.status === "open" && Date.now() - new Date(h.created_at) < 120000);
+    $("help").className = "box " + (open ? "alarm" : calls.length ? "" : "calm");
+    $("flash").classList.toggle("on", fresh);
+    $("helpBody").innerHTML = (calls.length ? calls.slice(0, 2).map((h) => `<div class="call ${esc(h.status)}">` +
+      `<span class="k">${h.status === "open" ? "HELP NEEDED" : "ON IT"}</span>` +
+      `<span class="d">${esc(h.description || h.category)}</span>` +
+      `<span class="w">${h.status === "open" ? esc(h.requested_by) : esc(h.assigned_to || "")} · <span data-ago="${esc(h.created_at)}">${ago(h.created_at)}</span></span></div>`).join("")
+      + (calls.length > 2 ? `<div class="more">and ${calls.length - 2} more</div>` : "")
+      : '<div class="ok">● All clear in this room</div>')
+      + (board.open_elsewhere ? `<div class="more">${board.open_elsewhere} open in other rooms</div>` : "");
+  }
+
+  const loadBoard = () => AT.api(`/api/comms/help/board/${roomId}`).then((b) => { board = b; drawHelp(); }).catch(() => { $("help").style.display = "none"; });
+  cues = await AT.api(`/api/timers/${roomId}/cues`).catch(() => []);
+  drawCues(); loadBoard();
+  setInterval(() => { drawClock(); drawStage(); }, 100);
+  setInterval(drawHelp, 15000); // keeps "3 min ago" and the edge flash up to date
+  drawClock(); drawStage();
+  AT.socket([`timer:${roomId}`], (e) => {
+    if (e.type === "timer") { got(e.data); drawCues(); }
+    if (e.type === "cues") { cues = e.data.cues; drawCues(); }
+    if (e.type === "help") { board = e.data; drawHelp(); }
+  }, (up) => {
+    $("off").classList.toggle("hidden", up);
+    if (up) { AT.api(`/api/timers/${roomId}`).then((x) => { got(x); drawCues(); }); loadBoard(); }
+  });
+})();
+</script>
+</body>
+</html>

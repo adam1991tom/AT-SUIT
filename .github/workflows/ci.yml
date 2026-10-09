@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        run: pip install -r server/requirements.txt -r server/requirements-asr.txt -r server/requirements-dev.txt
+      - name: Cache speech model
+        id: model
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: sherpa-zipformer-en-2023-06-21
+      - name: Download speech model
+        if: steps.model.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p models && cd models
+          curl -fsSL -o m.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2
+          tar xjf m.tar.bz2 --wildcards '*/tokens.txt' '*int8.onnx' '*/test_wavs/0.wav' && rm m.tar.bz2
+      - name: Test
+        working-directory: server
+        env:
+          ATSUIT_TEST_MODELS: ${{ github.workspace }}/models
+        run: python -m pytest -q
+      - name: Check node agent
+        run: python -m py_compile node-agent/atsuit_node.py room-sync/atsuit_room_sync.py tools/licence.py
+
+  image:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: |
+          docker build --build-arg VERSION=$(cat VERSION) --build-arg BUILD=${{ github.run_number }} \
+            --build-arg COMMIT=${GITHUB_SHA::7} --build-arg BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ) -t atsuit:ci .
+      - name: Smoke test
+        run: |
+          docker run -d --name atsuit -p 8080:8080 -e ATSUIT_ASR=0 atsuit:ci
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:8080/api/health && exit 0; sleep 2; done
+          docker logs atsuit; exit 1
+
+  web:
+    # The Svelte screens (web/). Their built files are committed under
+    # server/atsuit/static/ui so the server needs no build step; this checks
+    # they match the source.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        working-directory: web
+        run: npm ci
+      - name: Test
+        working-directory: web
+        run: npm test
+      - name: Build
+        working-directory: web
+        run: npm run build
+      - name: Built files are up to date
+        run: |
+          git status --porcelain server/atsuit/static/ui
+          test -z "$(git status --porcelain server/atsuit/static/ui)" || { echo "Run 'npm run build' in web/ and commit server/atsuit/static/ui"; exit 1; }
+
+  windows-app:
+    # The tech workspace app, tested for real on Windows against a live server,
+    # then packaged as the installer laptops use.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: node-app/package-lock.json
+      - name: Install
+        run: |
+          pip install -r server/requirements.txt
+          cd node-app
+          npm ci
+      - name: Test the app (enrol once, daily room, silent pop-ups)
+        working-directory: node-app
+        run: npx playwright test
+      - name: Build the installer
+        working-directory: node-app
+        run: |
+          npm version --no-git-tag-version --allow-same-version (Get-Content ../VERSION)
+          npx electron-builder --win --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AT-SUIT-Node-windows
+          path: |
+            node-app/dist/*.exe
+            node-app/dist/*.blockmap
+            node-app/dist/latest.yml
+          if-no-files-found: error
+      - name: Build a newer copy to update to
+        working-directory: node-app
+        run: |
+          $v = (Get-Content ../VERSION).Trim().Split('.')
+          $b = "$($v[0]).$($v[1]).$([int]$v[2] + 1)"
+          npx electron-builder --win --publish never "-c.extraMetadata.version=$b" "-c.directories.output=distB"
+      - name: The app updates itself from the server (install A, publish B, A becomes B)
+        working-directory: node-app
+        timeout-minutes: 15
+        run: node test/update-e2e.js dist distB

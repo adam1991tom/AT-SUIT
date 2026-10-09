@@ -1,0 +1,33 @@
+{
+  "name": "atsuit-node",
+  "productName": "AT-SUIT Node",
+  "version": "1.0.0",
+  "description": "AT-SUIT tech workspace for Windows laptops: chat, room timer, captions mic and silent pop-ups.",
+  "main": "src/main.js",
+  "private": true,
+  "license": "MIT",
+  "author": "AT-SUIT",
+  "scripts": {
+    "start": "electron .",
+    "test": "playwright test",
+    "dist:win": "electron-builder --win --publish never"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "electron": "44.6.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.atsuit.node",
+    "productName": "AT-SUIT Node",
+    "artifactName": "AT-SUIT-Node-Setup-${version}.${ext}",
+    "files": ["src/**", "build/icon.png", "build/tray-16.png", "build/tray-32.png", "package.json"],
+    "directories": { "output": "dist" },
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }], "icon": "build/icon.ico" },
+    "nsis": { "oneClick": true, "perMachine": false, "runAfterFinish": true, "deleteAppDataOnUninstall": false },
+    "publish": [{ "provider": "generic", "url": "http://localhost/api/nodes/app/" }]
+  }
+}

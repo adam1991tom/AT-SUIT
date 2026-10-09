@@ -1,0 +1,12 @@
+.git
+**/__pycache__
+**/.pytest_cache
+.env
+backups
+data
+node-agent/atsuit_node.json
+docs
+server/tests
+!docs/COMPANION.md
+!docs/views
+!docs/views/**

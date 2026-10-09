@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+data/
+backups/
+.pytest_cache/
+node-agent/atsuit_node.json
+vendor-private-key*
+node-app/node_modules/
+node-app/dist/
+node-app/test-results/
+*.log
+web/node_modules/

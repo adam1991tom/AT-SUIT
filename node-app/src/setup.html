@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'self'; img-src 'self'; font-src 'self'">
+<title>Set up AT-SUIT Node</title>
+<style>
+  @font-face { font-family: "Saira"; font-weight: 800; src: url("brand/fonts/saira-800.woff2") format("woff2"); }
+  body { margin: 0; font: 15px/1.45 system-ui, "Segoe UI", sans-serif; background: #0e1116; color: #e8eaf0; border-top: 4px solid #FF7A1A; }
+  .logo { display: block; width: 130px; margin: 0 auto 14px; }
+  main { padding: 28px 32px; }
+  h1 { font-family: "Saira", system-ui, sans-serif; font-weight: 800; font-size: 24px; margin: 0 0 6px; }
+  p { color: #9aa3b5; margin: 0 0 18px; }
+  label { display: block; margin: 14px 0 5px; font-weight: 600; }
+  input:focus { outline: 2px solid #FF7A1A; outline-offset: 1px; }
+  input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; border: 1px solid #2a3242; background: #161b24; color: #e8eaf0; font: inherit; }
+  small { color: #9aa3b5; }
+  button { margin-top: 22px; width: 100%; padding: 12px; border: 0; border-radius: 8px; background: #FF7A1A; color: #0B1020; font: inherit; font-weight: 700; }
+  button:disabled { opacity: .6; }
+  #err { color: #fecaca; min-height: 1.4em; margin-top: 14px; }
+  #msg { color: #fde68a; }
+</style>
+</head>
+<body>
+<main>
+  <img class="logo" src="brand/stacked-320.png" alt="AT-SUIT">
+  <h1>Add this laptop to AT-SUIT</h1>
+  <p>You only do this once. After that the app opens straight into the workspace, and the tech picks their room each day.</p>
+  <p id="msg"></p>
+  <form id="f">
+    <label for="server">Server address</label>
+    <input id="server" required placeholder="http://10.100.70.101:8180">
+    <small>The AT-SUIT server's http address and port.</small>
+    <label for="code">Enrolment code</label>
+    <input id="code" required placeholder="ABCD-1234-EF56" style="text-transform:uppercase">
+    <small>An admin finds it in Laptops & screens → Add laptops.</small>
+    <label for="name">Laptop name</label>
+    <input id="name" required maxlength="64">
+    <div id="err"></div>
+    <button id="go">Add this laptop</button>
+  </form>
+</main>
+<script src="setup.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Caption settings</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
+<style>
+  body { padding: 0; }
+  header { display: flex; gap: .8rem; align-items: center; padding: .7rem 1rem; background: var(--panel); border-bottom: 3px solid var(--accent);
+    border-image: linear-gradient(90deg, var(--ember), var(--accent) 40%, var(--glow)) 1; }
+  header b { font-family: var(--brand-font); font-weight: 800; font-size: 1.1rem; }
+  main { max-width: 920px; margin: 1rem auto; padding: 0 1rem; }
+</style>
+</head>
+<body>
+<header><img src="/static/brand/icon-96.png" alt="" style="height:30px"><b>Captions</b><select id="room" style="width:auto"></select><span class="grow"></span><span class="pill" id="live">off</span></header>
+<main><section class="panel" id="panel"><p class="muted">Loading…</p></section></main>
+<script src="/static/common.js"></script>
+<script src="/static/captions-panel.js"></script>
+<script>
+// Caption settings on their own page: /static/captions-control.html?room=<id>
+(async () => {
+  const { api, esc } = AT;
+  AT.branding();
+  const q = new URLSearchParams(location.search);
+  let st;
+  try { st = await api("/api/captions/status"); }
+  catch (e) { document.getElementById("panel").innerHTML = `<p>Sign in first: <a href="/">open AT-SUIT</a>.</p><p class="muted">${esc(e.message)}</p>`; return; }
+  const sel = document.getElementById("room");
+  sel.innerHTML = st.rooms.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("");
+  const roomId = +(q.get("room") || st.rooms[0]?.id);
+  sel.value = roomId;
+  sel.onchange = () => { location.search = `?room=${sel.value}`; };
+  const r = st.rooms.find((x) => x.id === roomId);
+  const live = document.getElementById("live");
+  const setLive = (on, src) => { live.textContent = on ? `live${src ? " · " + src : ""}` : "off"; live.className = "pill " + (on ? "good" : ""); };
+  setLive(r && r.live, r && r.source);
+  AT.socket([`captions:${roomId}`], (e) => e.type === "status" && setLive(e.data.live, e.data.source));
+  await ATCaptionsPanel.mount(document.getElementById("panel"), roomId);
+})();
+</script>
+</body>
+</html>
