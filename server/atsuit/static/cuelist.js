@@ -48,7 +48,7 @@ const CueList = (() => {
         <div class="row small" style="margin-top:.4rem"><span class="muted">Bring in an Ontime running order:</span>
           <input type="file" data-import accept=".json" style="width:auto"></div>
       </details>`;
-    const $ = (sel) => el.querySelector(sel);
+    const $ = (sel) => AT.q(el, sel); // parts of the panel may sit in windows of their own
     const form = $("[data-form]");
     // quick timers, quick messages and the second line (timerpanel.js), before the buttons are wired up
     const panel = window.TimerPanel ? TimerPanel.mount($("[data-tp]"), roomId) : null;

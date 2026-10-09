@@ -90,3 +90,11 @@ cd server && pip install -r requirements.txt -r requirements-asr.txt -r requirem
 ATSUIT_DATA=./data uvicorn atsuit.main:app --reload --port 8080
 python -m pytest -q
 ```
+
+The workspace's windows are built with Svelte in `web/`. The built files live
+in `server/atsuit/static/ui/` and are committed, so the server and the Docker
+image need no build step. After changing anything in `web/`:
+
+```bash
+cd web && npm ci && npm test && npm run build   # then commit server/atsuit/static/ui
+```

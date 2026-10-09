@@ -4,6 +4,21 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.8.0
+
+**The workspace works like Windows**
+- Every part of the tech workspace is now a window: the timer, quick timers, messages, second line, cue list, chat, captions, add a screen, sessions, screens, previews, overlays and links.
+- Drag a window by its title onto the guides to dock it beside another, add it as a tab, or put it along an edge; let go anywhere else and it floats. Floating windows resize from any edge; docked ones share the screen with bars you can drag.
+- Minimise, maximise (or double-click the title) and close on every window, and a taskbar along the bottom with a button for each.
+- **Pop out** any window into its own window for a second monitor. It keeps running exactly as it was (chat stays live, the timer keeps ticking). In the AT-SUIT app it is a real app window that can stay on top; closing it puts it back.
+- **Layouts**: save arrangements under a name and switch with one click; each laptop remembers its last one. An admin can make their layout the starting one for every laptop.
+- On a phone or a narrow window everything stacks in one column.
+- The chat box is a window like the rest; its taskbar button counts new messages while it is out of sight.
+
+**Under the hood**
+- The new screens are built with Svelte (`web/`), starting with the workspace's window manager. The built files are committed, so installing the server needs no build step; CI checks they match the source.
+- The old tile board and floating-window code are gone.
+
 ## 0.7.2
 
 **Helper servers**

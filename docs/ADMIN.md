@@ -75,6 +75,24 @@ Everything here is done in the browser. Nothing needs a file edited.
    log of who changed what.
 14. **Admin → API keys**: a key for Companion.
 
+## The tech workspace
+
+Every part of a tech's workspace (the timer, cue list, chat, captions, screens
+and the rest) is a window, like on Windows:
+
+- Drag a window by its title onto the guides that appear: beside another
+  window, into its middle to add it as a tab, or along an edge of the screen.
+  Let go anywhere else and it floats. Drag the bars between windows to resize.
+- Each window can be minimised, maximised (or double-click its title), closed,
+  or **popped out** (⧉) into a window of its own for a second monitor. In the
+  AT-SUIT app a popped-out window can stay on top of everything.
+- The taskbar along the bottom has a button per window. **Layouts** saves the
+  arrangement under a name (for example Plenary or Captions only) to switch
+  between, and puts everything back where it started.
+- An admin signed in to the workspace can choose **Layouts → Use on every
+  laptop** to make their arrangement the starting layout for every tech. Techs
+  can still change their own.
+
 ## Remote screens
 
 A screen is a Linux laptop or all-in-one that only shows things: a room's

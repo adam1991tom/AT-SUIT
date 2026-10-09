@@ -23,4 +23,6 @@ contextBridge.exposeInMainWorld("atsuitApp", {
   // changes any of them and resolves to the new state; overlayState() just reads it.
   overlay: (cfg) => ipcRenderer.invoke("app:overlay", cfg),
   overlayState: () => ipcRenderer.invoke("app:overlay-state"),
+  // A window popped out of the workspace: keep it above everything else.
+  popoutOnTop: (name, on) => ipcRenderer.invoke("app:popout-top", name, on),
 });

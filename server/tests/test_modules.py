@@ -455,3 +455,20 @@ def test_site_wide_appearance_is_admin_only(admin, client):
     client.cookies.clear()
     client.post("/api/auth/login", json={"username": "mo", "password": "password1"})
     assert client.put("/api/admin/settings", json={"appearance": {"theme": "light"}}).status_code == 403
+
+
+def test_admin_sets_the_starting_workspace_layout_for_every_laptop(admin, client):
+    assert admin.get("/api/workspace/layout").json() == {"layout": None}
+    layout = {"v": 1, "root": {"t": "group", "id": "g1", "tabs": ["timer"], "active": "timer"}, "floats": [], "closed": [], "max": None, "seq": 1}
+    assert admin.put("/api/workspace/layout", json={"layout": layout}).status_code == 200
+    code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
+    tok = client.post("/api/nodes/enrol", json={"code": code, "name": "lap9"}).json()["token"]
+    laptop = client.__class__(client.app)
+    got = laptop.get("/api/workspace/layout", headers={"Authorization": f"Node {tok}"})
+    assert got.status_code == 200 and got.json()["layout"]["root"]["tabs"] == ["timer"]
+    # only an admin sets it, and only a layout
+    assert laptop.put("/api/workspace/layout", json={"layout": layout}, headers={"Authorization": f"Node {tok}"}).status_code == 403
+    assert admin.put("/api/workspace/layout", json={"layout": {"v": 2}}).status_code == 400
+    assert admin.put("/api/workspace/layout", json={"layout": None}).status_code == 200
+    assert admin.get("/api/workspace/layout").json() == {"layout": None}
+    assert "workspace.layout" in [l["action"] for l in admin.get("/api/admin/audit").json()]

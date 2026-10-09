@@ -11,3 +11,4 @@ node-app/node_modules/
 node-app/dist/
 node-app/test-results/
 *.log
+web/node_modules/

@@ -123,6 +123,25 @@ test("the main PC: no pop-ups and no notifications of any kind", async () => {
   await expect(page.locator(".toast")).toHaveCount(0); // not even inside the window
 });
 
+test("a workspace window pops out into a window of its own, stays on top if asked, and docks back", async () => {
+  app = await launch();
+  const page = await mainPage(app);
+  await expect(page.locator("#ws")).toBeVisible();
+  const gid = await page.evaluate(() => ATDesk.tree.groupOf(ATDesk.layout(), "chat").id);
+  const [pop] = await Promise.all([app.waitForEvent("window"), page.click(`[data-gid="${gid}"] [aria-label="Pop out"]`)]);
+  await expect(pop.locator(".dk-popmain #chat")).toBeVisible();
+  await benSays("Hello from the pop-out test");
+  await expect(pop.locator("#chat")).toContainText("Hello from the pop-out test"); // still live in its own window
+  const popped = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()
+    .filter((w) => !w.isDestroyed() && w.webContents.getURL() === "about:blank").map((w) => ({ onTop: w.isAlwaysOnTop(), muted: w.webContents.isAudioMuted() })));
+  expect(await popped()).toEqual([{ onTop: false, muted: true }]);
+  await pop.check("[data-top]");
+  await expect.poll(popped).toEqual([{ onTop: true, muted: true }]);
+  await pop.click("[data-back]");
+  await expect(page.locator(".dk-pane #chat")).toBeVisible();
+  await expect.poll(popped).toEqual([]);
+});
+
 test("the backup PC: pop-ups are silent, on top and never take focus", async () => {
   app = await launch();
   const page = await mainPage(app);

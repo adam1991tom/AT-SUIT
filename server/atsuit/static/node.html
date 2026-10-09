@@ -5,6 +5,7 @@
 <title>Tech workspace</title>
 <link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
 <link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/ui/desk.css">
 <script src="/static/theme.js"></script>
 <style>
   .top { display: flex; gap: .8rem; align-items: center; padding: .7rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -18,35 +19,13 @@
   .winbar { display: flex; gap: .3rem; flex-wrap: wrap; }
   .winbar button.on { border-color: var(--accent); color: var(--strong); background: color-mix(in srgb, var(--accent) 35%, var(--panel2)); }
   .winbar .unread { margin-left: .3rem; }
-  /* the board: every part is a tile on a 12-column grid the tech can rearrange (layout.js) */
-  .board { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: 40px; grid-auto-flow: row dense; gap: 1rem; padding: 1rem 1rem 5rem; align-items: start; }
-  .board .btile { grid-row: auto; min-width: 0; position: relative; margin: 0; }
-  .board .btile.tile-fixed { align-self: stretch; overflow: auto; }
-  .board .btile.tile-off { display: none; }
-  #timerBox, #timerBox > [data-tp], #timerBox .tp { display: contents; }
-  .tile-timer { container-type: inline-size; }
+  /* the workspace fills the window under the top bar: windows and a taskbar (static/ui/desk.js) */
+  #ws:not(.hidden) { display: flex; flex-direction: column; height: 100vh; }
+  #desk { flex: 1; min-height: 0; display: flex; }
   .tile-timer .row > input.grow { width: auto; flex-basis: 9rem; } /* the stage message and its Show / Hide on one line */
   .tile-timer .bigclock { font-size: clamp(2.4rem, 17cqw, 8rem); line-height: 1; margin: .2rem 0; }
   .cap-line { min-height: 2.6rem; margin: .4rem 0; font-size: .95rem; }
-  .board.editing .btile { outline: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; padding-top: 2.6rem; }
-  .tile-tools { display: none; }
-  .board.editing .tile-tools { display: flex; align-items: center; gap: .3rem; position: absolute; left: 0; right: 0; top: 0; height: 2.2rem; padding: 0 .4rem; z-index: 5;
-    background: color-mix(in srgb, var(--accent) 18%, var(--panel2)); border-bottom: 1px solid var(--line); border-radius: var(--radius) var(--radius) 0 0; font-size: .8rem; }
-  .tile-tools button { padding: .1rem .45rem; font-size: .8rem; }
-  .tile-tools .tt-grip { cursor: grab; font-size: 1.1rem; padding: 0 .3rem; user-select: none; }
-  .tile-tools b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .tile-corner { display: none; }
-  .board.editing .tile-corner { display: block; position: absolute; right: 2px; bottom: 2px; width: 16px; height: 16px; cursor: nwse-resize; z-index: 5;
-    background: linear-gradient(135deg, transparent 50%, var(--accent) 50%); border-radius: 0 0 6px 0; touch-action: none; }
-  .tile-moving { opacity: .4; }
-  .board-edit { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin: 1rem 1rem 0; padding: .6rem .8rem; border: 1px solid var(--accent); border-radius: var(--radius); background: var(--panel); }
-  @media (max-width: 900px) { .board { grid-template-columns: 1fr; grid-auto-rows: auto; } .board .btile { grid-column: 1 / -1 !important; grid-row: auto !important; } }
-  /* windows over the dashboard */
-  .win { position: fixed; z-index: 20; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 0 1rem 1rem;
-    box-shadow: var(--shadow); max-height: calc(100vh - 70px); overflow: auto; resize: both; min-width: 260px; min-height: 120px; }
-  .win-head { display: flex; align-items: center; gap: .5rem; margin: 0 -1rem .7rem; padding: .5rem .6rem .5rem 1rem; background: var(--panel2); border-bottom: 1px solid var(--line);
-    cursor: move; position: sticky; top: 0; z-index: 1; user-select: none; touch-action: none; }
-  @media (max-width: 900px) { .win { position: static; width: auto !important; height: auto !important; margin: 0 1rem 1rem; resize: none; max-height: none; } .win-head { cursor: default; } }
+  @media (max-width: 900px) { #ws:not(.hidden) { height: auto; min-height: 100vh; } }
   .scr + .scr, .ov + .ov { border-top: 1px solid var(--line); margin-top: .7rem; padding-top: .7rem; }
   /* drop-downs from the top bar: notifications and help */
   .drop { position: relative; }
@@ -57,28 +36,14 @@
   #bellBtn .unread { background: var(--accent); color: #fff; }
   .note { padding: .5rem .6rem; border-left: 3px solid var(--line); background: var(--panel2); border-radius: 0 6px 6px 0; margin-top: .45rem; cursor: pointer; }
   .note.n-urgent, .note.n-error { border-left-color: var(--bad); } .note.n-timer { border-left-color: var(--warn); } .note.n-good { border-left-color: var(--good); } .note.n-chat { border-left-color: var(--accent); }
-  #toasts { right: 372px; z-index: 1100; }
-  @media (max-width: 600px) { #toasts { right: 1rem; bottom: 4rem; } }
+  #toasts { bottom: 3.6rem; z-index: 1100; }
   .scr .row select, .scr .row input { width: auto; flex: 1 1 0 !important; min-width: 0; }
-  /* chat: a small box at the bottom right that folds down */
-  .chatdock { position: fixed; right: 16px; bottom: 0; width: 340px; height: 460px; z-index: 800; display: flex; flex-direction: column;
-    background: var(--panel); border: 1px solid var(--line); border-bottom: 0; border-radius: 10px 10px 0 0; box-shadow: var(--shadow); }
-  .chatdock.closed { height: auto; }
-  .chatdock.closed .chatbody { display: none; }
-  .chathead { display: flex; align-items: center; gap: .5rem; padding: .55rem .8rem; background: var(--accent); color: #fff; border-radius: 10px 10px 0 0; cursor: pointer; user-select: none; }
-  .chathead .muted { color: #fff; } .chathead .unread { background: #fff; color: var(--accent); }
-  .chatbody { flex: 1; min-height: 0; padding: .5rem; display: flex; flex-direction: column; }
-  .chatbody .chat-mount { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  .chatbody .msgs { min-height: 0 !important; display: flex; flex-direction: column; }
-  .chatbody .msgs .list { flex: 1; max-height: none; min-height: 0; }
-  .chatbody .tabs button { padding: .2rem .5rem; font-size: .8rem; }
-  .chatbody .compose { gap: .3rem; }
-  .chatbody .compose select { max-width: 5.6rem; }
-  .chatbody .compose > button, .chatbody .compose > .btn { padding-left: .45rem; padding-right: .45rem; }
-  @media (max-width: 600px) { .chatdock { right: 0; width: 100%; } }
-  /* the open chat box never sits over the board: room to scroll everything above it, and on wide screens a column beside it */
-  body.chat-open .board { padding-bottom: 480px; }
-  @media (min-width: 1800px) { body.chat-open .board { margin-right: 372px; padding-bottom: 5rem; } }
+  /* chat inside its window */
+  .chat-pane { display: flex; flex-direction: column; height: 100%; min-height: 320px; }
+  .chat-pane .chat-mount { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .chat-pane .msgs { min-height: 0 !important; display: flex; flex-direction: column; }
+  .chat-pane .msgs .list { flex: 1; max-height: none; min-height: 0; }
+  .chat-pane .tabs button { padding: .2rem .5rem; font-size: .8rem; }
   /* phones: the top bar scrolls away instead of covering a third of the screen */
   @media (max-width: 700px) { .top { position: static; } }
   @media (max-width: 600px) { .dropdown { position: fixed; left: .5rem; right: .5rem; top: 4rem; width: auto; } } /* the bell and Help lists stay on screen */
@@ -88,10 +53,6 @@
   .opt span { display: block; color: var(--muted); font-size: .82rem; margin-top: .25rem; }
   .opt:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   #startRooms .tile.on { border-color: var(--accent); background: var(--accent); color: #fff; }
-  /* a window pinned to the board is a tile like the rest */
-  .win.pinned { position: relative; resize: none; max-height: none; box-shadow: none; width: auto !important; height: auto; min-width: 0; left: auto !important; top: auto !important; z-index: auto !important; }
-  .win.pinned .win-head { cursor: default; }
-  [data-pin].on { background: var(--accent); color: var(--accent-ink, #0B1020); }
   /* previews: live thumbnails of the room's outputs */
   .pv-grid { display: grid; gap: .7rem; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
   .pv { margin: 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
@@ -151,8 +112,6 @@
     <img class="brand-mark" src="/static/brand/icon-96.png" alt=""><b data-product>AT-SUIT</b>
     <span class="muted" id="who"></span><span class="pill hidden" id="modePill"></span>
     <select id="room" style="width:auto"></select>
-    <nav class="winbar" id="winBar"></nav>
-    <button id="layoutBtn" class="small" title="Move, resize, hide and show the parts of this screen">Layout</button>
     <span class="grow"></span>
     <span class="pill" id="conn">connecting</span>
     <div class="drop"><button id="bellBtn" title="Notifications" aria-label="Notifications">🔔<span class="unread hidden" id="bellCount"></span></button>
@@ -178,19 +137,20 @@
     <div class="row" style="margin-top:.6rem"><button id="popTest" class="small">Test a pop-up</button><span class="muted small" id="appVer"></span></div>
   </div>
 
-  <div class="board" id="board">
+  <div id="desk"></div>
+  <div hidden>
     <section class="panel timer" id="timerBox"></section>
     <section class="panel mini pair-mini" id="pairMini"></section>
     <section class="panel mini" id="capMini">
       <div class="row" style="justify-content:space-between"><h3>Captions</h3><span class="pill" id="capState">off</span></div>
       <div class="cap-line" id="capLine"><span class="muted">Nothing yet.</span></div>
       <div class="meter"><i id="meter"></i></div>
-      <div class="row" style="margin-top:.5rem"><button class="small" data-openwin="captions">Open captions</button></div>
+      <div class="row" style="margin-top:.5rem"><button class="small" data-openwin="captions" onclick="ATDesk.open('captions')">Open captions</button></div>
     </section>
-    <section class="panel mini hidden" id="sessMini"></section>
+    <section class="panel mini" id="sessMini"></section>
   </div>
 
-  <section class="win" data-win="captions" data-title="Captions" data-w="480">
+  <section data-win="captions" data-title="Captions" hidden>
     <div class="cap-live" id="capText"><span class="muted">Captions for this room appear here.</span></div>
     <div class="row" style="margin-top:.6rem">
       <select id="mic" class="grow"></select>
@@ -207,26 +167,23 @@
     <p class="muted small" id="capEngine"></p>
   </section>
 
-  <section class="win" data-win="sessions" data-title="Sessions" data-w="620">
+  <section data-win="sessions" data-title="Sessions" hidden>
     <div class="row" style="justify-content:flex-end"><select id="sessDay" style="width:auto"></select><button class="small" id="sessTimer" title="Replaces this room's cue list">Send this day to the timer</button></div>
     <div id="sessList"></div>
   </section>
 
-  <section class="win" data-win="screens" data-title="Screens" data-w="520">
+  <section data-win="screens" data-title="Screens" hidden>
     <p class="muted small" style="margin-top:0">The Linux screens in this room. Pick what each one shows, or put a web page on it.</p>
     <div id="scrList"></div>
   </section>
 
-  <section class="win" data-win="previews" data-title="Screens preview" data-w="640"><div id="pvBox"></div></section>
+  <section data-win="previews" data-title="Screens preview" hidden><div id="pvBox"></div></section>
 
-  <section class="win" data-win="overlays" data-title="Overlays" data-w="480"><div id="atOv"></div><div id="ovList"></div></section>
+  <section data-win="overlays" data-title="Overlays" hidden><div id="atOv"></div><div id="ovList"></div></section>
 
-  <section class="win" data-win="links" data-title="Links" data-w="560"><input id="linkFind" placeholder="Find a link" style="margin-bottom:.5rem"><div id="links" style="max-height:60vh;overflow:auto"></div></section>
+  <section data-win="links" data-title="Links" hidden><input id="linkFind" placeholder="Find a link" style="margin-bottom:.5rem"><div id="links" style="max-height:60vh;overflow:auto"></div></section>
 
-  <div class="chatdock" id="chatDock">
-    <div class="chathead" id="chatHead"><b>Chat</b><span class="unread hidden" id="chatUnread"></span><span class="grow"></span><span class="muted small" id="chatToggle">▾</span></div>
-    <div class="chatbody"><div class="chat-mount" id="chat"></div></div>
-  </div>
+  <section class="chat-pane" id="chatPane" hidden><div class="chat-mount" id="chat"></div></section>
 </div>
 <iframe id="kiosk" class="hidden" allow="autoplay; fullscreen"></iframe>
 <div id="ident" class="hidden"></div>
@@ -234,7 +191,7 @@
 <script src="/static/common.js"></script>
 <script src="/static/chat.js"></script>
 <script src="/static/previews.js"></script>
-<script src="/static/layout.js"></script>
+<script src="/static/ui/desk.js"></script>
 <script src="/static/timerpanel.js"></script>
 <script src="/static/cuelist.js"></script>
 <script src="/static/desk.js"></script>
@@ -242,7 +199,7 @@
 <script>
 (async () => {
   const { esc, api, post, guard, toast } = AT;
-  const $ = (id) => document.getElementById(id);
+  const $ = (id) => ATDesk.find(id); // here, or in a window popped out of the workspace
   // Inside the AT-SUIT Node Windows app the app owns enrolment and pop-ups.
   const APP = window.atsuitApp || null;
   const VERSION = APP ? `app-${await APP.version()}` : "web-0.1.0";
@@ -431,15 +388,11 @@
     };
   }
 
-  // Windows over the timer, opened and closed from the top bar.
-  // The board: each part of the screen is a tile the tech can move, resize and hide (layout.js). Pinned windows join it.
-  Layout.mount($("board"), $("layoutBtn"));
-  const wins = Desk.windows($("winBar"), { captions: false, sessions: false, screens: false, previews: false, overlays: false, links: false });
-  document.querySelectorAll("[data-openwin]").forEach((b) => (b.onclick = () => wins[b.dataset.openwin].open()));
-  wins.captions.available(!!boot.modules.captions);
-  wins.links.available(!!boot.modules.dashboard);
-  wins.sessions.available(false); wins.overlays.available(false); wins.screens.available(false);
-  if (!boot.modules.captions) $("capMini").classList.add("hidden");
+  // The workspace is a desktop of windows (static/ui/desk.js, built from web/src/desk): every part
+  // docks, tabs, floats, resizes, minimises, maximises and pops out, with a taskbar and saved layouts.
+  // Parts are registered below; the desk starts once they all are.
+  const WINS = ["captions", "sessions", "screens", "previews", "overlays", "links"];
+  const wins = Object.fromEntries(WINS.map((id) => [id, { open: () => ATDesk.open(id), available: (yes) => ATDesk.available(id, yes) }]));
   if (!boot.modules.timers) $("timerBox").innerHTML = '<p class="muted">Timers are switched off for this site.</p>';
 
   // Notifications: the main PC shows nothing; elsewhere the bell, a note in
@@ -470,17 +423,40 @@
       tile.className = "panel tile-timer";
       [...box.children].filter((n) => !n.matches("[data-tp], details")).forEach((n) => tile.appendChild(n));
       box.prepend(tile);
-      Layout.add("timer", tile, "Room timer", [5, 0]);
+      ATDesk.add("timer", AT.detach(tile), "Room timer");
       const tp = box.querySelectorAll("[data-tp] > div");
-      [["quick", "Quick timers", 3], ["messages", "Messages to the speaker", 4], ["second", "Second line", 4]].forEach(([id, title, w], i) => {
-        if (tp[i]) { tp[i].classList.add("panel"); Layout.add(id, tp[i], title, [w, 0]); }
+      [["quick", "Quick timers"], ["messages", "Messages"], ["second", "Second line"]].forEach(([id, title], i) => {
+        if (tp[i]) ATDesk.add(id, AT.detach(tp[i]), title);
       });
       const cues = box.querySelector("details");
-      if (cues) { cues.classList.add("panel"); Layout.add("cues", cues, "Cue list", [8, 0]); }
-    } else { box.style.display = "block"; Layout.add("timer", box, "Room timer", [7, 0]); }
-    Layout.add("pair", $("pairMini"), "Add a screen", [4, 0]);
-    Layout.add("captions", $("capMini"), "Captions", [4, 0]);
-    Layout.add("sessions", $("sessMini"), "Sessions", [4, 0]);
+      if (cues) { cues.open = true; ATDesk.add("cues", AT.detach(cues), "Cue list"); }
+    } else ATDesk.add("timer", box, "Room timer");
+    ATDesk.add("chat", $("chatPane"), "Chat");
+    ATDesk.add("capmini", $("capMini"), "Captions");
+    ATDesk.add("pair", $("pairMini"), "Add a screen");
+    ATDesk.add("sessmini", $("sessMini"), "Now and next");
+    document.querySelectorAll("[data-win]").forEach((w) => ATDesk.add(w.dataset.win, w, w.dataset.title));
+    ATDesk.title("captions", "Captions controls");
+    ["sessmini", "sessions", "overlays", "screens"].forEach((id) => ATDesk.available(id, false)); // until there is something to show
+    ATDesk.available("captions", !!boot.modules.captions); ATDesk.available("capmini", !!boot.modules.captions);
+    ATDesk.available("links", !!boot.modules.dashboard); ATDesk.available("chat", !!boot.modules.comms);
+    // Where everything starts: the timer big on the left with the cue list under it, chat and the room's
+    // other parts on the right. The admin can make any layout the starting one for every laptop.
+    const T = ATDesk.tree, gid = (L, p) => T.groupOf(L, p).id;
+    let F = T.dock(T.empty(), "timer", "root", "center");
+    F = T.dock(F, "chat", "root", "right");
+    F = T.dock(F, "cues", gid(F, "timer"), "bottom");
+    F = T.dock(F, "quick", gid(F, "timer"), "right");
+    F = T.dock(F, ["messages", "second"], gid(F, "quick"), "center");
+    F = T.dock(F, "capmini", gid(F, "chat"), "bottom");
+    F = T.dock(F, ["pair", "sessmini"], gid(F, "capmini"), "center");
+    F = T.activate(F, "quick"); F = T.activate(F, "capmini");
+    F = T.resize(F, [], [0.68, 0.32]); F = T.resize(F, [0], [0.58, 0.42]); F = T.resize(F, [0, 0], [0.62, 0.38]); F = T.resize(F, [1], [0.6, 0.4]);
+    F.closed.push(...WINS);
+    let shared = null;
+    try { shared = (await api("/api/workspace/layout")).layout; } catch (_) {}
+    ATDesk.start($("desk"), { key: "atsuit_desk2", fallback: F, shared, canShare: boot.me.role === "admin",
+      onShare: (layout) => guard(() => AT.put("/api/workspace/layout", { layout })).then(() => toast("Every laptop now starts with this layout", "good")) });
   }
   // The timer reaching its warning, danger and overtime is worth a note.
   let tstate = null, tphase = "", trun = "";
@@ -662,10 +638,10 @@
     // Now and next on the dashboard.
     const todays = sessions.filter((s) => sDay(s.starts_at) === today);
     const now = todays.find(live), next = todays.find((s) => sTime(s.starts_at) > nowHm);
-    $("sessMini").classList.toggle("hidden", !now && !next);
+    ATDesk.available("sessmini", !!(now || next));
     $("sessMini").innerHTML = `<div class="row" style="justify-content:space-between"><h3>Sessions</h3><button class="small" data-openwin="sessions">Open</button></div>` +
       [["Now", now], ["Next", next]].filter(([, s]) => s).map(([k, s]) => `<div class="small" style="margin-top:.3rem"><span class="muted">${k} ${esc(sTime(s.starts_at))}</span> <b>${esc(s.title)}</b><div class="muted">${esc(s.presenters.map((p) => p.full_name + (p.checked_in_at ? " ✓" : "")).join(", "))}</div></div>`).join("");
-    $("sessMini").querySelector("[data-openwin]").onclick = () => wins.sessions.open();
+    $("sessMini").querySelector("[data-openwin]").onclick = () => ATDesk.open("sessions");
   }
   if (boot.modules.presenter) {
     $("sessDay").onchange = (e) => { sessDay = e.target.value; renderSessions(); };
@@ -675,24 +651,15 @@
     setInterval(renderSessions, 60000); // keeps "now" moving
   }
 
-  // chat: a small box at the bottom right that folds away, like Facebook's
-  const dock = $("chatDock");
-  let dockOpen = true, dockUnread = 0;
-  // On a phone the chat starts folded (it would cover the timer) unless the tech left it open.
-  try { const kept = localStorage.getItem("atsuit_chat_open"); dockOpen = kept ? kept !== "0" : innerWidth > 700; } catch (_) {}
-  const setDock = (open) => {
-    dockOpen = open; dock.classList.toggle("closed", !open); $("chatToggle").textContent = open ? "▾" : "▴";
-    document.body.classList.toggle("chat-open", open && !dock.classList.contains("hidden"));
-    if (open) dockUnread = 0;
-    $("chatUnread").textContent = dockUnread; $("chatUnread").classList.toggle("hidden", !dockUnread);
-    try { localStorage.setItem("atsuit_chat_open", open ? "1" : "0"); } catch (_) {}
-  };
-  $("chatHead").onclick = () => setDock(!dockOpen);
+  // chat: a window like the rest; its taskbar button counts what came in while it was out of sight
+  let chatUnread = 0;
+  const chatSeen = () => ATDesk.isOpen("chat") && !document.hidden;
+  const setDock = (open) => { if (open) ATDesk.open("chat"); };
+  setInterval(() => { if (chatUnread && chatSeen()) { chatUnread = 0; ATDesk.badge("chat", 0); } }, 1000);
   if (boot.modules.comms) {
     const chans = await api("/api/comms/channels");
     chat = Chat.mount($("chat"), { me: boot.me, compact: true, quiet: true /* the workspace's own alerts show urgent messages */, prefer: chans.find((c) => c.room_id === roomId)?.id });
-    setDock(dockOpen);
-  } else dock.classList.add("hidden");
+  }
 
   // links
   if (boot.modules.dashboard) {
@@ -765,7 +732,7 @@
     const own = (m) => (boot.me.kind === "account" ? m.sender_id === boot.me.id : !m.sender_id && m.sender_name === boot.me.name);
     if (evt.type === "message.new" && !own(evt.data)) {
       const m = evt.data, dm = evt.topic.startsWith("dm:"), mine = dm || evt.topic === `room:${roomId}` || evt.topic.startsWith("site:");
-      if (!dockOpen) { dockUnread++; setDock(false); }
+      if (!chatSeen()) { chatUnread++; ATDesk.badge("chat", chatUnread); }
       if (mine || m.priority === "urgent") alerts.add(m.priority === "urgent" ? "urgent" : "chat", dm ? `${m.sender_name} (direct)` : m.sender_name, m.body || "Sent a file", () => setDock(true));
     }
     const what = (h) => h.description ? `${h.category}: ${h.description}` : h.category;

@@ -151,11 +151,37 @@ function openMain() {
   mainWin.loadURL(`${conf.server}/node`);
 }
 
+// Windows popped out of the workspace (a chat, the timer, a screen preview):
+// real windows of the app that can go on another monitor or stay on top.
+const pops = new Map(); // frame name -> BrowserWindow
+const POP = /^atsuit-pop-[\w-]{1,40}$/;
+
 function keepToServer(win) {
   // Links to other tools open in the normal browser; this window stays on AT-SUIT.
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    // The page fills a blank window itself and moves the live part into it.
+    if (win === mainWin && POP.test(frameName) && (!url || url === "about:blank")) {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          title: "AT-SUIT", icon: iconPath(), backgroundColor: "#0e1116", autoHideMenuBar: true, minWidth: 320, minHeight: 200,
+          webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false },
+        },
+      };
+    }
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     return { action: "deny" };
+  });
+  win.webContents.on("did-create-window", (child, { frameName }) => {
+    if (!POP.test(frameName || "")) return;
+    pops.set(frameName, child);
+    silence(child);
+    child.webContents.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+      return { action: "deny" };
+    });
+    child.webContents.on("will-navigate", (e) => e.preventDefault());
+    child.on("closed", () => { if (pops.get(frameName) === child) pops.delete(frameName); });
   });
   win.webContents.on("will-navigate", (e, url) => {
     let same = false;
@@ -460,6 +486,12 @@ function ipc() {
   ipcMain.handle("app:notify", (e, n) => (fromMain(e) ? showPopup(n || {}) : false));
   ipcMain.handle("app:overlay", (e, cfg) => (fromMain(e) ? applyOverlay(cfg && typeof cfg === "object" ? cfg : {}) : { ok: false }));
   ipcMain.handle("app:overlay-state", (e) => (fromMain(e) ? overlayState() : {}));
+  ipcMain.handle("app:popout-top", (e, name, on) => {
+    const w = fromMain(e) && pops.get(String(name));
+    if (!w || w.isDestroyed()) return false;
+    w.setAlwaysOnTop(!!on, "floating");
+    return true;
+  });
   ipcMain.handle("app:re-enrol", (e) => {
     if (!fromMain(e)) return false;
     // The server no longer knows this laptop (removed in Nodes): enrol again.

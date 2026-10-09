@@ -125,5 +125,20 @@ const AT = (() => {
 
   function h(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 
-  return { esc, api, post, put, del, upload, socket, toast, guard, fmtTime, timerClock, timerDisplay, when, branding, h };
+  // A part of a panel can be moved into a window of its own (the workspace desk).
+  // detach() notes where it came from, so q() on the panel still finds what is in it.
+  const detached = [];
+  function detach(part) { detached.push({ from: part.parentNode, el: part }); return part; }
+  function q(root, sel) {
+    const here = root.querySelector(sel);
+    if (here) return here;
+    for (const d of detached) {
+      if (d.from !== root && !root.contains(d.from)) continue;
+      const hit = d.el.matches(sel) ? d.el : d.el.querySelector(sel);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  return { esc, api, post, put, del, upload, socket, toast, guard, fmtTime, timerClock, timerDisplay, when, branding, h, detach, q };
 })();

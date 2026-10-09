@@ -64,7 +64,7 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
           <input data-sdur placeholder="mm:ss" style="width:5.5rem;min-width:5.5rem;flex:0 0 auto"><button class="small" data-sset>Set</button></div>
         <div class="tp-row hidden" style="margin-top:.3rem" data-sctl><button class="small" data-sa="toggle">Start / pause</button><button class="small" data-sa="reset">Reset</button>
           <button class="small" data-sadd="-60000">−1m</button><button class="small" data-sadd="60000">+1m</button></div></div>`;
-    const $ = (q) => el.querySelector(q);
+    const $ = (q) => AT.q(el, q); // parts of the panel may sit in windows of their own
     // Hand the reply straight to the room timer above, so the press shows at once.
     const shown = (x) => { if (x) document.dispatchEvent(new CustomEvent("atsuit:timer", { detail: x })); return x; };
 

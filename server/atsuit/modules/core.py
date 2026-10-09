@@ -313,6 +313,34 @@ def bootstrap(p: Principal = Depends(require_user)):
         }
 
 
+# ------------------------------------------------------- workspace layout --
+# The layout every tech laptop starts with (the windows of the workspace). An
+# admin sets it from their own workspace; techs can still change theirs.
+class WorkspaceLayoutIn(BaseModel):
+    layout: dict | None = None
+
+
+@router.get("/api/workspace/layout")
+def workspace_layout(p: Principal = Depends(require_user)):
+    with db.ro() as c:
+        raw = db.get_setting(c, "workspace.layout", "")
+    try:
+        return {"layout": json.loads(raw) if raw else None}
+    except ValueError:
+        return {"layout": None}
+
+
+@router.put("/api/workspace/layout")
+def set_workspace_layout(body: WorkspaceLayoutIn, p: Principal = Depends(require_admin)):
+    raw = json.dumps(body.layout) if body.layout else ""
+    if body.layout is not None and (body.layout.get("v") != 1 or len(raw) > 65536):
+        raise HTTPException(400, "That isn't a workspace layout")
+    with db.tx() as c:
+        db.set_setting(c, "workspace.layout", raw)
+        db.audit(c, p.name, "workspace.layout", "cleared" if not raw else "set")
+    return {"ok": True}
+
+
 # ------------------------------------------------------------------- admin --
 @router.get("/api/admin/settings")
 def get_settings(p: Principal = Depends(require_admin)):
