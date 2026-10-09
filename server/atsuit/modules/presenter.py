@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from .. import config, db, schedule
 from ..hub import hub
-from ..security import Principal, decrypt, encrypt, principal, require_admin, require_node, require_tech
+from ..security import Principal, decrypt, encrypt, principal, require_admin, require_manager, require_node, require_tech
 from .core import require_module, room_or_404, site_ok
 
 router = APIRouter(dependencies=[Depends(require_module("presenter"))])
@@ -173,7 +173,7 @@ def list_events(archived: bool = False, p: Principal = Depends(require_tech)):
 
 
 @router.post("/api/presenter/events")
-async def add_event(body: EventIn, p: Principal = Depends(require_admin)):
+async def add_event(body: EventIn, p: Principal = Depends(require_manager)):
     with db.tx() as c:
         site_id = _check_event(c, body, p)
         eid = c.execute("INSERT INTO pr_events(site_id,name,client,colour,starts_on,ends_on,status,archived,created_at) VALUES(?,?,?,?,?,?,?,0,?)",
@@ -185,7 +185,7 @@ async def add_event(body: EventIn, p: Principal = Depends(require_admin)):
 
 
 @router.put("/api/presenter/events/{event_id}")
-async def edit_event(event_id: int, body: EventIn, p: Principal = Depends(require_admin)):
+async def edit_event(event_id: int, body: EventIn, p: Principal = Depends(require_manager)):
     with db.tx() as c:
         _event(c, event_id, p)
         site_id = _check_event(c, body, p)
@@ -197,7 +197,7 @@ async def edit_event(event_id: int, body: EventIn, p: Principal = Depends(requir
 
 
 @router.delete("/api/presenter/events/{event_id}")
-async def delete_event(event_id: int, p: Principal = Depends(require_admin)):
+async def delete_event(event_id: int, p: Principal = Depends(require_manager)):
     with db.tx() as c:
         e = _event(c, event_id, p)
         paths = [r[0] for r in c.execute("SELECT f.stored_path FROM pr_files f JOIN pr_presenters pp ON pp.id=f.presenter_id WHERE pp.event_id=?", (event_id,))]

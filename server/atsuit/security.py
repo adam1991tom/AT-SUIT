@@ -16,8 +16,10 @@ from . import config, db
 SESSION_COOKIE = "atsuit_session"
 # A tech laptop signed in by its own node token (the tech only types their name).
 NODE_COOKIE = "atsuit_node"
-ROLES = ("admin", "tech", "viewer")
-_ROLE_RANK = {"viewer": 0, "tech": 1, "admin": 2}
+ROLES = ("admin", "manager", "tech", "viewer")
+# A manager runs the venue day to day (rooms, techs, laptops' rooms, the audit log)
+# but can't change site settings, the licence, branding, views or add laptops.
+_ROLE_RANK = {"viewer": 0, "tech": 1, "manager": 2, "admin": 3}
 
 
 # Same format as AT-RoomComms and AT-Presenter, so migrated accounts keep their passwords.
@@ -175,6 +177,7 @@ def require(role: str = "viewer", kinds: tuple[str, ...] = ("account", "node", "
 
 
 require_admin = require("admin", ("account",))
+require_manager = require("manager", ("account",))
 require_tech = require("tech")
 require_user = require("viewer")
 require_node = require("tech", ("node",))

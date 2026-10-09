@@ -30,6 +30,7 @@ from ..security import (
     create_session,
     hash_password,
     new_token,
+    require_manager,
     principal,
     require_admin,
     require_user,
@@ -350,9 +351,14 @@ class SiteIn(BaseModel):
 
 
 @router.get("/api/admin/sites")
-def list_sites(p: Principal = Depends(require_admin)):
+def list_sites(p: Principal = Depends(require_manager)):
     with db.ro() as c:
-        return db.rows(c.execute("SELECT * FROM sites ORDER BY name"))
+        rows = db.rows(c.execute("SELECT * FROM sites ORDER BY name"))
+    # The enrolment code adds laptops, which is for admins only.
+    if p.role != "admin":
+        for r in rows:
+            r.pop("enrol_code", None)
+    return rows
 
 
 @router.post("/api/admin/sites")
@@ -403,7 +409,7 @@ class RoomIn(BaseModel):
 
 
 @router.post("/api/admin/rooms")
-async def add_room(body: RoomIn, p: Principal = Depends(require_admin)):
+async def add_room(body: RoomIn, p: Principal = Depends(require_manager)):
     with db.tx() as c:
         if not c.execute("SELECT 1 FROM sites WHERE id=?", (body.site_id,)).fetchone():
             raise HTTPException(404, "Site not found")
@@ -417,7 +423,7 @@ async def add_room(body: RoomIn, p: Principal = Depends(require_admin)):
 
 
 @router.put("/api/admin/rooms/{room_id}")
-async def edit_room(room_id: int, body: RoomIn, p: Principal = Depends(require_admin)):
+async def edit_room(room_id: int, body: RoomIn, p: Principal = Depends(require_manager)):
     with db.tx() as c:
         room_or_404(c, room_id)
         c.execute(
@@ -425,12 +431,13 @@ async def edit_room(room_id: int, body: RoomIn, p: Principal = Depends(require_a
             (body.name.strip(), (body.short_name or body.name)[:12], body.sort, int(body.enabled), room_id),
         )
         c.execute("UPDATE channels SET name=? WHERE room_id=? AND kind='room'", (body.name.strip(), room_id))
+        db.audit(c, p.name, "room.edit", body.name.strip())
     await hub.publish(f"site:{body.site_id}", "rooms.changed", {})
     return {"ok": True}
 
 
 @router.delete("/api/admin/rooms/{room_id}")
-async def delete_room(room_id: int, p: Principal = Depends(require_admin)):
+async def delete_room(room_id: int, p: Principal = Depends(require_manager)):
     with db.tx() as c:
         r = room_or_404(c, room_id)
         c.execute("DELETE FROM rooms WHERE id=?", (room_id,))
@@ -440,6 +447,15 @@ async def delete_room(room_id: int, p: Principal = Depends(require_admin)):
 
 
 # accounts
+# Managers look after techs and viewers; only an admin creates or changes admins and managers.
+MANAGED_ROLES = ("tech", "viewer")
+
+
+def _check_manages(p: Principal, *roles: str) -> None:
+    if p.role != "admin" and any(r not in MANAGED_ROLES for r in roles):
+        raise HTTPException(403, "Only an admin can add or change admins and managers")
+
+
 class AccountIn(BaseModel):
     username: str = Field(min_length=2, max_length=64)
     display_name: str = ""
@@ -450,17 +466,18 @@ class AccountIn(BaseModel):
 
 
 @router.get("/api/admin/accounts")
-def list_accounts(p: Principal = Depends(require_admin)):
+def list_accounts(p: Principal = Depends(require_manager)):
     with db.ro() as c:
         return db.rows(c.execute("SELECT id,username,display_name,role,site_id,active,created_at FROM accounts ORDER BY username"))
 
 
 @router.post("/api/admin/accounts")
-def add_account(body: AccountIn, p: Principal = Depends(require_admin)):
+def add_account(body: AccountIn, p: Principal = Depends(require_manager)):
     if body.role not in ROLES:
         raise HTTPException(400, "Unknown role")
     if not body.password or len(body.password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
+    _check_manages(p, body.role)
     with db.tx() as c:
         try:
             cur = c.execute(
@@ -475,12 +492,17 @@ def add_account(body: AccountIn, p: Principal = Depends(require_admin)):
 
 
 @router.put("/api/admin/accounts/{account_id}")
-def edit_account(account_id: int, body: AccountIn, p: Principal = Depends(require_admin)):
+def edit_account(account_id: int, body: AccountIn, p: Principal = Depends(require_manager)):
     if body.role not in ROLES:
         raise HTTPException(400, "Unknown role")
     with db.tx() as c:
-        if account_id == p.id and (body.role != "admin" or not body.active):
-            raise HTTPException(400, "You can't remove your own admin access")
+        cur = c.execute("SELECT role FROM accounts WHERE id=?", (account_id,)).fetchone()
+        if not cur:
+            raise HTTPException(404, "Account not found")
+        if account_id == p.id and (body.role != p.role or not body.active):
+            raise HTTPException(400, "You can't change your own access")
+        if account_id != p.id:
+            _check_manages(p, cur["role"], body.role)
         c.execute(
             "UPDATE accounts SET username=?,display_name=?,role=?,site_id=?,active=? WHERE id=?",
             (body.username.strip(), body.display_name.strip() or body.username.strip(), body.role, body.site_id,
@@ -498,10 +520,13 @@ def edit_account(account_id: int, body: AccountIn, p: Principal = Depends(requir
 
 
 @router.delete("/api/admin/accounts/{account_id}")
-def delete_account(account_id: int, p: Principal = Depends(require_admin)):
+def delete_account(account_id: int, p: Principal = Depends(require_manager)):
     if account_id == p.id:
         raise HTTPException(400, "You can't delete your own account")
     with db.tx() as c:
+        cur = c.execute("SELECT role FROM accounts WHERE id=?", (account_id,)).fetchone()
+        if cur:
+            _check_manages(p, cur["role"])
         c.execute("DELETE FROM accounts WHERE id=?", (account_id,))
         db.audit(c, p.name, "account.delete", str(account_id))
     return {"ok": True}
@@ -537,7 +562,7 @@ def delete_key(key_id: int, p: Principal = Depends(require_admin)):
 
 
 @router.get("/api/admin/audit")
-def audit_log(limit: int = 200, p: Principal = Depends(require_admin)):
+def audit_log(limit: int = 200, p: Principal = Depends(require_manager)):
     with db.ro() as c:
         return db.rows(c.execute("SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (min(limit, 1000),)))
 

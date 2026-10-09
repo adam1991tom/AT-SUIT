@@ -13,7 +13,7 @@ const PresenterPage = (() => {
   const pick = (accept = "") => new Promise((res) => { const i = document.createElement("input"); i.type = "file"; i.accept = accept; i.onchange = () => res(i.files[0]); i.click(); });
 
   function mount(el, sub, boot) {
-    const isAdmin = boot.me.role === "admin";
+    const isAdmin = boot.me.role === "admin", canEvents = isAdmin || boot.me.role === "manager";
     let events = [], eventId = null, ev = null, tab = sub || "order", open = new Set();
     try { eventId = +localStorage.getItem("atsuit_pr_event") || null; } catch (_) {}
 
@@ -29,11 +29,11 @@ const PresenterPage = (() => {
       const pending = events.find((e) => e.id === eventId)?.pending || 0;
       el.innerHTML = `<div class="row" style="justify-content:space-between"><h1>Presenters</h1>
           <div class="row">${events.length ? `<select id="prEvent" style="width:auto">${events.map((e) => `<option value="${e.id}" ${e.id === eventId ? "selected" : ""}>${esc(e.name)}</option>`).join("")}</select>` : ""}
-          ${isAdmin ? `${ev ? '<button id="prEdit">Edit event</button>' : ""}<button id="prNew" class="primary">New event</button>` : ""}
+          ${canEvents ? `${ev ? '<button id="prEdit">Edit event</button>' : ""}<button id="prNew" class="primary">New event</button>` : ""}
           ${ev ? `<a class="btn" href="/api/presenter/events/${ev.id}/schedule.csv">Schedule CSV</a>` : ""}</div></div>
         <div id="prForm"></div>
         ${ev || tab === "settings" ? `<div class="tabs">${Object.entries(tabs).map(([k, v]) => `<button class="${k === tab ? "on" : ""}" data-tab="${k}">${v}${k === "review" && pending ? ` <span class="unread">${pending}</span>` : ""}</button>`).join("")}</div><div id="prBody"></div>`
-          : `<div class="panel"><p>No events yet.</p><p class="muted small">${isAdmin ? "Make one with New event: give it a name and dates, then add its running order here or import it from a spreadsheet." : "An admin sets events up."}</p></div>`}`;
+          : `<div class="panel"><p>No events yet.</p><p class="muted small">${canEvents ? "Make one with New event: give it a name and dates, then add its running order here or import it from a spreadsheet." : "An admin sets events up."}</p></div>`}`;
       el.querySelector("#prEvent")?.addEventListener("change", (e) => { eventId = +e.target.value; try { localStorage.setItem("atsuit_pr_event", eventId); } catch (_) {} open.clear(); load(); });
       el.querySelector("#prNew")?.addEventListener("click", () => eventForm(null));
       el.querySelector("#prEdit")?.addEventListener("click", () => eventForm(ev));

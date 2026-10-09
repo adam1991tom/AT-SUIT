@@ -8,8 +8,9 @@
   try { boot = await api("/api/bootstrap"); } catch (e) { return showLogin(); }
   // On a tech laptop the Admin button opens /?shared=1: an admin signs in over the tech's day.
   if (boot.me.kind === "node") { if (new URLSearchParams(location.search).has("shared")) return showLogin(); location.replace("/node"); return; }
-  // The console is the admin portal: everyone else works in the room workspace.
-  if (boot.me.role !== "admin") { location.replace("/node"); return; }
+  // The console is for admins and managers: everyone else works in the room workspace.
+  const isAdminRole = boot.me.role === "admin", isManager = isAdminRole || boot.me.role === "manager";
+  if (!isManager) { location.replace("/node"); return; }
   // Admins open on the room workspace too, with the timer first. A #/page link (or the Console button there) opens the console.
   if (!location.hash && boot.rooms.length) { location.replace("/node"); return; }
   start();
@@ -25,7 +26,7 @@
       try {
         const r = await post("/api/auth/login", { username: f.username.value, password: f.password.value, shared });
         const me = await api("/api/auth/me").catch(() => null);
-        if (me && me.role !== "admin") { await post("/api/auth/logout"); throw new Error("The console is for admins. Techs use the workspace on their laptop."); }
+        if (me && !["admin", "manager"].includes(me.role)) { await post("/api/auth/logout"); throw new Error("The console is for admins and managers. Techs use the workspace on their laptop."); }
         location.reload();
       } catch (ex) { document.getElementById("loginErr").textContent = ex.message; }
     };
@@ -41,7 +42,7 @@
     document.getElementById("meName").textContent = boot.me.name;
     if (boot.branding.logo_url) { const l = document.getElementById("logo"); l.src = boot.branding.logo_url; l.classList.remove("hidden"); }
     document.querySelectorAll("#nav [data-mod]").forEach((a) => a.classList.toggle("hidden", !boot.modules[a.dataset.mod]));
-    document.querySelectorAll("#nav [data-role=admin]").forEach((a) => a.classList.toggle("hidden", boot.me.role !== "admin"));
+    document.querySelectorAll("#nav [data-role=admin]").forEach((a) => a.classList.toggle("hidden", !isManager));
     document.getElementById("logout").onclick = async (e) => { e.preventDefault(); await post("/api/auth/logout"); location.reload(); };
     sock = AT.socket(topics(), onEvent);
     window.addEventListener("hashchange", route);
@@ -361,19 +362,19 @@
     let nodes = [];
     const render = async () => {
       nodes = await api("/api/fleet/nodes");
-      const isAdmin = boot.me.role === "admin";
+      const isAdmin = isAdminRole;
       el.innerHTML = `<div class="row" style="justify-content:space-between"><h1>Nodes</h1>${isAdmin ? '<a class="btn" href="#/admin/fleet">Add nodes</a>' : ""}</div>
         <div class="panel"><table><tr><th></th><th>Name</th><th>Kind</th><th>Room</th><th>Address</th><th>Version</th><th>Showing</th><th>Last seen</th><th></th></tr>
         ${nodes.map((n) => `<tr data-n="${n.id}"><td><span class="dot ${n.online ? "on" : "off"}"></span></td><td><b>${esc(n.name)}</b>${n.legacy ? ' <span class="pill">old agent</span>' : ""}${n.kind === "tech" && n.operator && n.room_id ? `<div class="small muted">${esc(n.operator)}${n.mode ? ` · <span class="pill ${n.mode === "backup" ? "warn" : ""}">${n.mode === "backup" ? "Backup" : "Main"}</span>` : ""}</div>` : ""}</td>
           <td>${isAdmin ? `<select data-kind style="width:auto">${["tech", "kiosk", "caption"].map((k) => `<option ${k === n.kind ? "selected" : ""}>${k}</option>`).join("")}</select>` : esc(n.kind)}</td>
-          <td>${isAdmin ? `<select data-room style="width:auto">${roomOptions(n.room_id)}</select>` : esc(n.room_name || "")}</td>
+          <td>${isManager ? `<select data-room style="width:auto">${roomOptions(n.room_id)}</select>` : esc(n.room_name || "")}</td>
           <td class="small">${esc(n.ip)}</td><td class="small">${esc(n.version)}</td><td class="small" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.current_url)}</td>
           <td class="small">${n.last_seen ? when(new Date(n.last_seen * 1000).toISOString()) : "never"}</td>
           <td class="row"><button class="small" data-url>Set screen</button><button class="small" data-cmd="identify">Identify</button>
           ${isAdmin ? '<button class="small" data-cmd="reboot">Reboot</button><button class="small danger" data-delnode>Remove</button>' : ""}</td></tr>`).join("") || '<tr><td colspan="9" class="muted">No nodes yet.</td></tr>'}</table></div>`;
       el.querySelectorAll("[data-n]").forEach((row) => {
         const id = +row.dataset.n, n = nodes.find((x) => x.id === id);
-        const save = () => guard(() => put(`/api/fleet/nodes/${id}`, { room_id: row.querySelector("[data-room]").value ? +row.querySelector("[data-room]").value : null, kind: row.querySelector("[data-kind]").value }));
+        const save = () => guard(() => put(`/api/fleet/nodes/${id}`, { room_id: row.querySelector("[data-room]").value ? +row.querySelector("[data-room]").value : null, kind: row.querySelector("[data-kind]")?.value || null }));
         row.querySelector("[data-room]") && (row.querySelector("[data-room]").onchange = save);
         row.querySelector("[data-kind]") && (row.querySelector("[data-kind]").onchange = save);
         row.querySelector("[data-url]").onclick = async () => {
@@ -395,12 +396,16 @@
 
   // -------------------------------------------------------------- admin --
   async function admin(el, sub = "general") {
-    if (boot.me.role !== "admin") { el.innerHTML = '<p class="muted">Admins only.</p>'; return; }
-    if (sub === "import" || sub === "audit") sub = "data";
-    const tabs = { general: "General", info: "Info", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", chat: "Chat", data: "Import, backup & audit" };
+    // A manager sets up rooms, people (techs and viewers), links and reads the audit log; the rest is for admins.
+    if (!isAdminRole) {
+      if (!["sites", "accounts", "links", "audit"].includes(sub)) sub = "sites";
+    } else if (sub === "import" || sub === "audit") sub = "data";
+    const tabs = isAdminRole
+      ? { general: "General", info: "Info", licence: "Licence", sites: "Sites & rooms", accounts: "People", links: "Links", fleet: "Node setup", overlays: "Overlay laptops", keys: "API keys", chat: "Chat", data: "Import, backup & audit" }
+      : { sites: "Rooms", accounts: "People", links: "Links", audit: "Audit log" };
     el.innerHTML = `<h1>Admin</h1><div class="tabs">${Object.entries(tabs).map(([k, v]) => `<button class="${k === sub ? "on" : ""}" onclick="location.hash='#/admin/${k}'">${v}</button>`).join("")}</div><div id="adm"></div>`;
     const a = el.querySelector("#adm");
-    ({ general: admGeneral, info: admInfo, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, chat: admChat, data: admData }[sub] || admGeneral)(a);
+    ({ general: admGeneral, info: admInfo, licence: admLicence, sites: admSites, accounts: admAccounts, links: admLinks, fleet: admFleet, overlays: admOverlays, keys: admKeys, chat: admChat, data: admData, audit: admAudit }[sub] || admGeneral)(a);
   }
 
   const copyText = async (text, what = "Copied") => {
@@ -493,15 +498,15 @@
     const sites = await api("/api/admin/sites");
     boot = await api("/api/bootstrap");
     a.innerHTML = sites.map((s) => `<div class="panel" style="margin-bottom:1rem" data-site="${s.id}">
-      <div class="row"><input data-sn value="${esc(s.name)}" class="grow"><input data-tz value="${esc(s.timezone)}" style="width:12rem"><button class="small" data-save>Save</button>${sites.length > 1 ? '<button class="small danger" data-delsite>Delete site</button>' : ""}</div>
+      ${isAdminRole ? `<div class="row"><input data-sn value="${esc(s.name)}" class="grow"><input data-tz value="${esc(s.timezone)}" style="width:12rem"><button class="small" data-save>Save</button>${sites.length > 1 ? '<button class="small danger" data-delsite>Delete site</button>' : ""}</div>` : `<h2>${esc(s.name)}</h2>`}
       <table style="margin-top:.6rem"><tr><th>Order</th><th>Room</th><th>Short name</th><th>On</th><th></th></tr>
       ${boot.rooms.filter((r) => r.site_id === s.id).map((r) => `<tr data-r="${r.id}"><td><input data-sort type="number" value="${r.sort}" style="width:4.5rem"></td><td><input data-name value="${esc(r.name)}"></td><td><input data-short value="${esc(r.short_name)}" style="width:7rem"></td>
         <td><input type="checkbox" data-en ${r.enabled ? "checked" : ""} style="width:auto"></td><td class="row"><button class="small" data-rsave>Save</button><button class="small danger" data-rdel>Delete</button></td></tr>`).join("")}
       <tr><td></td><td><input data-newroom placeholder="New room name"></td><td></td><td></td><td><button class="small primary" data-add>Add room</button></td></tr></table></div>`).join("") +
-      `<form class="panel row" id="ns"><input name="name" class="grow" placeholder="New site (venue) name" required><button class="primary">Add site</button></form>`;
+      (isAdminRole ? `<form class="panel row" id="ns"><input name="name" class="grow" placeholder="New site (venue) name" required><button class="primary">Add site</button></form>` : "");
     a.querySelectorAll("[data-site]").forEach((p) => {
       const sid = +p.dataset.site;
-      p.querySelector("[data-save]").onclick = () => guard(() => put(`/api/admin/sites/${sid}`, { name: p.querySelector("[data-sn]").value, timezone: p.querySelector("[data-tz]").value })).then(() => toast("Saved", "good"));
+      p.querySelector("[data-save]") && (p.querySelector("[data-save]").onclick = () => guard(() => put(`/api/admin/sites/${sid}`, { name: p.querySelector("[data-sn]").value, timezone: p.querySelector("[data-tz]").value })).then(() => toast("Saved", "good")));
       p.querySelector("[data-delsite]") && (p.querySelector("[data-delsite]").onclick = () => confirm("Delete this site and all its rooms, chat and links?") && guard(() => del(`/api/admin/sites/${sid}`)).then(() => admSites(a)));
       p.querySelector("[data-add]").onclick = () => guard(() => post("/api/admin/rooms", { site_id: sid, name: p.querySelector("[data-newroom]").value })).then(() => admSites(a));
       p.querySelectorAll("[data-r]").forEach((row) => {
@@ -511,15 +516,19 @@
       });
     });
     const f = a.querySelector("#ns");
-    f.onsubmit = (e) => { e.preventDefault(); guard(() => post("/api/admin/sites", { name: f.name.value })).then(() => admSites(a)); };
+    if (f) f.onsubmit = (e) => { e.preventDefault(); guard(() => post("/api/admin/sites", { name: f.name.value })).then(() => admSites(a)); };
   }
 
   async function admAccounts(a) {
     const [accts, sites] = await Promise.all([api("/api/admin/accounts"), api("/api/admin/sites")]);
     const siteOpts = (sel) => `<option value="">All sites</option>` + sites.map((s) => `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(s.name)}</option>`).join("");
-    const roleOpts = (sel) => ["admin", "tech", "viewer"].map((r) => `<option ${r === sel ? "selected" : ""}>${r}</option>`).join("");
-    a.innerHTML = `<div class="panel"><p class="muted small">Admins configure everything. Techs chat, run timers, send captions and control nodes. Viewers can read.</p><table><tr><th>Username</th><th>Name</th><th>Role</th><th>Site</th><th>Active</th><th>New password</th><th></th></tr>
-      ${accts.map((u) => `<tr data-u="${u.id}"><td><input data-un value="${esc(u.username)}"></td><td><input data-dn value="${esc(u.display_name)}"></td><td><select data-role>${roleOpts(u.role)}</select></td>
+    // A manager looks after techs and viewers; admin and manager accounts are shown but only an admin changes them.
+    const roles = isAdminRole ? ["admin", "manager", "tech", "viewer"] : ["tech", "viewer"];
+    const canEdit = (u) => isAdminRole || u.id === boot.me.id || roles.includes(u.role);
+    const roleOpts = (sel) => (roles.includes(sel) ? roles : [sel]).map((r) => `<option ${r === sel ? "selected" : ""}>${r}</option>`).join("");
+    a.innerHTML = `<div class="panel"><p class="muted small">Admins configure everything. Managers set up rooms, add techs, move laptops between rooms and read the audit log, but can't change site settings, the licence, branding or views, or add laptops. Techs chat, run timers, send captions and control nodes. Viewers can read.</p><table><tr><th>Username</th><th>Name</th><th>Role</th><th>Site</th><th>Active</th><th>New password</th><th></th></tr>
+      ${accts.filter((u) => !canEdit(u)).map((u) => `<tr><td>${esc(u.username)}</td><td>${esc(u.display_name)}</td><td>${esc(u.role)}</td><td class="muted small" colspan="4">Only an admin can change this account.</td></tr>`).join("")}
+      ${accts.filter(canEdit).map((u) => `<tr data-u="${u.id}"><td><input data-un value="${esc(u.username)}"></td><td><input data-dn value="${esc(u.display_name)}"></td><td><select data-role>${roleOpts(u.role)}</select></td>
         <td><select data-site>${siteOpts(u.site_id)}</select></td><td><input type="checkbox" data-act ${u.active ? "checked" : ""} style="width:auto"></td><td><input data-pw type="password" placeholder="unchanged"></td>
         <td class="row"><button class="small" data-save>Save</button>${u.id === boot.me.id ? "" : '<button class="small danger" data-del>Delete</button>'}</td></tr>`).join("")}
       <tr id="new"><td><input data-un placeholder="username"></td><td><input data-dn placeholder="Display name"></td><td><select data-role>${roleOpts("tech")}</select></td><td><select data-site>${siteOpts(null)}</select></td><td></td><td><input data-pw type="password" placeholder="password (8+)"></td><td><button class="small primary" data-add>Add</button></td></tr></table></div>`;
@@ -653,6 +662,15 @@
       for (const d of dms) await guard(() => del(`/api/admin/comms/dms/${d.id}`)).catch(() => {});
       admChat(a);
     });
+  }
+
+  async function admAudit(a) {
+    const log = await api("/api/admin/audit");
+    a.innerHTML = `<div class="panel"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Audit log</h2><input id="flt" placeholder="Filter" style="width:14rem"></div>
+      <table style="margin-top:.6rem"><tr><th>When</th><th>Who</th><th>What</th><th>Detail</th></tr><tbody id="log"></tbody></table></div>`;
+    const draw = (q = "") => { a.querySelector("#log").innerHTML = log.filter((l) => !q || `${l.actor} ${l.action} ${l.detail}`.toLowerCase().includes(q)).map((l) => `<tr><td class="small">${when(l.at)}</td><td>${esc(l.actor)}</td><td>${esc(l.action)}</td><td class="small muted">${esc(l.detail)}</td></tr>`).join(""); };
+    draw();
+    a.querySelector("#flt").oninput = (e) => draw(e.target.value.trim().toLowerCase());
   }
 
   async function admData(a) {

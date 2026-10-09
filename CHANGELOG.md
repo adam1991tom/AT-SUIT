@@ -4,6 +4,11 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
+## 0.6.7
+
+- **New Manager role**, between Tech and Admin. A manager can add, rename and remove rooms, add and edit tech and viewer accounts, move laptops and screens between rooms (Nodes), edit links and presenter events, edit the quick speaker messages, and read the audit log. A manager can't change site settings, the licence, branding, modules, timer views or designs, add or remove nodes, see enrolment codes, make API keys, take backups or import data, and can't create or change admins or other managers. In the console a manager sees Admin → Rooms, People, Links and Audit log.
+- Renaming a room is now in the audit log.
+
 ## 0.6.6
 
 - **A tech laptop stays in its room for the day.** Once a tech has picked the room, the start screen only offers that room and the workspace's room picker is locked, even after signing out and in again. The server refuses any other room from a tech laptop (403) until the next working day. Only an admin moves a laptop, from the console (Nodes).

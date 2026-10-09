@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from .. import config, db, licence
 from ..hub import hub
-from ..security import NODE_COOKIE, Principal, new_token, require_admin, require_node, require_tech, token_hash
+from ..security import NODE_COOKIE, Principal, new_token, require_admin, require_manager, require_node, require_tech, token_hash
 from .core import require_module, site_ok
 
 router = APIRouter(dependencies=[Depends(require_module("fleet"))])
@@ -540,11 +540,15 @@ class NodeEdit(BaseModel):
 
 
 @router.put("/api/fleet/nodes/{node_id}")
-async def edit_node(node_id: int, body: NodeEdit, p: Principal = Depends(require_admin)):
+async def edit_node(node_id: int, body: NodeEdit, p: Principal = Depends(require_manager)):
     with db.tx() as c:
         n = c.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
         if not n:
             raise HTTPException(404, "Node not found")
+        # A manager moves laptops and screens between rooms; renaming or re-siting them is for an admin.
+        if p.role != "admin" and ((body.name and norm_host(body.name) != n["name"]) or (body.site_id and body.site_id != n["site_id"])
+                                  or (body.kind and body.kind != n["kind"])):
+            raise HTTPException(403, "A manager can only change which room a node is in")
         if body.kind and body.kind not in NODE_KINDS:
             raise HTTPException(400, "Unknown node kind")
         try:

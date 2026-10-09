@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from .. import db
-from ..security import Principal, require_admin, require_user
+from ..security import Principal, require_admin, require_manager, require_user
 from .core import require_module, site_ok
 
 router = APIRouter(dependencies=[Depends(require_module("dashboard"))])
@@ -60,7 +60,7 @@ def list_links(room_id: int | None = None, p: Principal = Depends(require_user))
 
 
 @router.post("/api/dashboard/links")
-def add_link(body: LinkIn, p: Principal = Depends(require_admin)):
+def add_link(body: LinkIn, p: Principal = Depends(require_manager)):
     _validate(body)
     with db.tx() as c:
         cur = c.execute("INSERT INTO links(site_id,room_id,board,label,url,kind,sort) VALUES(?,?,?,?,?,?,?)",
@@ -69,7 +69,7 @@ def add_link(body: LinkIn, p: Principal = Depends(require_admin)):
 
 
 @router.put("/api/dashboard/links/{link_id}")
-def edit_link(link_id: int, body: LinkIn, p: Principal = Depends(require_admin)):
+def edit_link(link_id: int, body: LinkIn, p: Principal = Depends(require_manager)):
     _validate(body)
     with db.tx() as c:
         c.execute("UPDATE links SET site_id=?,room_id=?,board=?,label=?,url=?,kind=?,sort=? WHERE id=?",
@@ -78,7 +78,7 @@ def edit_link(link_id: int, body: LinkIn, p: Principal = Depends(require_admin))
 
 
 @router.delete("/api/dashboard/links/{link_id}")
-def delete_link(link_id: int, p: Principal = Depends(require_admin)):
+def delete_link(link_id: int, p: Principal = Depends(require_manager)):
     with db.tx() as c:
         c.execute("DELETE FROM links WHERE id=?", (link_id,))
     return {"ok": True}

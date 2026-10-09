@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 
 from .. import config, db
 from ..hub import hub
-from ..security import Principal, require_admin, require_tech
+from ..security import Principal, require_admin, require_manager, require_tech
 from .core import require_module, room_or_404
 
 router = APIRouter(dependencies=[Depends(require_module("timers"))])
@@ -416,11 +416,11 @@ def get_quick_messages(p: Principal = Depends(require_tech)):
     """The ready-made stage messages in the tech workspace (one tap shows one)."""
     with db.ro() as c:
         return {"messages": quick_messages(c), "default": DEFAULT_QUICK_MESSAGES,
-                "can_edit": p.kind == "account" and p.role == "admin"}
+                "can_edit": p.kind == "account" and p.at_least("manager")}
 
 
 @router.put("/api/timers-quick-messages")
-def set_quick_messages(body: QuickMessagesIn, p: Principal = Depends(require_admin)):
+def set_quick_messages(body: QuickMessagesIn, p: Principal = Depends(require_manager)):
     msgs = list(dict.fromkeys(m.strip()[:120] for m in body.messages if m.strip()))
     with db.tx() as c:
         db.set_setting(c, "quick_messages", msgs)
@@ -429,7 +429,7 @@ def set_quick_messages(body: QuickMessagesIn, p: Principal = Depends(require_adm
 
 
 @router.delete("/api/timers-quick-messages")
-def reset_quick_messages(p: Principal = Depends(require_admin)):
+def reset_quick_messages(p: Principal = Depends(require_manager)):
     with db.tx() as c:
         c.execute("DELETE FROM settings WHERE key='quick_messages'")
         db.audit(c, p.name, "timers.quick_messages", "back to the defaults")

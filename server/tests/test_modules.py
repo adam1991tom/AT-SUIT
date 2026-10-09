@@ -377,3 +377,36 @@ def test_shared_computer_login_is_short(admin, client):
         exp = c.execute("SELECT expires_at FROM sessions ORDER BY rowid DESC LIMIT 1").fetchone()[0]
     left = datetime.fromisoformat(exp.replace("Z", "+00:00")) - datetime.now(timezone.utc)
     assert 25 * 60 < left.total_seconds() <= 30 * 60 + 5
+
+
+def test_manager_runs_rooms_and_techs_but_not_the_site(admin, client):
+    """A manager sets up rooms, adds techs, moves laptops between rooms and reads the
+    audit log, but can't touch site settings, the licence, branding, views or nodes."""
+    assert admin.post("/api/admin/accounts", json={"username": "mia", "password": "password1", "role": "manager"}).status_code == 200
+    code = admin.get("/api/fleet/enrolment").json()[0]["enrol_code"]
+    node = admin.post("/api/nodes/enrol", json={"code": code, "name": "lap1", "kind": "tech"}).json()
+    sid = admin.get("/api/admin/sites").json()[0]["id"]
+    admin_id = next(a["id"] for a in admin.get("/api/admin/accounts").json() if a["username"] == "admin")
+    client.cookies.clear()
+    assert client.post("/api/auth/login", json={"username": "mia", "password": "password1"}).status_code == 200
+    # allowed
+    rid = client.post("/api/admin/rooms", json={"site_id": sid, "name": "Breakout 4"}).json()["id"]
+    assert client.put(f"/api/admin/rooms/{rid}", json={"site_id": sid, "name": "Breakout Four"}).status_code == 200
+    tid = client.post("/api/admin/accounts", json={"username": "tom", "password": "password1", "role": "tech"}).json()["id"]
+    assert client.put(f"/api/admin/accounts/{tid}", json={"username": "tom", "role": "viewer"}).status_code == 200
+    assert client.put(f"/api/fleet/nodes/{node['node_id']}", json={"room_id": rid}).status_code == 200
+    assert any(l["action"] == "room.add" for l in client.get("/api/admin/audit").json())
+    assert "enrol_code" not in client.get("/api/admin/sites").json()[0]
+    # not allowed
+    assert client.post("/api/admin/accounts", json={"username": "boss", "password": "password1", "role": "admin"}).status_code == 403
+    assert client.put(f"/api/admin/accounts/{tid}", json={"username": "tom", "role": "manager"}).status_code == 403
+    assert client.put(f"/api/admin/accounts/{admin_id}", json={"username": "admin", "role": "tech"}).status_code == 403
+    assert client.delete(f"/api/admin/accounts/{admin_id}").status_code == 403
+    assert client.put(f"/api/fleet/nodes/{node['node_id']}", json={"room_id": rid, "name": "renamed"}).status_code == 403
+    for method, url in [("get", "/api/admin/settings"), ("put", "/api/admin/licence"), ("post", "/api/admin/sites"), ("get", "/api/fleet/enrolment"),
+                        ("delete", f"/api/fleet/nodes/{node['node_id']}"), ("post", "/api/timers-designs"), ("get", "/api/admin/backup"), ("post", "/api/admin/api-keys")]:
+        r = getattr(client, method)(url, **({"json": {}} if method in ("post", "put") else {}))
+        assert r.status_code == 403, (method, url, r.status_code)
+    # a manager can't raise or drop their own access
+    me = client.get("/api/auth/me").json()["id"]
+    assert client.put(f"/api/admin/accounts/{me}", json={"username": "mia", "role": "admin"}).status_code == 400

@@ -399,7 +399,7 @@
   } else $("room").onchange = () => { try { localStorage.setItem("atsuit_room", $("room").value); } catch (_) {} location.reload(); };
   // The console is for admins. On a tech laptop an admin signs in there for a short session (30 minutes, ends with the browser).
   if (techLaptop()) { $("consoleBtn").textContent = "Admin"; $("consoleBtn").href = "/?shared=1#/dashboard"; $("consoleBtn").title = "For admins: sign in to the console"; $("consoleBtn").classList.remove("hidden"); }
-  else if (boot.me.role === "admin") $("consoleBtn").classList.remove("hidden");
+  else if (["admin", "manager"].includes(boot.me.role)) $("consoleBtn").classList.remove("hidden");
 
   // This laptop: main or backup PC, and silent pop-ups (Windows app only).
   if (APP && techLaptop()) {
