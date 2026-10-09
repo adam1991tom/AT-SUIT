@@ -396,15 +396,15 @@ def preview_board(c, room_id: int) -> dict:
         raise HTTPException(404, "Room not found")
     calls = c.execute(
         "SELECT * FROM help_requests WHERE site_id IS ? AND status!='resolved' "
-        "ORDER BY (room_id IS ?) DESC, (status='open') DESC, id DESC LIMIT ?",
-        (room["site_id"], room_id, PREVIEW_CALLS),
+        "ORDER BY (status='open') DESC, id DESC LIMIT ?",
+        (room["site_id"], PREVIEW_CALLS),
     ).fetchall()
     since = datetime.fromtimestamp(time.time() - NOTICE_HOURS * 3600, timezone.utc).isoformat(timespec="seconds")
     notes = c.execute(
         "SELECT m.id, m.sender_name, m.body_enc, m.priority, m.created_at, ch.kind, ch.name FROM messages m "
-        "JOIN channels ch ON ch.id=m.channel_id WHERE ch.site_id IS ? AND (ch.kind='site' OR ch.room_id=?) "
+        "JOIN channels ch ON ch.id=m.channel_id WHERE ch.site_id IS ? AND ch.kind IN ('site', 'room') "
         "AND m.priority IN (?, ?) AND m.deleted_at IS NULL AND m.created_at>=? ORDER BY m.id DESC LIMIT ?",
-        (room["site_id"], room_id, *NOTICE_PRIORITIES, since, PREVIEW_NOTICES),
+        (room["site_id"], *NOTICE_PRIORITIES, since, PREVIEW_NOTICES),
     ).fetchall()
     return {
         "room_id": room_id,

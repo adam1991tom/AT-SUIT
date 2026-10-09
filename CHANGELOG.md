@@ -7,6 +7,10 @@ the GitHub release.
 
 ## 1.0.3
 
+**Speaker preview**
+- It's a command-centre monitor now: every room's help calls are treated the same (open ones first, newest first), each labelled with its room. The "This room" badge is gone.
+- Notifications show important and urgent messages to all crew and to any room, not only the screen's own room.
+
 **Chat**
 - A message that arrives while a chat is opening no longer goes missing until the next reload.
 

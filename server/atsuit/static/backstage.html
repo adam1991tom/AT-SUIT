@@ -111,7 +111,6 @@
   #pvHelp .call .r { min-width: 0; }
   #pvHelp .call .r b { display: block; font-size: 1.9vw; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #pvHelp .call .r span { display: block; color: #cbd5e1; font-weight: 600; font-size: 1.4vw; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
-  #pvHelp .call.here .r b::before { content: "THIS ROOM"; font-size: .85vw; letter-spacing: .12em; color: var(--fg); background: var(--red); border-radius: .3vw; padding: .2vh .5vw; margin-right: .8vw; vertical-align: middle; }
   #pvHelp .call .w { font-size: 1.15vw; color: var(--dim); text-align: right; white-space: nowrap; }
   #pvHelp .more, #pvNotes .more { font-size: 1.15vw; color: var(--dim); margin-top: .8vh; }
   #pvHelp.alarm { border-color: var(--red); animation: glow 1s ease-in-out infinite; }
@@ -306,7 +305,8 @@
       + (board.open_elsewhere ? `<div class="more">${board.open_elsewhere} open in other rooms</div>` : "");
   }
 
-  // Speaker preview: the site's help calls, this room's first, and the crew's important and urgent messages.
+  // Speaker preview, a command-centre monitor: every room's help calls, open ones first, and the
+  // crew's important and urgent messages to all crew or any room. No room is singled out.
   let pv = { calls: [], notices: [] }, pvTimer = 0;
   function drawPreview() {
     const calls = pv.calls || [], open = calls.filter((h) => h.status === "open");
@@ -314,7 +314,7 @@
     $("flash").classList.toggle("on", open.some((h) => Date.now() - new Date(h.created_at) < 120000));
     $("pvCount").textContent = calls.length ? `${open.length} open${calls.length > open.length ? ` · ${calls.length - open.length} on it` : ""}` : "";
     const shown = 6;
-    $("pvHelpBody").innerHTML = calls.length ? calls.slice(0, shown).map((h) => `<div class="call ${esc(h.status)} ${h.room_id === +roomId ? "here" : ""}">` +
+    $("pvHelpBody").innerHTML = calls.length ? calls.slice(0, shown).map((h) => `<div class="call ${esc(h.status)}">` +
       `<span class="k">${h.status === "open" ? "HELP NEEDED" : "ON IT"}</span>` +
       `<span class="r"><b>${esc(h.room_name)}</b><span>${esc(h.description ? `${h.category}: ${h.description}` : h.category)}</span></span>` +
       `<span class="w">${h.status === "open" ? esc(h.requested_by) : esc(h.assigned_to || "")} · ${ago(h.created_at)}</span></div>`).join("")

@@ -391,7 +391,7 @@ def test_speaker_preview_shows_site_help_and_crew_notices(admin):
     admin.post(f"/api/comms/channels/{site_chan}/messages", json={"body": "Doors open in 5", "priority": "urgent"})
     admin.post(f"/api/comms/channels/{site_chan}/messages", json={"body": "just chatting", "priority": "normal"})
     other_room = next(c["id"] for c in admin.get("/api/comms/channels").json() if c.get("room_id") == hd)
-    admin.post(f"/api/comms/channels/{other_room}/messages", json={"body": "Not for the preview room", "priority": "important"})
+    admin.post(f"/api/comms/channels/{other_room}/messages", json={"body": "Spare clicker to HD", "priority": "important"})
     with admin.websocket_connect(f"/ws?topics=timer:{sp}") as ws:
         assert ws.receive_json()["type"] == "hello"
         admin.post(f"/api/comms/channels/{chans[room_name]}/messages", json={"body": "Next speaker is late", "priority": "important"})
@@ -399,8 +399,9 @@ def test_speaker_preview_shows_site_help_and_crew_notices(admin):
     admin.post("/api/auth/logout")
     pv = admin.get(f"/api/comms/help/preview/{sp}").json()  # a screen, not signed in
     assert pv["calls"][0]["id"] == mine["id"] and {c["description"] for c in pv["calls"]} == {"Speaker lost", "No signal"}
-    assert [n["body"] for n in pv["notices"]] == ["Next speaker is late", "Doors open in 5"]
-    assert pv["notices"][1]["to"] == "All crew" and pv["notices"][1]["priority"] == "urgent"
+    # a command-centre monitor: every room's important messages, not only its own
+    assert [n["body"] for n in pv["notices"]] == ["Next speaker is late", "Spare clicker to HD", "Doors open in 5"]
+    assert pv["notices"][1]["to"] == "HD" and pv["notices"][2]["to"] == "All crew" and pv["notices"][2]["priority"] == "urgent"
     assert admin.get("/api/comms/help/preview/99999").status_code == 404
     page = admin.get(f"/timer/{sp}?view=preview").text
     assert 'id="pv"' in page
