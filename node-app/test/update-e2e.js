@@ -28,20 +28,32 @@ async function until(what, fn, seconds) {
     if (v) return v;
     await sleep(1000);
   }
+  diagnose();
   throw new Error(`Timed out waiting for ${what}`);
 }
 
 // The installed app, from its uninstall entry: { version, dir }.
+function ps(script) {
+  return execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], { encoding: "utf8" }).trim();
+}
 function installed() {
   let out = "";
-  try { out = execFileSync("reg", ["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", "/s", "/f", "AT-SUIT Node", "/d"], { encoding: "utf8" }); }
-  catch (_) { return null; }
-  const key = out.split(/\r?\n\r?\n/).find((b) => /DisplayName\s+REG_SZ\s+AT-SUIT Node/.test(b));
-  if (!key) return null;
-  const val = (n) => (key.match(new RegExp(`${n}\\s+REG_\\w+\\s+(.*)`)) || [])[1]?.trim();
-  let dir = val("InstallLocation");
-  if (!dir) dir = path.dirname((val("UninstallString") || "").replace(/^"([^"]+)".*/, "$1"));
-  return { version: val("DisplayVersion"), dir };
+  try {
+    out = ps("Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' | " +
+      "Where-Object { $_.DisplayName -like 'AT-SUIT Node*' } | Select-Object -First 1 DisplayVersion, InstallLocation, UninstallString | ConvertTo-Json -Compress");
+  } catch (_) { return null; }
+  if (!out) return null;
+  const k = JSON.parse(out);
+  const dir = k.InstallLocation || path.dirname(String(k.UninstallString || "").replace(/^"([^"]+)".*/, "$1"));
+  return { version: k.DisplayVersion, dir };
+}
+
+// What Windows knows, printed when a step times out.
+function diagnose() {
+  try { console.log(ps("Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' | Select-Object DisplayName, DisplayVersion, InstallLocation | Format-List | Out-String")); } catch (e) { console.log(e.message); }
+  try { console.log(ps("Get-ChildItem \"$env:LOCALAPPDATA\\Programs\" -Recurse -Depth 1 -Filter *.exe | Select-Object FullName | Out-String")); } catch (e) { console.log(e.message); }
+  try { console.log(ps("Get-ChildItem \"$env:LOCALAPPDATA\" -Directory -Filter *updater* | ForEach-Object { Get-ChildItem $_.FullName -Recurse } | Select-Object FullName, Length | Out-String")); } catch (e) { console.log(e.message); }
+  try { console.log(ps("Get-Process | Where-Object { $_.ProcessName -like 'AT-SUIT*' } | Select-Object Id, ProcessName, Path | Out-String")); } catch (e) { console.log(e.message); }
 }
 
 const exeIn = (dir, re) => fs.readdirSync(dir).find((f) => re.test(f));
@@ -74,7 +86,9 @@ const exeIn = (dir, re) => fs.readdirSync(dir).find((f) => re.test(f));
     const pre = path.join(process.env.ProgramData || "C:\\ProgramData", "AT-SUIT");
     fs.mkdirSync(pre, { recursive: true });
     fs.writeFileSync(path.join(pre, "node.json"), JSON.stringify({ server: BASE, enrol_code: code, name: "update-test" }));
-    execFileSync(path.join(dirA, setupA), ["/S"], { stdio: "inherit" });
+    log("installing", setupA);
+    execFileSync(path.join(dirA, setupA), ["/S"], { stdio: "inherit", timeout: 180000 });
+    log("installer finished");
     const inst = await until("A to be installed", async () => { const i = installed(); return i && i.version === A && i; }, 120);
     log("installed", inst.version, "in", inst.dir);
     const exe = path.join(inst.dir, exeIn(inst.dir, /^AT-SUIT Node\.exe$/i) || "AT-SUIT Node.exe");
