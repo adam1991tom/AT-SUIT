@@ -12,6 +12,13 @@ release workflow publishes the image and the GitHub release.
 - When the app starts and finds a newer version on the server, it installs it and restarts once, with a notice, before the day's work. A tech can turn this off in This laptop. A version found later still waits for Update now or for the app to close, never interrupting a show.
 - CI's update test now checks the real thing: the app finds the new version as it starts, installs it and comes back by itself.
 
+**The server updates itself from GitHub**
+- The server checks the newest GitHub release every three hours. **Settings → Updates** chooses **Install by itself** (the default), **Tell me only** (with an **Install now** button) or **Off**, and shows the newest release, what's new and how the last update went.
+- It never installs while a show is on, meaning a timer that is running or paused in any room.
+- Installing is done on the host by `update.sh --auto`, run every 10 minutes by a systemd timer that `install.sh` sets up (`sudo ./install.sh --updater` for an existing install). It is the same safe update: backup, health check and roll back. A version that failed isn't retried by itself.
+- After updating, the server fetches the same release's Windows app and publishes it, so laptops keep updating from the server without internet. A laptop only goes to GitHub itself when the server has no app.
+- A private repository needs a read-only GitHub token in Settings → Updates. It stays on the server.
+
 ## 1.0.1
 
 **From the first show-day test**

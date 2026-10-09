@@ -334,7 +334,7 @@ def test_kiosk_keeps_its_room(admin, monkeypatch):
 
 
 def test_windows_app_release(admin, client):
-    assert client.get("/api/nodes/app").json() == {"version": None}
+    assert client.get("/api/nodes/app").json() == {"version": None, "github": "adam1991tom/AT-SUIT"}
     yml = b"version: 0.2.0\nfiles:\n  - url: AT-SUIT-Node-Setup-0.2.0.exe\npath: AT-SUIT-Node-Setup-0.2.0.exe\nsha512: abc\n"
     files = [("files", ("latest.yml", yml)), ("files", ("AT-SUIT-Node-Setup-0.2.0.exe", b"MZ fake installer"))]
     assert admin.post("/api/fleet/app", files=[("files", ("../evil.sh", b"x"))]).status_code == 400

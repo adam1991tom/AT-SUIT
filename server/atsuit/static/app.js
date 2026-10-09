@@ -21,7 +21,7 @@
     laptops: { title: "Laptops & screens", mod: "fleet", tabs: { list: ["All laptops & screens", fleet], setup: ["Add laptops", admFleet, "admin"], overlays: ["Overlay laptops", admOverlays, "admin"] } },
     people: { title: "People", role: "manager", tabs: { people: ["People", admAccounts] } },
     links: { title: "Links", role: "manager", mod: "dashboard", tabs: { links: ["Links", admLinks] } },
-    settings: { title: "Settings", role: "admin", tabs: { general: ["General", admGeneral], appearance: ["Look", admAppearance], chat: ["Chat", admChat], keys: ["API keys", admKeys], info: ["About", admInfo] } },
+    settings: { title: "Settings", role: "admin", tabs: { general: ["General", admGeneral], appearance: ["Look", admAppearance], chat: ["Chat", admChat], keys: ["API keys", admKeys], updates: ["Updates", admUpdates], info: ["About", admInfo] } },
     licence: { title: "Licence", role: "admin", tabs: { licence: ["Licence", admLicence] } },
     servers: { title: "Servers", role: "admin", tabs: { servers: ["Servers", admServers] } },
     backups: { title: "Backups & import", role: "admin", tabs: { backups: ["Backups", admData] } },
@@ -41,6 +41,7 @@
   }
 
   start();
+  updateBadge();
 
   function showLogin() {
     document.getElementById("login").classList.remove("hidden");
@@ -96,6 +97,18 @@
     if (evt.type === "help.updated") refreshHelpCount();
     if (evt.type === "rooms.changed") api("/api/bootstrap").then((b) => { boot = b; });
     view && view.onEvent && view.onEvent(evt);
+  }
+
+  // Admins see on the Settings link when a new version is out and waits for them (Tell me only).
+  async function updateBadge() {
+    const link = document.querySelector('.side a[href="#/settings"]');
+    if (!isAdminRole || !link) return;
+    const u = await api("/api/admin/updates").catch(() => null);
+    link.querySelector(".upd-pill")?.remove();
+    if (u && u.available && !u.requested && u.mode !== "auto") {
+      link.insertAdjacentHTML("beforeend", ` <span class="unread upd-pill" title="AT-SUIT ${esc(u.latest.version)} is out">update</span>`);
+      link.href = "#/settings/updates";
+    }
   }
 
   async function refreshHelpCount() {
@@ -530,6 +543,46 @@
     draw();
     // leaving the tab without saving puts the site's look back
     addEventListener("hashchange", function back() { removeEventListener("hashchange", back); ATTheme.apply(saved); });
+  }
+
+  // Updates from GitHub releases: the server checks, the host's updater installs (update.sh --auto).
+  async function admUpdates(a) {
+    const u = await api("/api/admin/updates"), L = u.latest || {};
+    const MODES = [["auto", "Install by itself", "When a new version is out and no show is on, the server updates itself: backup first, health check, rolled back if it isn't healthy."],
+      ["notify", "Tell me only", "Shows here when a new version is out. Press Install now to update."],
+      ["off", "Off", "Doesn't check. Update with sudo ./update.sh on the server."]];
+    const state = !u.latest ? (u.error ? `<span class="pill bad">Couldn't check</span> ${esc(u.error)}` : '<span class="muted">Not checked yet.</span>')
+      : u.available ? `<span class="pill warn">${esc(L.version)} is out</span> ${L.published_at ? `<span class="muted small">released ${when(L.published_at)}</span>` : ""}`
+      : `<span class="pill good">Up to date</span>`;
+    const res = u.last_result;
+    a.innerHTML = `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+      <div class="panel"><h2>Version</h2>${kv([["Running", `<b>${esc(u.current)}</b>`], ["Newest release", L.version ? `<a href="${esc(L.url)}" target="_blank">${esc(L.version)}</a>` : "–"], ["Status", state],
+        ["Last checked", u.checked_at ? when(u.checked_at) : "never"], ["Windows tech app", u.app ? esc(u.app) : '<span class="muted">not published</span>'],
+        u.app_error && ["App download", `<span class="pill warn">problem</span> ${esc(u.app_error)}`],
+        res && ["Last update", `${res.result === "ok" ? '<span class="pill good">installed</span>' : '<span class="pill bad">failed</span>'} ${esc(res.version)} ${when(res.at)}${res.detail ? `<div class="small muted">${esc(res.detail)}</div>` : ""}`],
+        u.live.length && ["Show on", `<span class="pill warn">waiting</span> A timer is running or paused in ${esc(u.live.join(", "))}. Nothing installs until it's stopped.`],
+        u.requested && ["Install now", `<span class="pill warn">asked</span> ${esc(u.requested)} installs within 10 minutes. <button class="small" id="updCancel">Cancel</button>`]])}
+        <div class="row" style="margin-top:.8rem"><button id="updCheck">Check now</button>${u.available && !u.requested ? `<button class="primary" id="updInstall">Install ${esc(L.version)} now</button>` : ""}</div>
+        ${u.host_updater ? "" : `<p class="small" style="color:var(--warn)">This server's automatic updater hasn't been in touch${u.host_seen_at ? ` since ${when(new Date(u.host_seen_at * 1000).toISOString())}` : ""}. Install now and Install by itself need it: on the server, run <code>sudo ./install.sh --updater</code> in the AT-SUIT folder once.</p>`}
+        ${L.notes && u.available ? `<details style="margin-top:.6rem"><summary>What's new in ${esc(L.version)}</summary><pre class="small" style="white-space:pre-wrap">${esc(L.notes)}</pre></details>` : ""}</div>
+      <form class="panel" id="updForm"><h2>When to update</h2>
+        ${MODES.map(([v, t, d]) => `<label class="opt" style="display:block;margin:.3rem 0"><input type="radio" name="mode" value="${v}" ${u.mode === v ? "checked" : ""} style="width:auto"> <b>${t}</b><div class="small muted" style="margin-left:1.6rem">${d}</div></label>`).join("")}
+        <p class="small muted">Laptops update from this server: after the server updates, it fetches the same version's Windows app, so laptops need no internet.</p>
+        <label>GitHub repository</label><input name="repo" value="${esc(u.repo)}">
+        <label>GitHub token ${u.has_token ? '<span class="pill good">saved</span>' : ""}</label><input name="token" type="password" autocomplete="off" placeholder="${u.has_token ? "Leave empty to keep it" : "Only for a private repository"}">
+        <p class="small muted">A read-only token (Contents: read; for the published image also read:packages). It stays on this server.${u.has_token ? ' <a href="#" id="updForget">Remove it</a>' : ""}</p>
+        <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form></div>`;
+    const again = () => admUpdates(a);
+    a.querySelector("#updCheck").onclick = (e) => { e.target.disabled = true; e.target.textContent = "Checking…"; guard(() => post("/api/admin/updates/check")).then(again, again); };
+    a.querySelector("#updInstall")?.addEventListener("click", () => confirm(`Install ${L.version} now? The server restarts for about a minute, and only when no timer is running.`) && guard(() => post("/api/admin/updates/install")).then(again));
+    a.querySelector("#updCancel")?.addEventListener("click", () => guard(() => del("/api/admin/updates/install")).then(again));
+    a.querySelector("#updForget")?.addEventListener("click", (e) => { e.preventDefault(); guard(() => put("/api/admin/updates", { token: "" })).then(again); });
+    a.querySelector("#updForm").onsubmit = (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target), body = { mode: f.get("mode"), repo: f.get("repo") };
+      if (f.get("token")) body.token = f.get("token");
+      guard(() => put("/api/admin/updates", body)).then(() => { toast("Saved", "good"); again(); });
+    };
   }
 
   async function admInfo(a) {

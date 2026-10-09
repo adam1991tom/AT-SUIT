@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import VERSION, asr, config, db
+from . import VERSION, asr, config, db, updates
 from .hub import can_subscribe, hub
 from .modules import captions, cluster, comms, core, dashboard, fleet, imports, overlays, pairing, presenter, timers
 from .security import ws_principal
@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
     cluster.reset()
     pairing.reset()
     tasks = [asyncio.create_task(housekeeping()), asyncio.create_task(captions.load_engine()),
-             asyncio.create_task(timers.end_actions())]
+             asyncio.create_task(timers.end_actions()), asyncio.create_task(updates.loop())]
     yield
     for t in tasks:
         t.cancel()
@@ -59,6 +59,7 @@ def create_app() -> FastAPI:
     for module in (core, comms, timers, fleet, pairing, captions, cluster, overlays, dashboard, presenter, imports):
         app.include_router(module.router)
     app.include_router(fleet.legacy)
+    app.include_router(updates.router)
     app.include_router(captions.ws_router)
     app.include_router(cluster.ws_router)
     app.include_router(timers.public)

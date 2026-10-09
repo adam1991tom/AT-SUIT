@@ -408,7 +408,7 @@
         idle: "Checks for updates in a moment.",
         checking: "Checking the server for a newer version…",
         none: `Up to date${u.checked_at ? ` (checked ${hhmm(u.checked_at)})` : ""}.`,
-        downloading: `Downloading ${u.version}${u.percent ? ` (${u.percent}%)` : ""}…`,
+        downloading: `Downloading ${u.version}${u.source ? ` from ${u.source}` : ""}${u.percent ? ` (${u.percent}%)` : ""}…`,
         ready: `Version ${u.version} is ready. It installs when the app closes, or now.`,
         installing: `Updating to ${u.version}. The app closes and comes back in a moment.`,
         error: `Couldn't check for updates${u.error ? `: ${u.error}` : ""}.`,

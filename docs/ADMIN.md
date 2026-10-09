@@ -8,7 +8,7 @@ The console's side bar has three groups:
 
 - **Live**: Dashboard, Chat, Help requests, Timers, Presenters, Captions.
 - **Venue**: Rooms, Laptops & screens, People, Links. Managers and admins.
-- **Site**: Settings (General, Look, Chat, API keys, About), Licence, Servers,
+- **Site**: Settings (General, Look, Chat, API keys, Updates, About), Licence, Servers,
   Backups and the Audit log. Admins only, except the Audit log, which
   managers can read too.
 
@@ -87,6 +87,9 @@ the right page.
 14. **Settings → API keys**: a key for Companion.
 15. **Servers**: add helper servers to share the work (see INSTALL.md).
 16. **Audit log**: who changed what, with a filter. Managers can read it.
+17. **Settings → Updates**: install new releases by itself, tell you only, or
+   off, and the GitHub token a private repository needs. It never updates
+   during a show (see INSTALL.md, Automatic updates).
 
 ## The tech workspace
 

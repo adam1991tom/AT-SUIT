@@ -588,8 +588,9 @@ function makeTray() {
 }
 
 // ------------------------------------------------------------- updates --
-// Updates come from this venue's AT-SUIT server (Laptops & screens → Add laptops), not the
-// internet. The app checks a few seconds after it starts and every few hours; a newer
+// Updates come from this venue's AT-SUIT server (which fetches each release's app from GitHub,
+// or an admin uploads it in Laptops & screens), so laptops need no internet; only when the server
+// has no app at all does a laptop try GitHub itself. The app checks a few seconds after it starts and every few hours; a newer
 // version downloads quietly. It installs:
 //   - straight away when it is found as the app starts (update_on_launch, on unless the
 //     tech turns it off), so a laptop switched on in the morning is up to date before the show;
@@ -598,7 +599,7 @@ function makeTray() {
 let updater = null;
 const LAUNCH_WINDOW_MS = 3 * 60 * 1000;
 const startedAt = Date.now();
-const upd = { state: "off", version: "", percent: 0, error: "", checked_at: 0 };
+const upd = { state: "off", version: "", percent: 0, error: "", checked_at: 0, source: "the server" };
 
 function updateState() {
   return { ...upd, current: app.getVersion(), on_launch: conf.update_on_launch !== false };
@@ -613,7 +614,7 @@ function setUpd(patch, quiet) {
 function startUpdates() {
   if (!app.isPackaged || process.env.ATSUIT_NODE_NO_UPDATES) return;
   try { ({ autoUpdater: updater } = require("electron-updater")); } catch (_) { return; }
-  updater.setFeedURL({ provider: "generic", url: `${conf.server}/api/nodes/app/` });
+  updater.setFeedURL({ provider: "generic", url: `${conf.server}/api/nodes/app/` });  // pickFeed() may change it
   updater.autoDownload = true;
   updater.autoInstallOnAppQuit = true;
   updater.logger = null;
@@ -632,10 +633,24 @@ function startUpdates() {
   setInterval(checkUpdates, 4 * 60 * 60 * 1000);
 }
 
+// Where the update comes from: this venue's server, or, when the server has no app published
+// and updates are on there, the newest GitHub release (laptops with internet only).
+async function pickFeed() {
+  let info = null;
+  try {
+    const r = await net.fetch(`${conf.server}/api/nodes/app`, { cache: "no-store" });
+    if (r.ok) info = await r.json();
+  } catch (_) { /* server unreachable: try it anyway, the check reports the error */ }
+  const github = info && !info.version && /^[\w.-]+\/[\w.-]+$/.test(info.github || "") ? info.github : "";
+  const url = github ? `https://github.com/${github}/releases/latest/download/` : `${conf.server}/api/nodes/app/`;
+  updater.setFeedURL({ provider: "generic", url });
+  upd.source = github ? "GitHub" : "the server";
+}
+
 function checkUpdates() {
   if (!updater) return Promise.resolve(updateState());
   if (["checking", "downloading", "ready", "installing"].includes(upd.state)) return Promise.resolve(updateState());
-  return updater.checkForUpdates().then(() => updateState(), (e) => {
+  return pickFeed().then(() => updater.checkForUpdates()).then(() => updateState(), (e) => {
     setUpd({ state: "error", error: String((e && e.message) || e).split("\n")[0].slice(0, 200) });
     return updateState();
   });
