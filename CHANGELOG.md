@@ -4,7 +4,7 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 `VERSION`, add a section here, merge to main, then push a tag `vX.Y.Z`; the
 release workflow publishes the image and the GitHub release.
 
-## Unreleased (for 1.0)
+## 1.0.0
 
 **Ready to sell**
 - One-step install on a fresh Linux server: `curl -fsSL …/get.sh | sudo bash` installs Docker if needed and AT-SUIT in `/opt/at-suit`.
