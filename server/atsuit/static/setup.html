@@ -38,8 +38,9 @@
 
     <section data-step="3" class="hidden">
       <h1>Licence</h1>
-      <p class="muted">Paste your licence key, or leave it empty to run in evaluation mode (1 site, 5 nodes).</p>
-      <textarea name="licence_key" rows="4" placeholder="Licence key (optional)"></textarea>
+      <p class="muted">Paste the licence key from your supplier. AT-SUIT works once a valid key is in.</p>
+      <textarea name="licence_key" rows="4" placeholder="Licence key"></textarea>
+      <p class="muted small">No key yet? You can finish setup and add it later in Licence, but nothing else works until you do.</p>
     </section>
 
     <p id="err" class="muted" style="color:#fecaca"></p>
@@ -77,7 +78,7 @@
     body.rooms = body.rooms.split("\n").map((s) => s.trim()).filter(Boolean);
     try {
       await AT.post("/api/setup", body);
-      location.replace("/#/settings");
+      location.replace(body.licence_key.trim() ? "/#/settings" : "/#/licence");
     } catch (ex) { err.textContent = ex.message; }
   };
   show();

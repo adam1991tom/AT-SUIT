@@ -1,21 +1,46 @@
-MIT License
+AT-SUIT Licence
 
-Copyright (c) 2026 AT NET
+Copyright (c) 2026 AT NET. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+AT-SUIT (the server, the AT-SUIT Node app, the agents, the Companion module, the
+documentation and the branding, together "the Software") is licensed, not sold.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+1. Use. You may install and use the Software only while you hold a valid AT-SUIT
+   licence key or subscription issued by AT NET, and only within the limits that
+   key sets (venues, laptops, modules and dates). A trial or event key may be used
+   only for its stated purpose and period.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. Restrictions. Unless AT NET agrees in writing, you may not:
+   a. copy, modify, translate or create derivative works of the Software, except
+      for the backups an installation makes of its own data;
+   b. sell, rent, lend, sublicense, publish or otherwise distribute the Software
+      or any part of it;
+   c. remove, disable, bypass or interfere with the licence check, the licence
+      key, or any notice of ownership; or
+   d. reverse engineer, decompile or disassemble the Software, except where the
+      law expressly allows it despite this restriction.
+
+3. Your data. Everything you put into the Software (rooms, people, chat, timers,
+   transcripts, files and settings) stays yours. When a licence ends, the Software
+   stops working but keeps that data, and a new licence key brings it back.
+
+4. Third-party parts. Parts of the Software made by others (for example open-source
+   libraries, speech models and fonts) are under their own licences, which apply to
+   those parts.
+
+5. No warranty. To the extent the law allows, the Software is provided "as is",
+   without warranty of any kind, express or implied, including merchantability,
+   fitness for a particular purpose and non-infringement.
+
+6. Liability. To the extent the law allows, AT NET is not liable for any indirect,
+   incidental, special or consequential loss, or for loss of profit, revenue, data
+   or goodwill, and its total liability is limited to the fees you paid for the
+   Software in the twelve months before the claim.
+
+7. Ending. This licence ends automatically if you break it. You must then stop
+   using the Software.
+
+Earlier copies of this repository were published under the MIT licence; this
+licence applies to every version from AT-SUIT 1.0.4 on.
+
+Licensing and sales: AT NET.

@@ -11,12 +11,42 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import VERSION, asr, config, db, updates
+from . import VERSION, asr, config, db, licence, updates
 from .hub import can_subscribe, hub
 from .modules import captions, cluster, comms, core, dashboard, fleet, imports, overlays, pairing, presenter, timers
 from .security import ws_principal
 
 STATIC = Path(__file__).parent / "static"
+
+# While the licence is locked only these work: setup, sign-in, the Licence page and what it needs, and the guides.
+OPEN_PREFIXES = ("/static/", "/api/setup", "/api/auth/", "/api/public/", "/api/admin/licence", "/guide/", "/api/guide/")
+OPEN_PATHS = {"/", "/setup", "/favicon.ico", "/apple-touch-icon.png", "/api/health", "/api/bootstrap", "/api/licence/status"}
+
+
+class LicenceGate:
+    """Everything but the Licence page stops while AT-SUIT is locked (no key, or a lapsed one):
+    the API answers 402, pages show "not licensed" (and reload by themselves once a key is in),
+    and live connections are refused."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            return await self.app(scope, receive, send)
+        path = scope["path"]
+        if path in OPEN_PATHS or path.startswith(OPEN_PREFIXES) or not licence.locked_cached():
+            return await self.app(scope, receive, send)
+        if scope["type"] == "websocket":
+            return await send({"type": "websocket.close", "code": 4402})
+        if scope["method"] == "GET" and not path.startswith("/api/"):
+            body, ctype, status = (STATIC / "locked.html").read_bytes(), b"text/html; charset=utf-8", 200
+        else:
+            body = json.dumps({"detail": "AT-SUIT isn't licensed. An admin can add the licence key in Licence."}).encode()
+            ctype, status = b"application/json", 402
+        await send({"type": "http.response.start", "status": status,
+                    "headers": [(b"content-type", ctype), (b"content-length", str(len(body)).encode()), (b"cache-control", b"no-cache")]})
+        await send({"type": "http.response.body", "body": body})
 
 
 async def housekeeping() -> None:
@@ -40,12 +70,16 @@ async def housekeeping() -> None:
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     db.migrate()
+    with db.tx() as c:
+        licence.prepare(c)
+    licence.forget()
     asr.engine = asr.Engine()
     captions.rooms.clear()
     cluster.reset()
     pairing.reset()
     tasks = [asyncio.create_task(housekeeping()), asyncio.create_task(captions.load_engine()),
-             asyncio.create_task(timers.end_actions()), asyncio.create_task(updates.loop())]
+             asyncio.create_task(timers.end_actions()), asyncio.create_task(updates.loop()),
+             asyncio.create_task(licence.watch())]
     yield
     for t in tasks:
         t.cancel()
@@ -64,6 +98,12 @@ def create_app() -> FastAPI:
     app.include_router(cluster.ws_router)
     app.include_router(timers.public)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
+    app.add_middleware(LicenceGate)
+
+    @app.get("/api/licence/status", include_in_schema=False)
+    def licence_status():
+        # For the "not licensed" page: it reloads once this says unlocked.
+        return {"locked": licence.locked_cached()}
 
     # Browsers and kiosks ask for these at the site root.
     @app.get("/favicon.ico", include_in_schema=False)

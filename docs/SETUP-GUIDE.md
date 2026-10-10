@@ -25,7 +25,7 @@ to install.
 On the server:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/adam1991tom/at-suit/HEAD/get.sh | sudo bash
+curl -fsSL https://github.com/adam1991tom/AT-SUIT-releases/releases/latest/download/get.sh | sudo bash
 ```
 
 It installs Docker if it's missing, puts AT-SUIT in `/opt/at-suit` and starts
@@ -37,8 +37,9 @@ need before they'll share a microphone; the Windows app doesn't).
 
 Open `http://SERVER:8080/` in a browser. The setup wizard asks for the
 organisation, the venue, the rooms (one per line) and the first admin
-account. Paste the licence key if you have one; without it AT-SUIT runs in
-evaluation mode and you can add the key later in **Licence**.
+account, then the licence key. AT-SUIT works once a valid key is in. You can
+finish setup without one and paste it later in **Licence**, but until you do,
+only the Licence page works.
 
 ## 3. Rooms and people
 

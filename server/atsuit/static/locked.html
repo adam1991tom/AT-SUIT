@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AT-SUIT isn't licensed</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><meta name="theme-color" content="#0B1020">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
+</head>
+<body>
+<!-- Shown instead of every page (workspace, screens, timers, captions) while AT-SUIT has no valid licence.
+     It goes back to the page that was asked for as soon as a key is in. -->
+<div class="center">
+  <div class="panel card">
+    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
+    <h1><span data-product>AT-SUIT</span> isn't licensed</h1>
+    <p class="muted">This server needs a valid licence key before it can be used. Nothing has been deleted: everything comes back as soon as a key is added.</p>
+    <p class="muted">Admins: add the key in Licence.</p>
+    <div class="row" style="justify-content:flex-end;margin-top:1rem"><a class="btn primary" href="/?shared=1#/licence">Add a licence key</a></div>
+  </div>
+</div>
+<script src="/static/common.js"></script>
+<script>
+AT.branding().catch(() => {});
+setInterval(async () => {
+  try { if (!(await AT.api("/api/licence/status")).locked) location.reload(); } catch (_) {}
+}, 20000);
+</script>
+</body>
+</html>

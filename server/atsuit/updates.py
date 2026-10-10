@@ -32,7 +32,10 @@ from pydantic import BaseModel
 from . import VERSION, config, db
 from .security import Principal, decrypt, encrypt, require_admin
 
-REPO_DEFAULT = "adam1991tom/AT-SUIT"
+# Releases come from a public repository that holds only the releases (no source code), so
+# servers need no token. Until it has a release, the source repository is asked instead.
+REPO_DEFAULT = "adam1991tom/AT-SUIT-releases"
+REPO_SOURCE = "adam1991tom/AT-SUIT"
 MODES = ("auto", "notify", "off")
 CHECK_EVERY_S = 30 * 60  # a new release shows within half an hour; GitHub allows 60 calls an hour without a token
 HOST_SEEN_S = 30 * 60  # the host updater runs every few minutes; older than this, it isn't set up
@@ -57,6 +60,8 @@ def conf(c) -> dict:
     s = db.get_setting(c, "updates", {}) or {}
     mode = s.get("mode") if s.get("mode") in MODES else "auto"
     repo = s.get("repo") if REPO_RE.match(str(s.get("repo") or "")) else REPO_DEFAULT
+    if repo.lower() == REPO_SOURCE.lower() and not s.get("token_enc"):
+        repo = REPO_DEFAULT  # saved before releases moved; the source repository may be private now
     token = ""
     if s.get("token_enc"):
         try:
@@ -139,7 +144,7 @@ def fetch_latest(repo: str, token: str) -> dict:
     j = r.json()
     tag = str(j.get("tag_name") or "")
     return {
-        "version": tag.lstrip("v"), "tag": tag, "name": j.get("name") or tag, "url": j.get("html_url") or "",
+        "repo": repo, "version": tag.lstrip("v"), "tag": tag, "name": j.get("name") or tag, "url": j.get("html_url") or "",
         "published_at": j.get("published_at"), "notes": (j.get("body") or "")[:4000],
         "assets": [{"name": a["name"], "url": a["url"], "size": a.get("size", 0)} for a in j.get("assets") or []],
     }
@@ -153,7 +158,12 @@ def check() -> dict:
         with db.ro() as c:
             return status(c)
     try:
-        latest = fetch_latest(cf["repo"], cf["token"])
+        try:
+            latest = fetch_latest(cf["repo"], cf["token"])
+        except RuntimeError:
+            if cf["repo"] != REPO_DEFAULT:
+                raise
+            latest = fetch_latest(REPO_SOURCE, cf["token"])
         with db.tx() as c:
             save_state(c, latest=latest, checked_at=db.now_iso(), error="")
     except Exception as exc:
@@ -301,7 +311,7 @@ def plan() -> dict:
             return none("the release has no usable tag")
         save_state(c, installing={"version": version, "at": db.now_iso()})
         db.audit(c, "updates", "updates.install", f"{VERSION} → {version}")
-        return {"ACTION": "install", "VERSION": version, "TAG": tag, "REPO": cf["repo"], "TOKEN": cf["token"]}
+        return {"ACTION": "install", "VERSION": version, "TAG": tag, "REPO": latest.get("repo") or cf["repo"], "TOKEN": cf["token"]}
 
 
 def report(result: str, version: str, detail: str = "") -> None:

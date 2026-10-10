@@ -12,8 +12,12 @@
   // The console is for admins and managers: everyone else works in the room workspace.
   const isAdminRole = boot.me.role === "admin", isManager = isAdminRole || boot.me.role === "manager";
   if (!isManager) { location.replace("/node"); return; }
+  // Not licensed: admins get only the Licence page; everyone else sees the "not licensed" page.
+  const locked = !!boot.licence_locked;
+  if (locked && !isAdminRole) { location.replace("/node"); return; }
+  if (locked && !location.hash.startsWith("#/licence")) location.replace("#/licence");
   // Admins open on the room workspace too, with the timer first. A #/page link (or the Console button there) opens the console.
-  if (!location.hash && boot.rooms.length) { location.replace("/node"); return; }
+  if (!locked && !location.hash && boot.rooms.length) { location.replace("/node"); return; }
   // The console's sections. A section with more than one tab shows them under its heading.
   // role: "manager" (managers and admins) or "admin" (admins only); mod: the module it needs.
   const SECTIONS = {
@@ -35,13 +39,14 @@
   const MODS = { dashboard: "dashboard", chat: "comms", help: "comms", timers: "timers", presenter: "presenter", captions: "captions" };
   const allowed = (role) => !role || (role === "admin" ? isAdminRole : isManager);
   function pageOn(name) {
+    if (locked) return name === "licence";
     const s = SECTIONS[name];
     if (s) return allowed(s.role) && (!s.mod || boot.modules[s.mod] !== false);
     return !!MODS[name] && boot.modules[MODS[name]] !== false;
   }
 
   start();
-  updateBadge();
+  if (!locked) updateBadge();
 
   function showLogin() {
     document.getElementById("login").classList.remove("hidden");
@@ -77,9 +82,11 @@
       h.classList.toggle("hidden", !any);
     });
     document.getElementById("logout").onclick = async (e) => { e.preventDefault(); await post("/api/auth/logout"); location.reload(); };
-    sock = AT.socket(topics(), onEvent);
     window.addEventListener("hashchange", route);
-    if (boot.modules.comms) { refreshHelpCount(); refreshUnread(); }
+    if (!locked) {
+      sock = AT.socket(topics(), onEvent);
+      if (boot.modules.comms) { refreshHelpCount(); refreshUnread(); }
+    }
     route();
   }
 
@@ -133,8 +140,10 @@
     if (name === "fleet") return location.replace("#/laptops");
     document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.getAttribute("href") === `#/${name}`));
     chat = null; view = null;
-    if (boot.modules.comms) refreshUnread();
-    const banner = boot.me.role !== "admin" || boot.licence.valid ? "" : `<div class="banner">Evaluation mode: ${esc(boot.licence.reason)}. Add a licence in <a href="#/licence">Licence</a>.</div>`;
+    if (boot.modules.comms && !locked) refreshUnread();
+    const n = boot.licence_notice;
+    const banner = locked ? '<div class="banner bad">AT-SUIT isn\'t licensed, so everything but this page is stopped. Paste the licence key below; nothing has been deleted.</div>'
+      : n ? `<div class="banner${n.level === "bad" ? " bad" : ""}">${esc(n.text)}${n.admin && name !== "licence" ? ' <a href="#/licence">Open Licence</a>' : ""}</div>` : "";
     main.innerHTML = banner + '<div id="view"></div>';
     const el = document.getElementById("view");
     const presenter = (el, sub) => { view = PresenterPage.mount(el, sub, boot); };
@@ -596,7 +605,7 @@
       <div class="grid">
       <div class="panel"><h2>This app</h2>${kv([["Product", esc(i.product)], ["Organisation", esc(i.organisation) || '<span class="muted">not set</span>'], ["Version", `<b>${esc(i.version)}</b>`],
         ["Build", esc(i.build.number)], ["Commit", `<code>${esc(i.build.commit)}</code>`], i.build.date && ["Built", esc(new Date(i.build.date).toLocaleString())], ["Database schema", i.schema],
-        ["Licence", `${pill(i.licence.valid, "Licensed", "Evaluation")} ${esc(i.licence.licensee)} · <a href="#/licence">details</a>`]])}</div>
+        ["Licence", `${pill(i.licence.valid, "Licensed", "Not licensed")} ${esc(i.licence.licensee)} · <a href="#/licence">details</a>`]])}</div>
       <div class="panel"><h2>Servers</h2><p class="small muted">${i.server.count} server: everything runs on this one.</p>${kv([["Hostname", `<b>${esc(sv.hostname)}</b>`], ["Addresses", sv.ips.map(esc).join(", ") || "–"],
         ["Opened as", `<code>${esc(location.origin)}</code>`], sv.public_url && ["Public address", esc(sv.public_url)], ["Running in", sv.in_docker ? "Docker" : "Python (no container)"],
         ["Up for", ago(sv.uptime_seconds)], sv.system_uptime_seconds != null && ["Machine up for", ago(sv.system_uptime_seconds)], ["Server time", `${esc(new Date(sv.time).toLocaleString())} (${esc(sv.timezone)})`],
@@ -623,23 +632,26 @@
   async function admLicence(a) {
     const l = await api("/api/admin/licence");
     const lim = (k) => { const used = l.usage[k], max = l.limits[k]; return `${used} used of ${max || "unlimited"}${max && used >= max ? ' <span class="pill warn">full</span>' : ""}`; };
-    const state = l.valid ? '<span class="pill good">Licensed</span>' : l.installed ? '<span class="pill bad">Not valid</span>' : '<span class="pill warn">Evaluation</span>';
+    const STATES = { active: ["good", "Licensed"], expiring: ["warn", "Ending soon"], grace: ["bad", "In grace period"], lapsed: ["bad", "Expired"], invalid: ["bad", "Not valid"], none: ["bad", "Not licensed"] };
+    const [tone, label] = STATES[l.state] || STATES.none;
+    const state = `<span class="pill ${tone}">${label}</span>${l.locked ? ' <span class="pill bad">Locked</span>' : ""}`;
     const extra = Object.entries(l.payload).filter(([k]) => !["licensee", "edition", "expires", "issued", "max_nodes", "max_sites", "modules", "serial", "id"].includes(k));
     a.innerHTML = `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr))"><div class="panel"><h2>Licence</h2><p>${state} ${l.reason ? `<span class="muted">${esc(l.reason)}</span>` : ""}</p>
       ${kv([["Licensed to", `<b>${esc(l.licensee)}</b>`], ["Edition", esc(l.edition)], ["Serial", l.serial ? `<code>${esc(l.serial)}</code>` : "–"], ["Issued", date(l.issued) || "–"],
-        ["Expires", l.expires ? `${date(l.expires)} <span class="pill ${l.days_left < 30 ? "warn" : ""}">${l.days_left} days left</span>` : "Never"],
+        ["Expires", l.expires ? `${date(l.expires)} <span class="pill ${l.days_left < 30 ? "warn" : ""}">${l.days_left} days left</span>` : l.installed ? "Never" : "–"],
+        l.grace_until && ["Grace until", `${date(l.grace_until)} <span class="muted small">then it locks, never during a show</span>`],
         ["Modules", l.modules.map((m) => `<span class="pill">${esc(m)}</span>`).join(" ")], ...extra.map(([k, v]) => [k, esc(typeof v === "object" ? JSON.stringify(v) : String(v))])])}</div>
       <div class="panel"><h2>Limits</h2>${kv([["Sites", lim("sites")], ["Nodes", lim("nodes")], ["Rooms", `${l.usage.rooms} (no limit)`]])}
       <h2 style="margin-top:1rem">Check</h2>${kv([["Signature", l.installed ? (l.signature_valid ? '<span class="pill good">valid</span>' : '<span class="pill bad">not valid</span>') : "no key installed"],
         ["Vendor key", `<code>${esc(l.vendor_key_id || "none")}</code> <span class="muted small">${esc(l.vendor_key_source)}</span>`], ["Stored in", `<span class="small">${esc(l.stored_in)}</span>`]])}</div></div>
-      <div class="panel" style="margin-top:1rem"><h2>Licence key</h2>${l.raw ? `<textarea rows="3" readonly id="raw">${esc(l.raw)}</textarea><div class="row" style="margin-top:.4rem"><button class="small" id="copyKey">Copy key</button><button class="small danger" id="rmKey">Remove licence</button></div>` : '<p class="muted small">No key installed. AT-SUIT runs in evaluation mode: every module, one site, five nodes.</p>'}
+      <div class="panel" style="margin-top:1rem"><h2>Licence key</h2>${l.raw ? `<textarea rows="3" readonly id="raw">${esc(l.raw)}</textarea><div class="row" style="margin-top:.4rem"><button class="small" id="copyKey">Copy key</button><button class="small danger" id="rmKey">Remove licence</button></div>` : '<p class="muted small">No key installed. AT-SUIT needs a licence key to work.</p>'}
       <label style="margin-top:1rem">Install a new key</label><textarea id="key" rows="3" placeholder="Paste the key from your supplier"></textarea><div class="row" style="margin-top:.6rem"><button class="primary" id="save">Install licence</button></div></div>`;
     a.querySelector("#copyKey") && (a.querySelector("#copyKey").onclick = () => copyText(l.raw, "Key copied"));
     a.querySelector("#save").onclick = () => {
       if (!a.querySelector("#key").value.trim()) return toast("Paste the licence key first", "bad");
       guard(() => put("/api/admin/licence", { key: a.querySelector("#key").value })).then(() => location.reload());
     };
-    a.querySelector("#rmKey") && (a.querySelector("#rmKey").onclick = () => confirm("Remove this licence? AT-SUIT goes back to evaluation mode.") &&
+    a.querySelector("#rmKey") && (a.querySelector("#rmKey").onclick = () => confirm("Remove this licence? AT-SUIT stops working (at the next quiet moment) until a key is added again.") &&
       guard(() => put("/api/admin/licence", { key: "", remove: true })).then(() => location.reload()));
   }
 

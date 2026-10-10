@@ -121,7 +121,7 @@ def test_screen_agent_pairs_without_an_enrolment_code(tmp_path):
         f.chmod(0o755)
     (tmp_path / "only.txt").write_text(HDMI_ONLY)
     env = {**os.environ, "ATSUIT_DATA": str(data), "ATSUIT_ASR": "0"}
-    srv = subprocess.Popen([sys.executable, "-m", "uvicorn", "atsuit.main:app", "--port", str(port)],
+    srv = subprocess.Popen([sys.executable, "tests/licensed_server.py", "--port", str(port)],
                            cwd=AGENT.parents[1] / "server", env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     url = f"http://127.0.0.1:{port}"
     try:
@@ -139,7 +139,8 @@ def test_screen_agent_pairs_without_an_enrolment_code(tmp_path):
                 return json.loads(r.read() or b"null")
 
         call("POST", "/api/setup", {"organisation": "T", "site_name": "V", "admin_username": "admin",
-                                    "admin_password": "correct-horse", "rooms": ["CC"]})
+                                    "admin_password": "correct-horse", "rooms": ["CC"],
+                                    "licence_key": (data / "test-licence.txt").read_text()})
         login = urllib.request.Request(url + "/api/auth/login", method="POST", headers={"Content-Type": "application/json"},
                                        data=json.dumps({"username": "admin", "password": "correct-horse"}).encode())
         with urllib.request.urlopen(login) as r:

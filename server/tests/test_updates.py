@@ -4,8 +4,8 @@ import httpx
 from atsuit import VERSION, db, updates
 
 
-def release(version, assets=()):
-    return {"version": version, "tag": f"v{version}", "name": f"v{version}", "url": "https://github.com/x/y/releases/tag/v" + version,
+def release(version, assets=(), repo="adam1991tom/AT-SUIT-releases"):
+    return {"repo": repo, "version": version, "tag": f"v{version}", "name": f"v{version}", "url": "https://github.com/x/y/releases/tag/v" + version,
             "published_at": "2026-10-09T12:00:00Z", "notes": "Fixes", "assets": list(assets)}
 
 
@@ -25,13 +25,13 @@ def test_versions_compare_as_numbers():
 
 def test_settings_and_check(admin, monkeypatch):
     st = admin.get("/api/admin/updates").json()
-    assert st["current"] == VERSION and st["mode"] == "auto" and st["repo"] == "adam1991tom/AT-SUIT" and not st["has_token"]
+    assert st["current"] == VERSION and st["mode"] == "auto" and st["repo"] == "adam1991tom/AT-SUIT-releases" and not st["has_token"]
     assert st["latest"] is None and not st["available"] and not st["host_updater"]
     seen = {}
 
     def fake(repo, token):
         seen.update(repo=repo, token=token)
-        return release(bump(VERSION))
+        return release(bump(VERSION), repo=repo)
     monkeypatch.setattr(updates, "fetch_latest", fake)
     assert admin.put("/api/admin/updates", json={"token": "not a token!"}).status_code == 400
     assert admin.put("/api/admin/updates", json={"mode": "sometimes"}).status_code == 400
@@ -42,10 +42,10 @@ def test_settings_and_check(admin, monkeypatch):
     assert st["available"] and st["latest"]["version"] == bump(VERSION) and st["error"] == ""
     assert "ghp_abc123" not in admin.get("/api/admin/updates").text  # the token never comes back
     # a server running a build newer than the newest release says so, rather than "up to date"
-    monkeypatch.setattr(updates, "fetch_latest", lambda repo, token: release("0.0.1"))
+    monkeypatch.setattr(updates, "fetch_latest", lambda repo, token: release("0.0.1", repo=repo))
     st = admin.post("/api/admin/updates/check").json()
     assert st["ahead"] and not st["available"]
-    monkeypatch.setattr(updates, "fetch_latest", lambda repo, token: release(bump(VERSION)))
+    monkeypatch.setattr(updates, "fetch_latest", lambda repo, token: release(bump(VERSION), repo=repo))
     st = admin.post("/api/admin/updates/check").json()
     assert st["available"] and not st["ahead"]
 
@@ -69,7 +69,7 @@ def test_the_host_updater_installs_only_when_it_should(admin, monkeypatch):
     assert plan()["ACTION"] == "none"  # nothing known yet
     admin.post("/api/admin/updates/check")
     p = plan()
-    assert p == {"ACTION": "install", "VERSION": new, "TAG": f"v{new}", "REPO": "adam1991tom/AT-SUIT", "TOKEN": ""}
+    assert p == {"ACTION": "install", "VERSION": new, "TAG": f"v{new}", "REPO": "adam1991tom/AT-SUIT-releases", "TOKEN": ""}
     assert admin.get("/api/admin/updates").json()["host_updater"]
 
     # never during a show: a running or paused timer holds it
@@ -132,3 +132,27 @@ def test_the_server_fetches_its_own_versions_windows_app(admin, monkeypatch):
     assert admin.get("/api/nodes/app/latest.yml").content == yml
     assert admin.get(f"/api/nodes/app/{exe}").content == b"MZ installer"
     assert admin.get("/api/nodes/app").json()["version"] == VERSION
+
+
+def test_releases_come_from_the_releases_repository(admin, monkeypatch):
+    """The source repository can be private: servers and laptops read the public releases-only
+    one, and ask the source repository only until the releases one has a release."""
+    asked = []
+
+    def fake(repo, token):
+        asked.append(repo)
+        if repo == updates.REPO_DEFAULT:
+            raise RuntimeError("No release found. If the repository is private, add a GitHub token.")
+        return release(bump(VERSION), repo=repo)
+    monkeypatch.setattr(updates, "fetch_latest", fake)
+    st = admin.post("/api/admin/updates/check").json()
+    assert asked == [updates.REPO_DEFAULT, updates.REPO_SOURCE] and st["available"] and st["error"] == ""
+    assert plan()["REPO"] == updates.REPO_SOURCE and admin.get("/api/nodes/app").json()["github"] == updates.REPO_SOURCE
+    # once the releases repository has it, that's where everything looks
+    monkeypatch.setattr(updates, "fetch_latest", lambda repo, token: release(bump(VERSION), repo=repo))
+    admin.post("/api/admin/updates/check")
+    assert plan()["REPO"] == updates.REPO_DEFAULT and admin.get("/api/nodes/app").json()["github"] == updates.REPO_DEFAULT
+    # a server that saved the source repository before the move (with no token) follows the move
+    with db.tx() as c:
+        db.set_setting(c, "updates", {"mode": "auto", "repo": "adam1991tom/AT-SUIT"})
+    assert admin.get("/api/admin/updates").json()["repo"] == updates.REPO_DEFAULT
