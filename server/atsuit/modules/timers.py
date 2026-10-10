@@ -156,9 +156,40 @@ async def publish(room_id: int) -> dict:
 
 
 def _update(c, room_id: int, **fields) -> None:
+    before = c.execute("SELECT * FROM timers WHERE room_id=?", (room_id,)).fetchone()
     fields["updated_at"] = db.now_iso()
     sets = ",".join(f"{k}=?" for k in fields)
     c.execute(f"UPDATE timers SET {sets} WHERE room_id=?", (*fields.values(), room_id))
+    if before:
+        _log(c, before, c.execute("SELECT * FROM timers WHERE room_id=?", (room_id,)).fetchone())
+
+
+def _run_key(r):
+    """One run of the timer: from its first start until something else is loaded, it is reset or stopped."""
+    return (r["cue_id"], r["first_started_at"]) if r["first_started_at"] else None
+
+
+def _log(c, before, after) -> None:
+    """Keep each room's timer runs and stage messages for the show report."""
+    now = time.time()
+    old, new = _run_key(before), _run_key(after)
+    if old != new:
+        if old:
+            c.execute("UPDATE timer_runs SET ended_at=?, remaining_ms=?, added_ms=? WHERE room_id=? AND ended_at IS NULL",
+                      (now, remaining(before, now), before["added_ms"], before["room_id"]))
+        else:  # one left open by a restart mid-run
+            c.execute("UPDATE timer_runs SET ended_at=? WHERE room_id=? AND ended_at IS NULL", (now, before["room_id"]))
+        if new:
+            cue = c.execute("SELECT cue FROM cues WHERE id=?", (after["cue_id"],)).fetchone() if after["cue_id"] else None
+            c.execute("INSERT INTO timer_runs(room_id,cue_id,cue,title,timer_type,duration_ms,added_ms,started_at) VALUES(?,?,?,?,?,?,?,?)",
+                      (after["room_id"], after["cue_id"], cue["cue"] if cue else "", after["title"], after["timer_type"],
+                       after["duration_ms"], after["added_ms"], after["first_started_at"]))
+    elif new and after["added_ms"] != before["added_ms"]:
+        c.execute("UPDATE timer_runs SET added_ms=? WHERE room_id=? AND ended_at IS NULL", (after["added_ms"], after["room_id"]))
+    if after["message_visible"] and after["message"].strip() and (
+            not before["message_visible"] or before["message"] != after["message"]):
+        c.execute("INSERT INTO room_events(room_id,at,kind,detail) VALUES(?,?,?,?)",
+                  (after["room_id"], now, "stage_message", after["message"].strip()[:500]))
 
 
 def _load(c, room_id: int, q, start: bool) -> None:

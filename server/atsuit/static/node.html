@@ -745,7 +745,7 @@
     const rows = (await api("/api/comms/help")).filter((h) => h.status !== "resolved").slice(0, 8);
     const open = rows.filter((h) => h.status === "open").length;
     $("helpCount").textContent = open; $("helpCount").classList.toggle("hidden", !open); $("helpTop").classList.toggle("help-alarm", !!open);
-    $("helpList").innerHTML = rows.map((h) => `<div class="row" style="margin:.25rem 0"><span class="pill ${h.status === "open" ? "bad" : "warn"}">${esc(h.status)}</span> <b>${esc(h.room_name)}</b> ${esc(h.category)}: ${esc(h.description)} <span class="muted">${esc(h.assigned_to)}</span>` +
+    $("helpList").innerHTML = rows.map((h) => `<div class="row" style="margin:.25rem 0"><span class="pill ${h.status === "open" ? "bad" : "warn"}">${esc(h.status)}</span>${h.status === "open" && h.escalations ? ' <span class="pill bad">no answer</span>' : ""} <b>${esc(h.room_name)}</b> ${esc(h.category)}: ${esc(h.description)} <span class="muted">${esc(h.assigned_to)}</span>` +
       `${h.status === "open" ? `<button class="small" data-h="${h.id}" data-s="acknowledged">On my way</button>` : ""}<button class="small" data-h="${h.id}" data-s="resolved">Resolved</button></div>`).join("") || '<span class="muted">No open requests.</span>';
     $("helpList").querySelectorAll("[data-h]").forEach((b) => b.onclick = () => guard(() => AT.put(`/api/comms/help/${b.dataset.h}`, { status: b.dataset.s })));
   }
@@ -811,6 +811,12 @@
     if (evt.type === "help.new") {
       // not about the call you just sent yourself
       if (!(evt.data.room_id === roomId && evt.data.requested_by === boot.me.name)) alerts.add("urgent", `Help needed in ${evt.data.room_name}`, what(evt.data), () => $("helpTop").click());
+      renderHelp();
+    }
+    if (evt.type === "help.escalated") {
+      // Nobody is on the way yet: it goes out again to every laptop and page (the main PC still shows nothing).
+      const h = evt.data, mins = Math.max(1, Math.round((h.waited_s || 0) / 60));
+      alerts.add("urgent", `Still no answer: help in ${h.room_name} (${mins} min)`, what(h), () => $("helpTop").click());
       renderHelp();
     }
     if (evt.type === "help.updated") {
