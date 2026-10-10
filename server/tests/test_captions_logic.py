@@ -162,7 +162,20 @@ def test_hotwords_file_from_tokens(tmp_path):
     tokens.write_text("\n".join(f"{t} {i}" for i, t in enumerate(["<blk>", "▁LOVE", "LACE", "▁N", "H", "S", "▁DERM", "A"])))
     out = tmp_path / "hot.txt"
     skipped = asr.build_hotwords(["Lovelace", "NHS", "Zoë", " "], tokens, out)
-    assert set(out.read_text().splitlines()) == {"▁LOVE LACE", "▁N H S"} and skipped == ["Zoë"]
+    # word-start pieces are written as their lowercase alias, which sherpa-onnx can look up
+    assert set(out.read_text().splitlines()) == {"love LACE", "n H S"} and skipped == ["Zoë"]
+    aliased = asr.hotword_tokens(tokens, tmp_path / "tokens-hot.txt").read_text().splitlines()
+    assert aliased[:8] == tokens.read_text().splitlines()  # the real names come first, so captions are unchanged
+    assert set(aliased[8:]) == {"love 1", "n 3", "derm 6"}
+
+
+def test_hotwords_sherpa_rejected_are_reported(tmp_path):
+    tokens = tmp_path / "tokens.txt"
+    tokens.write_text("\n".join(f"{t} {i}" for i, t in enumerate(["<blk>", "▁LOVE", "LACE", "▁N", "H", "S"])))
+    log = ("utils.cc:EncodeBase:65 Cannot find ID for token LACE at line: love LACE. (Hint: Check the tokens.txt see if LACE in it)\n"
+           "InitHotwords:455 Failed to encode some hotwords, skip them already, see logs above for details.\n")
+    assert asr.unused_hotwords(log, ["Lovelace", "NHS"], tokens) == ["Lovelace"]
+    assert asr.unused_hotwords("", ["Lovelace", "NHS"], tokens) == []
 
 
 # --------------------------------------------------------- srt / vtt export --
@@ -256,3 +269,14 @@ def test_corrections_history_and_transcripts(admin, client):
     tech.post(f"/api/captions/{rid}/transcript/stop")
     assert tech.delete(f"/api/captions/transcripts/{start['id']}").status_code == 200
     assert tech.get(f"/api/captions/transcripts/{start['id']}").status_code == 404
+
+
+def test_sentence_case_keeps_vocabulary_acronyms_and_i():
+    keep = asr.case_words(["Harrogate Convention Centre", "iPhone", "BBC"])
+    text, words = asr.tidy("WELCOME TO HARROGATE I'M ON THE B B C WITH MY IPHONE",
+                           [{"text": t, "confidence": 1.0} for t in "WELCOME TO HARROGATE I'M ON THE B B C WITH MY IPHONE".split()],
+                           {"join_acronyms": True, "sentence_case": True}, keep)
+    assert text == "Welcome to Harrogate I'm on the BBC with my iPhone"
+    assert [w["text"] for w in words] == ["Welcome", "to", "Harrogate", "I'm", "on", "the", "BBC", "with", "my", "iPhone"]
+    assert asr.tidy("THE N H S", [], {"join_acronyms": True, "sentence_case": True})[0] == "The NHS"
+    assert asr.tidy("HELLO THERE", [], {})[0] == "HELLO THERE"  # off by default

@@ -55,3 +55,38 @@ def test_node_audio_becomes_captions(tmp_path, monkeypatch):
                         break
         final = " ".join(texts).upper()
         assert "YELLOW LAMPS" in final, final
+
+
+def test_vocabulary_steers_the_recogniser(tmp_path, monkeypatch, capfd):
+    """Vocabulary words reach sherpa-onnx and change what it hears: with "Yellow Lambs" in the
+    vocabulary, the test recording's "yellow lamps" comes out as LAMBS."""
+    monkeypatch.setenv("ATSUIT_DATA", str(tmp_path))
+    monkeypatch.setenv("ATSUIT_ASR", "1")
+    (tmp_path / "models").symlink_to(MODELS)
+    from atsuit import asr, config
+    config.reload()
+    wav = next(Path(MODELS).glob("*/test_wavs/0.wav"), None) or Path(os.environ["ATSUIT_TEST_WAV"])
+    with wave.open(str(wav)) as w:
+        pcm = w.readframes(w.getnframes())
+    import numpy as np
+    audio = np.frombuffer(pcm, dtype=np.int16).astype(np.float32) / 32768
+
+    def hear(vocabulary):
+        eng = asr.Engine()
+        eng.load(vocabulary=vocabulary, download=False)
+        assert eng.state == "ready", eng.status()
+        r = eng.recognizer
+        s = r.create_stream()
+        s.accept_waveform(16000, audio)
+        s.accept_waveform(16000, np.zeros(32000, dtype=np.float32))
+        s.input_finished()
+        while r.is_ready(s):
+            r.decode_stream(s)
+        return r.get_result(s), eng
+
+    plain, _ = hear([])
+    assert "YELLOW LAMPS" in plain
+    boosted, eng = hear(["Yellow Lambs", "Zoë"])
+    assert "YELLOW LAMBS" in boosted, boosted
+    assert eng.skipped_vocab == ["Zoë"]
+    assert "Cannot find ID" not in capfd.readouterr().err

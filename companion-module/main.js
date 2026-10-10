@@ -93,7 +93,7 @@ class AtSuit extends InstanceBase {
     for (const m of PRESETS) out[`p${m}`] = { type: "button", category: "Timer presets", name: `${m} min`, style: { ...base, text: `${m}\\nmin` }, steps: [{ down: [{ actionId: "preset", options: { minutes: m, title: "", start: true } }], up: [] }], feedbacks: [] };
     const btn = (cat, id, text, actionId, options, fb) => { out[id] = { type: "button", category: cat, name: text, style: { ...base, text }, steps: [{ down: [{ actionId, options }], up: [] }], feedbacks: fb || [] }; };
     btn("Timer", "plus", "+1\\nmin", "add", { minutes: 1 }); btn("Timer", "minus", "-1\\nmin", "add", { minutes: -1 });
-    btn("Timer", "toggle", "$(at-suit:time_left)", "control", { cmd: "toggle" }, [{ feedbackId: "running", options: {}, style: { bgcolor: GREEN, color: WHITE } }, { feedbackId: "danger", options: {}, style: { bgcolor: RED, color: WHITE } }]);
+    btn("Timer", "toggle", `$(${this.label}:time_left)`, "control", { cmd: "toggle" }, [{ feedbackId: "running", options: {}, style: { bgcolor: GREEN, color: WHITE } }, { feedbackId: "danger", options: {}, style: { bgcolor: RED, color: WHITE } }]);
     btn("Timer", "reset", "Reset", "control", { cmd: "reset" }); btn("Timer", "go", "GO", "control", { cmd: "go" });
     btn("Display", "blink", "Blink", "blink", { mode: "toggle" }, [{ feedbackId: "blink", options: {}, style: { bgcolor: ORANGE, color: NAVY } }]);
     btn("Display", "clock", "Clock", "clock", { mode: "toggle" }, [{ feedbackId: "clock", options: {}, style: { bgcolor: ORANGE, color: NAVY } }]);
@@ -102,7 +102,7 @@ class AtSuit extends InstanceBase {
     btn("Messages", "hide", "Hide\\nmessage", "message_hide", {}, [{ feedbackId: "message", options: {}, style: { bgcolor: ORANGE, color: NAVY } }]);
     QUICK_MESSAGES.forEach((m, i) => btn("Quick messages", `qm${i}`, m, "quick_message", { text: m, blink: false }, [{ feedbackId: "quick_message", options: { text: m }, style: { bgcolor: ORANGE, color: NAVY } }]));
     for (const m of [1, 2, 3, 5, 10]) btn("Second line", `s${m}`, `2nd\\n${m} min`, "secondary_timer", { minutes: m, start: true });
-    btn("Second line", "stoggle", "$(at-suit:secondary)", "secondary_control", { cmd: "toggle" }, [{ feedbackId: "secondary", options: {}, style: { bgcolor: ORANGE, color: NAVY } }]);
+    btn("Second line", "stoggle", `$(${this.label}:secondary)`, "secondary_control", { cmd: "toggle" }, [{ feedbackId: "secondary", options: {}, style: { bgcolor: ORANGE, color: NAVY } }]);
     btn("Second line", "shide", "Hide\\n2nd line", "secondary_control", { cmd: "hide" }); btn("Second line", "sshow", "Show\\n2nd line", "secondary_control", { cmd: "show" });
     btn("Second line", "sqa", "Q&A next", "secondary_text", { text: "Q&A next" });
     return out;

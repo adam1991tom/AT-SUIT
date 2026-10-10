@@ -57,7 +57,7 @@ COLOR = re.compile(r"^(#[0-9a-fA-F]{3,8}|transparent)$")
 FONT = re.compile(r"^[A-Za-z0-9 ,'\"_-]{1,200}$")
 
 AUDIO_DEFAULTS = {"gain_db": 0.0, "eq_band_gains_db": [0.0] * len(dsp.EQ_BANDS_HZ),
-                  "music_label": True, "join_acronyms": True}
+                  "music_label": True, "join_acronyms": True, "sentence_case": False}
 
 
 class RoomState:
@@ -75,7 +75,7 @@ class RoomState:
         self.transcript_id: int | None = None
         self.auto_transcript = False  # started by the room's "record" switch, ends with the mic
         self.eq = dsp.GraphicEQ()
-        self.options: dict = {"music_label": True, "join_acronyms": True}
+        self.options: dict = {"music_label": True, "join_acronyms": True, "sentence_case": False}
 
 
 rooms: dict[int, RoomState] = {}
@@ -186,7 +186,8 @@ def clean_appearance(surface: str, values: dict) -> dict:
 def apply_room_config(room_id: int, cfg: dict) -> RoomState:
     st = rooms.setdefault(room_id, RoomState())
     st.eq.set(gain_db=cfg["gain_db"], band_gains_db=cfg["eq_band_gains_db"])
-    st.options.update(music_label=bool(cfg["music_label"]), join_acronyms=bool(cfg["join_acronyms"]))
+    st.options.update(music_label=bool(cfg["music_label"]), join_acronyms=bool(cfg["join_acronyms"]),
+                      sentence_case=bool(cfg["sentence_case"]))
     return st
 
 
@@ -402,7 +403,7 @@ def _settings_out(c, room_id: int) -> dict:
     st = rooms.get(room_id)
     return {**room_settings(c, room_id), **dsp.settings_out(), "gain_db": cfg["gain_db"],
             "eq_band_gains_db": cfg["eq_band_gains_db"], "music_label": cfg["music_label"],
-            "join_acronyms": cfg["join_acronyms"], "appearance": cfg["appearance"],
+            "join_acronyms": cfg["join_acronyms"], "sentence_case": cfg["sentence_case"], "appearance": cfg["appearance"],
             "appearance_defaults": APPEARANCE_DEFAULTS, "hotwords_score": hotwords_score(c),
             "skipped_vocabulary": asr.engine.skipped_vocab, "live": bool(st and st.ws),
             "source": st.source if st else "", "recording": bool(st and st.transcript),
@@ -427,6 +428,7 @@ class SettingsIn(BaseModel):
     eq_bands: list[dict] | None = None  # LiveCaption style: [{"index": 3, "gain_db": 4}]
     music_label: bool | None = None
     join_acronyms: bool | None = None
+    sentence_case: bool | None = None
     appearance: dict | None = None  # {"audience": {...}, "overlay": {...}, "bar": {...}}
     reset_appearance: str | None = Field(None, pattern="^(audience|overlay|bar|all)$")
 
@@ -450,7 +452,7 @@ async def save_settings(room_id: int, body: SettingsIn, p: Principal) -> dict:
                 bands[i] = dsp.clamp(float(b.get("gain_db", 0)), -dsp.MAX_BAND_GAIN_DB, dsp.MAX_BAND_GAIN_DB)
         if body.eq_band_gains_db is not None or body.eq_bands:
             saved["eq_band_gains_db"] = [round(g, 1) for g in bands]
-        for key in ("music_label", "join_acronyms"):
+        for key in ("music_label", "join_acronyms", "sentence_case"):
             if getattr(body, key) is not None:
                 saved[key] = getattr(body, key)
         appearance_changed = False

@@ -71,10 +71,11 @@
         <div class="meter" style="margin:.4rem 0"><i data-k="lvl"></i></div>
         <label class="row" style="gap:.4rem;margin-top:.5rem"><input type="checkbox" data-k="music" style="width:auto"> Show music and filler noises ("um um um") as [MUSIC]</label>
         <label class="row" style="gap:.4rem"><input type="checkbox" data-k="acr" style="width:auto"> Join spelled-out acronyms ("U K" → "UK")</label>
+        <label class="row" style="gap:.4rem"><input type="checkbox" data-k="scase" style="width:auto"> Sentence case instead of capitals (vocabulary words keep their spelling)</label>
       </div>
       <div class="pane" data-pane="2">
         <textarea data-k="vocab" rows="8" placeholder="One name, term or phrase per line, e.g.&#10;Lovelace&#10;Dermatology&#10;NHS"></textarea>
-        <p class="hint">Boosts names, jargon and acronyms for this event. Approximate: unusual spellings may not always take. Rooms already captioning pick up changes at their next pause.</p>
+        <p class="hint">Boosts names, jargon and acronyms for this event, spelled the way they're written. It helps most when the spelling is close to how the word sounds. Words the speech engine can't use are listed below. Rooms already captioning pick up changes at their next pause.</p>
         <div class="slider"><label style="width:7.5rem">Boost strength</label><input type="range" data-k="score" min="0.5" max="6" step="0.5"><span data-k="scoreV"></span></div>
         <p class="hint">Boost strength is one setting for the whole server (every room shares the speech engine).</p>
         <div class="row" style="justify-content:space-between"><label class="row" style="gap:.4rem"><input type="checkbox" data-k="enabled" style="width:auto"> Captions on for this room</label><button class="primary" data-k="saveVocab">Save &amp; apply</button></div>
@@ -133,11 +134,12 @@
     const bands = () => s.eq_band_gains_db;
     function setGainUi() { k("gain").value = s.gain_db; k("gainV").textContent = `${(+s.gain_db).toFixed(1)} dB`; }
     setGainUi();
-    k("music").checked = !!s.music_label; k("acr").checked = !!s.join_acronyms;
+    k("music").checked = !!s.music_label; k("acr").checked = !!s.join_acronyms; k("scase").checked = !!s.sentence_case;
     let gainT = null;
     k("gain").oninput = () => { s.gain_db = +k("gain").value; setGainUi(); clearTimeout(gainT); gainT = setTimeout(() => save({ gain_db: s.gain_db }).catch((e) => toast(e.message, "bad")), 150); };
     k("music").onchange = () => AT.guard(() => save({ music_label: k("music").checked }));
     k("acr").onchange = () => AT.guard(() => save({ join_acronyms: k("acr").checked }));
+    k("scase").onchange = () => AT.guard(() => save({ sentence_case: k("scase").checked }));
     k("eqReset").onclick = () => AT.guard(() => save({ gain_db: 0, eq_band_gains_db: bands().map(() => 0) })).then(() => { setGainUi(); drawEq(); });
     let rta = null;
     const cv = k("eq"), F0 = 20, F1 = 8000, DB = s.max_band_gain_db || 12;
