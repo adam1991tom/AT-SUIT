@@ -63,19 +63,20 @@
 .dk-ghost { position: absolute; z-index: 40; border: 1px dashed var(--accent); border-radius: var(--radius); background: color-mix(in srgb, var(--panel) 50%, transparent); pointer-events: none; }
 .dk-preview { position: absolute; z-index: 41; border: 2px solid var(--accent); border-radius: var(--radius); background: color-mix(in srgb, var(--accent) 22%, transparent); pointer-events: none; transition: all .08s; }
 .dk-compass { position: absolute; z-index: 45; width: 0; height: 0; }
+/* the guides' classes are dk-g-*, never plain top/left/center: the pages use those names for their own layout */
 .dk-guide { position: absolute; z-index: 45; width: 34px; height: 34px; border-radius: 6px; background: var(--panel2); border: 2px solid var(--accent);
   box-shadow: var(--shadow); opacity: .92; }
 .dk-guide::after { content: ""; position: absolute; background: var(--accent); opacity: .7; border-radius: 2px; }
 .dk-guide.hot { background: var(--accent); }
-.dk-compass .center { left: -17px; top: -17px; } .dk-compass .center::after { inset: 7px; }
-.dk-compass .left { left: -57px; top: -17px; } .dk-compass .left::after { left: 5px; top: 5px; bottom: 5px; width: 8px; }
-.dk-compass .right { left: 23px; top: -17px; } .dk-compass .right::after { right: 5px; top: 5px; bottom: 5px; width: 8px; }
-.dk-compass .top { left: -17px; top: -57px; } .dk-compass .top::after { left: 5px; right: 5px; top: 5px; height: 8px; }
-.dk-compass .bottom { left: -17px; top: 23px; } .dk-compass .bottom::after { left: 5px; right: 5px; bottom: 5px; height: 8px; }
-.dk-guide.root.top { top: 10px; left: calc(50% - 17px); } .dk-guide.root.top::after { left: 5px; right: 5px; top: 5px; height: 8px; }
-.dk-guide.root.bottom { bottom: 10px; left: calc(50% - 17px); } .dk-guide.root.bottom::after { left: 5px; right: 5px; bottom: 5px; height: 8px; }
-.dk-guide.root.left { left: 10px; top: calc(50% - 17px); } .dk-guide.root.left::after { left: 5px; top: 5px; bottom: 5px; width: 8px; }
-.dk-guide.root.right { right: 10px; top: calc(50% - 17px); } .dk-guide.root.right::after { right: 5px; top: 5px; bottom: 5px; width: 8px; }
+.dk-compass .dk-g-center { left: -17px; top: -17px; } .dk-compass .dk-g-center::after { inset: 7px; }
+.dk-compass .dk-g-left { left: -57px; top: -17px; } .dk-compass .dk-g-left::after { left: 5px; top: 5px; bottom: 5px; width: 8px; }
+.dk-compass .dk-g-right { left: 23px; top: -17px; } .dk-compass .dk-g-right::after { right: 5px; top: 5px; bottom: 5px; width: 8px; }
+.dk-compass .dk-g-top { left: -17px; top: -57px; } .dk-compass .dk-g-top::after { left: 5px; right: 5px; top: 5px; height: 8px; }
+.dk-compass .dk-g-bottom { left: -17px; top: 23px; } .dk-compass .dk-g-bottom::after { left: 5px; right: 5px; bottom: 5px; height: 8px; }
+.dk-guide.root.dk-g-top { top: 10px; left: calc(50% - 17px); } .dk-guide.root.dk-g-top::after { left: 5px; right: 5px; top: 5px; height: 8px; }
+.dk-guide.root.dk-g-bottom { bottom: 10px; left: calc(50% - 17px); } .dk-guide.root.dk-g-bottom::after { left: 5px; right: 5px; bottom: 5px; height: 8px; }
+.dk-guide.root.dk-g-left { left: 10px; top: calc(50% - 17px); } .dk-guide.root.dk-g-left::after { left: 5px; top: 5px; bottom: 5px; width: 8px; }
+.dk-guide.root.dk-g-right { right: 10px; top: calc(50% - 17px); } .dk-guide.root.dk-g-right::after { right: 5px; top: 5px; bottom: 5px; width: 8px; }
 
 /* the taskbar */
 .dk-task { display: flex; align-items: center; gap: .4rem; padding: .35rem .5rem; background: var(--panel); border-top: 1px solid var(--line); min-height: 2.6rem; }
