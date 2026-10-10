@@ -57,6 +57,9 @@ if [ -n "$TOKEN" ]; then
 fi
 IMAGE_INSTALL=0
 if grep -q '^ATSUIT_IMAGE=ghcr.io/' .env 2>/dev/null; then IMAGE_INSTALL=1; fi
+# The update timer runs as root, but the checkout belongs to whoever installed it, and git
+# refuses to touch another user's repository ("dubious ownership") unless told it's safe.
+git() { command git -c safe.directory="$PWD" "$@"; }
 if [ -d .git ]; then
   if [ "$AUTO" = 1 ]; then
     git "${GITAUTH[@]}" fetch -q origin "refs/tags/${ATSUIT_REF}:refs/tags/${ATSUIT_REF}"

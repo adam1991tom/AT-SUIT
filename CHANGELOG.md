@@ -11,6 +11,11 @@ the GitHub release.
 - **Handover notes.** Each room has notes that one tech leaves for the next ("clicker 2 needs batteries", "the client wants the house lights at 50% for Q&A"). A note stays until someone presses Done, so it carries over between shifts and days. Pin a note to keep standing info for the room at the top. Notes you haven't read yet are counted on the Handover notes window and in the top bar; nothing pops up, on the Main PC or anywhere. Ticked-off notes stay greyed for a week (with Put back) and are deleted after 30 days. Notes are stored encrypted, and a tech laptop only sees its own room's notes.
 - **Live info in the top bar.** The empty middle of the top bar now shows the time at the venue (the server's site time, in the site's 12 or 24 hour format), this room's timer (in its warning and danger colours, with "message on stage" or "blackout" when they're on), the session on now or next with how many presenters are here, how many of the room's screens are connected, whether captions are live, and the handover notes. Click any of them to open its window. On narrower screens the details drop off first, so it stays on one line down to 1280 pixels wide.
 
+## 1.0.7
+
+**Updates**
+- Automatic updates work on a server installed from a git checkout. The update timer runs as root, and git refused to fetch the new release into a checkout owned by another user ("update.sh stopped at line 62"). It now tells git the checkout is safe.
+
 ## 1.0.6
 
 **Workspace**
