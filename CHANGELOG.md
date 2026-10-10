@@ -5,6 +5,11 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.0.7
+
+**Updates**
+- Automatic updates work on a server installed from a git checkout. The update timer runs as root, and git refused to fetch the new release into a checkout owned by another user ("update.sh stopped at line 62"). It now tells git the checkout is safe.
+
 ## 1.0.6
 
 **Workspace**
