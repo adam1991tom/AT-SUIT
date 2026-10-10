@@ -92,8 +92,33 @@ def _pieces(word: str, vocab: set[str]) -> list[str] | None:
     return out
 
 
+# sherpa-onnx reads a hotwords file with its default "cjkchar" splitter: plain ASCII words are
+# looked up whole in tokens.txt, but any other character, the word-start mark "▁" included, is
+# split off on its own. So "▁HA R RO G ATE" became "▁ HA R ..." and every phrase failed
+# ("Cannot find ID for token HA"). The BPE splitter isn't an option either: it needs the
+# training-time BPE model, which the model download doesn't include. Instead each word-start
+# piece gets a lowercase alias ("▁HA" -> "ha") with the same id, appended to a copy of
+# tokens.txt that the recogniser loads. Real pieces are all upper case, so aliases never clash,
+# and the first name for an id is the one printed, so captions are unchanged.
+def _alias(piece: str) -> str:
+    return piece[1:].lower() if piece.startswith(WORD_BOUNDARY) and len(piece) > 1 else piece
+
+
+def hotword_tokens(tokens: Path, out: Path) -> Path:
+    """A copy of tokens.txt with the lowercase word-start aliases added at the end."""
+    lines = tokens.read_text(encoding="utf-8").splitlines()
+    extra = []
+    for line in lines:
+        parts = line.split(" ")
+        if len(parts) >= 2 and _alias(parts[0]) != parts[0]:
+            extra.append(f"{_alias(parts[0])} {parts[1]}")
+    out.write_text("\n".join(lines + extra) + "\n", encoding="utf-8")
+    return out
+
+
 def build_hotwords(phrases: list[str], tokens: Path, out: Path) -> list[str]:
-    """Pre-tokenised hotwords file; returns phrases that couldn't be used."""
+    """Pre-tokenised hotwords file (for a recogniser given hotword_tokens()); returns phrases
+    that couldn't be used."""
     vocab = _vocab(tokens)
     lines, skipped = [], []
     for phrase in {p.strip() for p in phrases if p.strip()}:
@@ -104,9 +129,58 @@ def build_hotwords(phrases: list[str], tokens: Path, out: Path) -> list[str]:
                 seq = []
                 break
             seq.extend(pieces)
-        (lines.append(" ".join(seq)) if seq else skipped.append(phrase))
+        (lines.append(" ".join(_alias(p) for p in seq)) if seq else skipped.append(phrase))
     out.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
     return skipped
+
+
+_HOTWORD_FAIL_RE = re.compile(r"Cannot find ID for token .* at line: (.*?)\. \(Hint")
+
+
+def unused_hotwords(log: str, phrases: list[str], tokens: Path) -> list[str]:
+    """The phrases sherpa-onnx said it couldn't encode, from what it printed while loading."""
+    failed = {" ".join(m.group(1).split()) for m in _HOTWORD_FAIL_RE.finditer(log)}
+    if not failed and "Failed to encode some hotwords" not in log:
+        return []
+    vocab, out = _vocab(tokens), []
+    for phrase in {p.strip() for p in phrases if p.strip()}:
+        seq = []
+        for word in phrase.split():
+            seq.extend(_pieces(word, vocab) or [])
+        line = " ".join(_alias(p) for p in seq)
+        # sherpa prints the line re-split, so compare without spaces
+        if not failed or any(line.replace(" ", "") == f.replace(" ", "") for f in failed):
+            out.append(phrase)
+    return out
+
+
+class _CaptureStderr:
+    """sherpa-onnx's native code reports hotword problems on stderr only; catch them (and
+    still pass them on to the log)."""
+
+    def __enter__(self):
+        import os
+        import sys
+        import tempfile
+        self._os = os
+        sys.stderr.flush()
+        self._file = tempfile.TemporaryFile()
+        self._saved = os.dup(2)
+        os.dup2(self._file.fileno(), 2)
+        self.text = ""
+        return self
+
+    def __exit__(self, *exc):
+        os = self._os
+        os.dup2(self._saved, 2)
+        os.close(self._saved)
+        self._file.seek(0)
+        raw = self._file.read()
+        self._file.close()
+        if raw:
+            os.write(2, raw)
+        self.text = raw.decode("utf-8", "replace")
+        return False
 
 
 # ------------------------------------------------------- caption text --
@@ -169,14 +243,60 @@ def merge_acronym_words(words: list[dict]) -> list[dict]:
     return merged
 
 
-def tidy(text: str, words: list[dict], options: dict | None = None) -> tuple[str, list[dict]]:
-    """What a room's screens see: acronyms joined, music labelled (per-room
-    switches, both on by default as in LiveCaption)."""
+# The model writes in capitals. Sentence case (a per-room switch, off by default) lowers every
+# word except: the first letter of each caption, "I" and its contractions, acronyms joined
+# from spelled-out letters, and words from the vocabulary, which keep the vocabulary's spelling
+# ("Harrogate", "BBC", "iPhone").
+_I_FORMS = {"I": "I", "I'M": "I'm", "I'D": "I'd", "I'LL": "I'll", "I'VE": "I've"}
+
+
+def case_words(vocabulary: list[str]) -> dict[str, str]:
+    """Upper-case word -> how the vocabulary spells it."""
+    out: dict[str, str] = {}
+    for phrase in vocabulary or []:
+        for w in phrase.split():
+            if any(ch.isalpha() for ch in w):
+                out.setdefault(w.upper(), w)
+    return out
+
+
+def sentence_case(text: str, words: list[dict], keep: dict[str, str] | None = None,
+                  acronyms: set[str] = frozenset()) -> tuple[str, list[dict]]:
+    keep = keep or {}
+
+    def one(w: str) -> str:
+        up = w.upper()
+        if up in keep:
+            return keep[up]
+        if up in _I_FORMS:
+            return _I_FORMS[up]
+        if up in acronyms or w == MUSIC_LABEL:
+            return w
+        return w.lower()
+
+    def first_cap(s: str) -> str:
+        return s[:1].upper() + s[1:]
+
+    text = first_cap(" ".join(one(w) for w in text.split()))
+    words = [{**w, "text": one(w["text"])} for w in words]
+    if words:
+        words[0] = {**words[0], "text": first_cap(words[0]["text"])}
+    return text, words
+
+
+def tidy(text: str, words: list[dict], options: dict | None = None,
+         keep: dict[str, str] | None = None) -> tuple[str, list[dict]]:
+    """What a room's screens see: acronyms joined, music labelled, and optionally sentence
+    case (per-room switches; the first two on by default as in LiveCaption)."""
     o = options or {}
     text = text.strip()
+    acronyms: set[str] = set()
     if o.get("join_acronyms", True):
+        acronyms = {m.group(0).replace(" ", "").upper() for m in _ACRONYM_RE.finditer(text)}
         text = join_spelled_acronyms(text)
         words = merge_acronym_words(words)
+    if o.get("sentence_case"):
+        text, words = sentence_case(text, words, keep, acronyms)
     return text, words
 
 
@@ -192,6 +312,7 @@ class Engine:
         self.detail = ""
         self.progress = 0.0
         self.skipped_vocab: list[str] = []
+        self.case_words: dict[str, str] = {}  # vocabulary spellings, for sentence case
         self.hotwords_score = DEFAULT_HOTWORDS_SCORE
         self.generation = 0  # bumped on every (re)load so running rooms pick up new vocabulary
         self._lock = threading.Lock()
@@ -230,17 +351,23 @@ class Engine:
                     self.state, self.detail = "loading", "Loading the speech model"
                 files = model_files(model_dir)
                 hot = config.cfg.models / "hotwords.txt"
-                self.skipped_vocab = build_hotwords(vocabulary or [], files["tokens"], hot)
-                self.recognizer = sherpa_onnx.OnlineRecognizer.from_transducer(
-                    tokens=str(files["tokens"]), encoder=str(files["encoder"]),
-                    decoder=str(files["decoder"]), joiner=str(files["joiner"]),
-                    num_threads=2, sample_rate=SAMPLE_RATE, feature_dim=80,
-                    enable_endpoint_detection=True, rule1_min_trailing_silence=2.4,
-                    rule2_min_trailing_silence=1.2, rule3_min_utterance_length=300,
-                    decoding_method="modified_beam_search", max_active_paths=6,
-                    hotwords_file=str(hot) if hot.stat().st_size else "", hotwords_score=self.hotwords_score,
-                    provider="cpu",
-                )
+                skipped = build_hotwords(vocabulary or [], files["tokens"], hot)
+                self.case_words = case_words(vocabulary or [])
+                has_hot = bool(hot.stat().st_size)
+                tokens = hotword_tokens(files["tokens"], config.cfg.models / "tokens-hotwords.txt") if has_hot else files["tokens"]
+                with _CaptureStderr() as err:
+                    self.recognizer = sherpa_onnx.OnlineRecognizer.from_transducer(
+                        tokens=str(tokens), encoder=str(files["encoder"]),
+                        decoder=str(files["decoder"]), joiner=str(files["joiner"]),
+                        num_threads=2, sample_rate=SAMPLE_RATE, feature_dim=80,
+                        enable_endpoint_detection=True, rule1_min_trailing_silence=2.4,
+                        rule2_min_trailing_silence=1.2, rule3_min_utterance_length=300,
+                        decoding_method="modified_beam_search", max_active_paths=6,
+                        hotwords_file=str(hot) if has_hot else "", hotwords_score=self.hotwords_score,
+                        provider="cpu",
+                    )
+                rejected = unused_hotwords(err.text, vocabulary or [], files["tokens"]) if has_hot else []
+                self.skipped_vocab = sorted(set(skipped) | set(rejected))
                 self.generation += 1
                 self.state, self.detail, self.progress = "ready", "", 100.0
             except Exception as exc:  # network, disk, bad model
@@ -295,7 +422,8 @@ class Session:
             self.r.decode_stream(self.stream)
         endpoint = self.r.is_endpoint(self.stream)
         raw, words = _result(self.r, self.stream)
-        text, words = tidy(raw, words, self.options) if raw else ("", [])
+        keep = self.engine.case_words if self.engine is not None else None
+        text, words = tidy(raw, words, self.options, keep) if raw else ("", [])
         out: list[dict] = []
         if endpoint:
             if text:

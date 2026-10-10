@@ -5,6 +5,17 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.0.5
+
+**Captions**
+- Vocabulary works. The speech engine had been throwing every vocabulary word away as it loaded, so names like "Harrogate" were never boosted. They now steer what it hears: tried with spoken names, "Ocado", "Priya" and "Wolseley" came out right once they were in the vocabulary. It helps most when the spelling is close to how the word sounds.
+- Any vocabulary word the engine still can't use is listed under the vocabulary box, instead of being dropped without a word.
+- New per-room switch: **Sentence case instead of capitals**. Captions read "Welcome to Harrogate" instead of "WELCOME TO HARROGATE"; vocabulary words keep their own spelling ("BBC", "iPhone") and joined acronyms stay in capitals.
+
+**Companion module**
+- Ships `yarn.lock` (Yarn 4), which Companion needs to install the module's dependencies itself.
+- Works in Companion 5 (tested in 5.0.7). The README now names the variables correctly: they use the connection's label, `$(AT-SUIT:time_left)`, and the presets follow the label if it's renamed.
+
 ## 1.0.4
 
 **Licence keys and subscriptions**

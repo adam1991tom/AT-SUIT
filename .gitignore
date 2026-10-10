@@ -12,3 +12,5 @@ node-app/dist/
 node-app/test-results/
 *.log
 web/node_modules/
+companion-module/node_modules/
+companion-module/.yarn/
