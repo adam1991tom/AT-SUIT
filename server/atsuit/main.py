@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import VERSION, asr, config, db, licence, updates
 from .hub import can_subscribe, hub
-from .modules import captions, cluster, comms, core, dashboard, fleet, imports, overlays, pairing, presenter, timers
+from .modules import captions, cluster, comms, core, dashboard, fleet, imports, notes, overlays, pairing, presenter, timers
 from .security import ws_principal
 
 STATIC = Path(__file__).parent / "static"
@@ -62,6 +62,8 @@ async def housekeeping() -> None:
                     c.execute("DELETE FROM messages WHERE created_at < ?", (cutoff,))
                 c.execute("DELETE FROM node_commands WHERE status!='queued' AND created_at < ?",
                           ((datetime.now(timezone.utc) - timedelta(days=7)).isoformat(),))
+                c.execute("DELETE FROM room_notes WHERE done_at < ?",
+                          ((datetime.now(timezone.utc) - timedelta(days=notes.DONE_KEPT_DAYS)).isoformat(),))
         except Exception as exc:  # never let housekeeping kill the server
             print("housekeeping:", exc)
         await asyncio.sleep(3600)
@@ -90,7 +92,7 @@ def create_app() -> FastAPI:
         from .helper import create_helper_app
         return create_helper_app()
     app = FastAPI(title="AT-SUIT", version=VERSION, lifespan=lifespan, docs_url="/api/docs", redoc_url=None)
-    for module in (core, comms, timers, fleet, pairing, captions, cluster, overlays, dashboard, presenter, imports):
+    for module in (core, comms, timers, fleet, pairing, captions, cluster, overlays, dashboard, presenter, imports, notes):
         app.include_router(module.router)
     app.include_router(fleet.legacy)
     app.include_router(updates.router)
