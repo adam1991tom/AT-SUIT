@@ -5,6 +5,12 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.0.6
+
+**Workspace**
+- Minimising a docked window, or one whose part isn't in use on this site, no longer leaves an empty box where it was. The windows beside it grow to fill the space.
+- The docking guides that appear while dragging a window are drawn in their proper cross again. The top and middle guides had picked up the page's own styles, so they sprawled over the windows underneath.
+
 ## 1.0.5
 
 **Captions**

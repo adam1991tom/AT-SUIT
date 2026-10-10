@@ -40,13 +40,13 @@
       {#if desk.drag.ghost}<div class="dk-ghost" style={px(desk.drag.ghost)}></div>{/if}
       {#if desk.drag.preview}<div class="dk-preview" style={px(desk.drag.preview)}></div>{/if}
       {#each ["top", "left", "right", "bottom"] as s}
-        <div class="dk-guide root {s}" class:hot={desk.drag.zone === `root:${s}`} data-guide={`root:${s}`} title="Dock along this edge"></div>
+        <div class="dk-guide root dk-g-{s}" class:hot={desk.drag.zone === `root:${s}`} data-guide={`root:${s}`} title="Dock along this edge"></div>
       {/each}
       {#if desk.drag.over && desk.drag.overRect}
         {@const r = desk.drag.overRect}
         <div class="dk-compass" style="left:{r.x + r.w / 2}px;top:{r.y + r.h / 2}px">
           {#each SIDES as s}
-            <div class="dk-guide {s}" class:hot={desk.drag.zone === `${desk.drag.over}:${s}`} data-guide={`${desk.drag.over}:${s}`}
+            <div class="dk-guide dk-g-{s}" class:hot={desk.drag.zone === `${desk.drag.over}:${s}`} data-guide={`${desk.drag.over}:${s}`}
               title={s === "center" ? "Add as a tab" : `Dock ${s}`}></div>
           {/each}
         </div>
