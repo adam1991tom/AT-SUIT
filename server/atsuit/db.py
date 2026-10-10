@@ -153,6 +153,23 @@ MIGRATIONS: list[str] = [
     CREATE TABLE helpers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL COLLATE NOCASE,
         secret_hash TEXT UNIQUE NOT NULL, added_at TEXT NOT NULL, last_seen TEXT);
     """,
+    # 10: help calls that nobody answers are sent again; each room's timer runs and stage messages,
+    # kept for the show report; the saved show reports
+    """
+    ALTER TABLE help_requests ADD COLUMN escalations INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE help_requests ADD COLUMN escalated_at TEXT;
+    CREATE TABLE timer_runs(id INTEGER PRIMARY KEY AUTOINCREMENT, room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+        cue_id INTEGER, cue TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '', timer_type TEXT NOT NULL DEFAULT 'count-down',
+        duration_ms INTEGER NOT NULL DEFAULT 0, added_ms INTEGER NOT NULL DEFAULT 0, started_at REAL NOT NULL,
+        ended_at REAL, remaining_ms INTEGER);
+    CREATE INDEX timer_runs_room ON timer_runs(room_id, started_at);
+    CREATE TABLE room_events(id INTEGER PRIMARY KEY AUTOINCREMENT, room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+        at REAL NOT NULL, kind TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '');
+    CREATE INDEX room_events_room ON room_events(room_id, at);
+    CREATE TABLE show_reports(id INTEGER PRIMARY KEY AUTOINCREMENT, room_id INTEGER REFERENCES rooms(id) ON DELETE SET NULL,
+        room_name TEXT NOT NULL, day TEXT NOT NULL, path TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE UNIQUE INDEX show_reports_day ON show_reports(room_id, day);
+    """,
 ]
 
 

@@ -43,6 +43,14 @@ label { display: block; font-size: .85rem; color: var(--muted); margin: .6rem 0 
 .pill.good { border-color: var(--good); color: var(--good-ink); } .pill.bad { border-color: var(--bad); color: var(--bad-ink); } .pill.warn { border-color: var(--warn); color: var(--warn-ink); }
 .dot { width: .6rem; height: .6rem; border-radius: 50%; display: inline-block; background: var(--muted); }
 .dot.on { background: var(--good); } .dot.off { background: var(--bad); }
+/* pre-show check (dashboard) */
+.pre-sum { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+.pre-room h3 { margin: 0 0 .4rem; }
+.pre { display: flex; gap: .5rem; align-items: flex-start; padding: .35rem .5rem; border-radius: 8px; border: 1px solid var(--line); margin-top: .35rem; background: var(--panel2); }
+.pre .dot { margin-top: .35rem; flex: none; }
+.pre.good .dot { background: var(--good); } .pre.warn .dot { background: var(--warn); } .pre.bad .dot { background: var(--bad); }
+.pre.bad { border-color: var(--bad); } .pre.warn { border-color: var(--warn); } .pre.off { opacity: .6; }
+.pre .what { overflow-wrap: anywhere; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
 th { color: var(--muted); font-weight: 500; font-size: .85rem; }

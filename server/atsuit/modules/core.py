@@ -359,6 +359,7 @@ def get_settings(p: Principal = Depends(require_admin)):
             "modules": {**DEFAULT_MODULES, **db.get_setting(c, "modules", {})},
             "legacy_fleet_api": db.get_setting(c, "legacy_fleet_api", True),
             "message_retention_days": db.get_setting(c, "message_retention_days", 0),
+            "help_escalate_minutes": db.get_setting(c, "help_escalate_minutes", 2),
             "licence": lic.public(),
         }
 
@@ -369,6 +370,7 @@ class SettingsIn(BaseModel):
     modules: dict | None = None
     legacy_fleet_api: bool | None = None
     message_retention_days: int | None = None
+    help_escalate_minutes: float | None = Field(default=None, ge=0, le=60)
 
 
 @router.put("/api/admin/settings")
@@ -389,6 +391,8 @@ def put_settings(body: SettingsIn, p: Principal = Depends(require_admin)):
             db.set_setting(c, "legacy_fleet_api", body.legacy_fleet_api)
         if body.message_retention_days is not None:
             db.set_setting(c, "message_retention_days", max(0, body.message_retention_days))
+        if body.help_escalate_minutes is not None:
+            db.set_setting(c, "help_escalate_minutes", body.help_escalate_minutes)
         db.audit(c, p.name, "settings.update", ",".join(k for k, v in body.model_dump().items() if v is not None))
     return {"ok": True}
 
