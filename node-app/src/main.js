@@ -21,6 +21,7 @@ const os = require("os");
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, net, screen, session, shell } = require("electron");
 const config = require("./config");
 const health = require("./health");
+const captions = require("./captions");
 
 if (process.env.ATSUIT_NODE_USERDATA) app.setPath("userData", process.env.ATSUIT_NODE_USERDATA);
 
@@ -79,7 +80,7 @@ function boot() {
   });
 
   app.on("window-all-closed", (e) => e.preventDefault());
-  app.on("before-quit", () => { quitting = true; });
+  app.on("before-quit", () => { quitting = true; captions.quit(); });
 }
 
 // ------------------------------------------------------------- windows --
@@ -497,6 +498,14 @@ function ipc() {
     overlay: !!(overlayWin && !overlayWin.isDestroyed() && overlayWin.isVisible()),
   }) : null));
   ipcMain.handle("app:snapshot", (e) => (fromMain(e) ? health.snapshot() : []));
+  // Captions made on this laptop: the page sends the mic, the engine sends back what it heard.
+  captions.setListener((m) => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send("captions:event", m); });
+  ipcMain.handle("captions:prepare", (e) => (fromMain(e) ? captions.prepare(conf.server, config.getToken(conf)) : { ok: false }));
+  ipcMain.handle("captions:state", (e) => (fromMain(e) ? captions.state() : {}));
+  ipcMain.on("captions:start", (e, audio) => { if (fromMain(e)) captions.start(audio); });
+  ipcMain.on("captions:audio", (e, audio) => { if (fromMain(e)) captions.audio(audio); });
+  ipcMain.on("captions:feed", (e, pcm) => { if (fromMain(e)) captions.feed(pcm); });
+  ipcMain.on("captions:stop", (e) => { if (fromMain(e)) captions.stop(); });
   ipcMain.handle("app:popout-top", (e, name, on) => {
     const w = fromMain(e) && pops.get(String(name));
     if (!w || w.isDestroyed()) return false;

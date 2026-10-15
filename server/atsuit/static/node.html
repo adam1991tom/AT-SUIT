@@ -964,8 +964,30 @@
       try { const m = localStorage.getItem("atsuit_mic"); if (m) sel.value = m; } catch (_) {}
     }
     await listMics();
-    let ctx = null, stream = null, ws = null;
-    async function startMic() {
+    let ctx = null, stream = null, ws = null, local = false;
+    // Captions made on this laptop (the AT-SUIT app): only the text goes to the server.
+    // Anything in the way (an older app, no model yet) and the server listens instead.
+    const LOCAL = APP?.captions && node?.captions_on_laptops;
+    if (LOCAL) APP.captions.onEvent((m) => {
+      if (!local || !ws) return;
+      if (m.type === "partial" || m.type === "final" || m.type === "level") { if (ws.readyState === 1) ws.send(JSON.stringify(m)); }
+      else if (m.type === "error") { problem("Captions on this laptop stopped", `${m.detail || ""} The server is listening instead.`); restart(false); }
+    });
+    // The model is big, so the app fetches it in the background; until then the server listens.
+    if (LOCAL) APP.captions.prepare().catch(() => {});
+    async function localReady() {
+      if (!LOCAL) return false;
+      const s = await APP.captions.state().catch(() => ({}));
+      if (s.state === "downloading" || s.state === "loading") return false;
+      const r = await APP.captions.prepare().catch(() => ({ ok: false }));
+      return r.ok;
+    }
+    function restart(useLocal) {
+      stopMic();
+      startMic(useLocal).catch((e) => { problem("The mic didn't start", e.message); stopMic(); });
+    }
+    async function startMic(tryLocal = true) {
+      local = tryLocal && await localReady();
       stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: sel.value ? { exact: sel.value } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
       try { localStorage.setItem("atsuit_mic", sel.value); } catch (_) {}
       await listMics();
@@ -976,16 +998,29 @@
       await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([worklet], { type: "application/javascript" })));
       const src = ctx.createMediaStreamSource(stream), proc = new AudioWorkletNode(ctx, "p");
       src.connect(proc);
-      const q = nodeToken ? `?node_token=${encodeURIComponent(nodeToken)}` : "";
-      ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/audio/${roomId}${q}`);
+      const q = new URLSearchParams(nodeToken ? { node_token: nodeToken } : {});
+      if (local) q.set("mode", "local");
+      ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/audio/${roomId}${q.size ? "?" + q : ""}`);
       ws.binaryType = "arraybuffer";
-      ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === "error") { problem("Captions mic stopped", m.message); stopMic(); } if (m.type === "replaced") { alerts.add("chat", `${m.by} took over the captions mic`); stopMic(); } };
-      ws.onclose = () => stopMic();
-      proc.port.onmessage = (e) => ws.readyState === 1 && ws.send(e.data);
+      const sock = ws;
+      ws.onmessage = (e) => {
+        const m = JSON.parse(e.data);
+        if (m.type === "ready" && local) APP.captions.start(m.audio);
+        if (m.type === "audio" && local) { APP.captions.audio(m.audio); if (m.vocabulary) APP.captions.prepare(); }
+        if (m.type === "error") { problem("Captions mic stopped", m.message); stopMic(); }
+        if (m.type === "replaced") { alerts.add("chat", `${m.by} took over the captions mic`); stopMic(); }
+      };
+      ws.onclose = () => { if (ws === sock) stopMic(); };
+      proc.port.onmessage = (e) => {
+        if (local) APP.captions.feed(e.data);
+        else if (ws.readyState === 1) ws.send(e.data);
+      };
       btn.textContent = "Stop my mic"; btn.classList.remove("primary"); btn.classList.add("danger");
-      note.textContent = "Your microphone is captioning this room.";
+      note.textContent = local ? "Your microphone is captioning this room. Speech becomes text on this laptop." : "Your microphone is captioning this room.";
     }
     function stopMic() {
+      if (local) APP.captions.stop();
+      local = false;
       if (ws && ws.readyState <= 1) ws.close();
       stream && stream.getTracks().forEach((t) => t.stop());
       ctx && ctx.close().catch(() => {});

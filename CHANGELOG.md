@@ -7,7 +7,13 @@ the GitHub release.
 
 ## 1.8.0
 
-The first step to AT-SUIT 2: the laptops start doing more of the work and telling the server how they are. Captions and the timer move onto the laptops in the next releases.
+The first step to AT-SUIT 2: the laptops do more of the work and tell the server how they are.
+
+**Captions are made on the laptop**
+- In the AT-SUIT app, a tech's mic is now turned into text on their own laptop, by the same offline speech model and with the same vocabulary, EQ and gain. Only the text goes to the server, so one server can caption many more rooms and audio never leaves the laptop.
+- The app gets the speech model from your server once (about 200 MB, in the background), never from the internet. Until it has it, or if anything goes wrong, the server listens instead as before, without the tech doing anything.
+- Vocabulary and EQ changes reach the laptop straight away, mid-show.
+- On by default. Settings → General → Privacy → **Laptops make captions themselves** turns it off. Browsers and older apps still send audio to the server.
 
 **Laptop health, like a task manager**
 - Every laptop running the AT-SUIT app now reports its CPU, memory (and how much AT-SUIT itself uses), disk space, network addresses, screens, mains or battery, popped-out windows and the overlay with each heartbeat.

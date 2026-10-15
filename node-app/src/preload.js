@@ -33,6 +33,18 @@ contextBridge.exposeInMainWorld("atsuitApp", {
   system: () => ipcRenderer.invoke("app:system"),
   // Small JPEGs of each screen, only sent when the venue turns snapshots on and a manager is looking.
   snapshot: () => ipcRenderer.invoke("app:snapshot"),
+  // Captions made on this laptop (see captions.js): prepare() fetches the venue's model from the
+  // server once and loads it; then start(audio), feed(Int16 PCM at 16 kHz), stop(). onCaptions gets
+  // { type: partial|final|level|state|error, ... }.
+  captions: {
+    prepare: () => ipcRenderer.invoke("captions:prepare"),
+    state: () => ipcRenderer.invoke("captions:state"),
+    start: (audio) => ipcRenderer.send("captions:start", audio),
+    audio: (audio) => ipcRenderer.send("captions:audio", audio),
+    feed: (pcm) => ipcRenderer.send("captions:feed", pcm),
+    stop: () => ipcRenderer.send("captions:stop"),
+    onEvent: (cb) => ipcRenderer.on("captions:event", (_e, m) => cb(m)),
+  },
   // A window popped out of the workspace: keep it above everything else.
   popoutOnTop: (name, on) => ipcRenderer.invoke("app:popout-top", name, on),
 });

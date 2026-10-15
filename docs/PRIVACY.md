@@ -26,10 +26,14 @@ all of them without breaking a show:
 
 ## Captions
 
-- Speech is turned into text **on the venue's server** by an offline speech
-  model (sherpa-onnx). Audio never leaves the venue's network, and neither does
-  the text. If the venue adds helper servers to share the work, audio goes to
-  those, on the same network.
+- Speech is turned into text by an offline speech model (sherpa-onnx), **on the
+  tech's laptop** when it runs the AT-SUIT app, so only the text goes to the
+  venue's server and the audio never leaves the laptop. The app gets the model
+  from the venue's own server, not the internet. Browsers, older apps, or a venue
+  that turns this off (Settings → General) send the audio to the venue's server
+  instead, which does the same work there.
+- Audio never leaves the venue's network, and neither does the text. If the venue
+  adds helper servers to share the work, audio goes to those, on the same network.
 - Audio is never stored. Only the finished caption lines are kept, and only while
   a transcript is being recorded.
 - Transcripts are **stored encrypted** with the server's own key, so a copied file

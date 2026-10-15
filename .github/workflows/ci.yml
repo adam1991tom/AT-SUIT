@@ -105,6 +105,11 @@ jobs:
         run: |
           npm version --no-git-tag-version --allow-same-version (Get-Content ../VERSION)
           npx electron-builder --win --publish never
+      - name: The captions engine is in the installer and loads on Windows
+        working-directory: node-app
+        run: |
+          node -e "require('sherpa-onnx-node'); console.log('sherpa-onnx loads')"
+          if (!(Test-Path dist/win-unpacked/resources/app.asar.unpacked/node_modules/sherpa-onnx-win-x64)) { throw "sherpa-onnx-win-x64 is missing from the installer" }
       - uses: actions/upload-artifact@v4
         with:
           name: AT-SUIT-Node-windows
