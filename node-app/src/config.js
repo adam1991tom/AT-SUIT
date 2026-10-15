@@ -1,7 +1,7 @@
 // This laptop's settings: which AT-SUITE server it belongs to, its node token
 // (encrypted with Windows DPAPI via safeStorage) and whether pop-ups are on.
 // IT can pre-set the server and enrolment code for a silent roll-out in
-// %ProgramData%\AT-SUITE\node.json: {"server": "http://10.100.70.101:8180", "enrol_code": "ABCD-1234-EF56"}
+// %ProgramData%\AT-SUIT\node.json (the folder keeps its old name): {"server": "http://10.100.70.101:8180", "enrol_code": "ABCD-1234-EF56"}
 const fs = require("fs");
 const path = require("path");
 const { app, safeStorage } = require("electron");

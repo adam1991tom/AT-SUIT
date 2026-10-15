@@ -5,7 +5,7 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
-## 1.8.2
+## 1.8.3
 
 **AT SUIT is now AT SUITE**
 - The new name everywhere you see it: the console, the tech workspace, the laptop app's windows and tray, screens, setup, show reports, the Companion module, the docs, and the logo (wordmark and stacked logo now read AT SUITE).
