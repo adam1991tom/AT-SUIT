@@ -97,8 +97,23 @@ jobs:
           pip install -r server/requirements.txt
           cd node-app
           npm ci
-      - name: Test the app (enrol once, daily room, silent pop-ups)
+      - name: Cache speech model
+        id: model
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: sherpa-zipformer-en-2023-06-21-windows
+      - name: Download speech model
+        if: steps.model.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mkdir -p models && cd models
+          curl -fsSL -o m.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-2023-06-21.tar.bz2
+          tar xjf m.tar.bz2 --wildcards '*/tokens.txt' '*int8.onnx' '*/test_wavs/0.wav' && rm m.tar.bz2
+      - name: Test the app (enrol once, daily room, silent pop-ups, captions on the laptop)
         working-directory: node-app
+        env:
+          ATSUIT_TEST_MODELS: ${{ github.workspace }}/models
         run: npx playwright test
       - name: Build the installer
         working-directory: node-app

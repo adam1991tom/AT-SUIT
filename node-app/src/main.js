@@ -505,6 +505,15 @@ function ipc() {
   ipcMain.on("captions:start", (e, audio) => { if (fromMain(e)) captions.start(audio); });
   ipcMain.on("captions:audio", (e, audio) => { if (fromMain(e)) captions.audio(audio); });
   ipcMain.on("captions:feed", (e, pcm) => { if (fromMain(e)) captions.feed(pcm); });
+  // The timer as the workspace worked it out offline (offline-timer.js): the overlay shows it too.
+  ipcMain.on("timer:local", (e, state) => {
+    if (!fromMain(e) || !state || !overlayWin || overlayWin.isDestroyed()) return;
+    let room = "";
+    try { room = new URL(overlayWin.webContents.getURL()).pathname.split("/")[2] || ""; } catch (_) {}
+    if (room !== String(state.room_id)) return;
+    const detail = JSON.stringify(state).replace(/</g, "\\u003c");
+    overlayWin.webContents.executeJavaScript(`document.dispatchEvent(new CustomEvent("atsuit:timer", { detail: ${detail} }))`).catch(() => {});
+  });
   ipcMain.on("captions:stop", (e) => { if (fromMain(e)) captions.stop(); });
   ipcMain.handle("app:popout-top", (e, name, on) => {
     const w = fromMain(e) && pops.get(String(name));

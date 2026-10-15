@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld("atsuitApp", {
   // Captions made on this laptop (see captions.js): prepare() fetches the venue's model from the
   // server once and loads it; then start(audio), feed(Int16 PCM at 16 kHz), stop(). onCaptions gets
   // { type: partial|final|level|state|error, ... }.
+  // The room timer worked out on this laptop while the server can't be reached (offline-timer.js).
+  timerLocal: (state) => ipcRenderer.send("timer:local", state),
   captions: {
     prepare: () => ipcRenderer.invoke("captions:prepare"),
     state: () => ipcRenderer.invoke("captions:state"),

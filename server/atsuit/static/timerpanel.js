@@ -67,6 +67,7 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
         <div class="tp-row hidden" style="margin-top:.3rem" data-sctl><button class="small" data-sa="toggle">Start / pause</button><button class="small" data-sa="reset">Reset</button>
           <button class="small" data-sadd="-60000">−1m</button><button class="small" data-sadd="60000">+1m</button></div></div>`;
     const $ = (q) => AT.q(el, q); // parts of the panel may sit in windows of their own
+    const link = (path, body) => window.TimerLink ? TimerLink.post(roomId, path, body) : post(`/api/timers/${roomId}/${path}`, body);
     // Hand the reply straight to the room timer above, so the press shows at once.
     const shown = (x) => { if (x) document.dispatchEvent(new CustomEvent("atsuit:timer", { detail: x })); return x; };
 
@@ -76,9 +77,9 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
     el.querySelectorAll("[data-min]").forEach((b) => b.onclick = () => {
       if (b.classList.contains("cur") && s) {
         if (s.playback === "play") return toast(`The ${b.dataset.min} minute timer is already running`);
-        return guard(() => post(`/api/timers/${roomId}/start`)).then(shown, () => {});
+        return guard(() => link("start")).then(shown, () => {});
       }
-      guard(() => post(`/api/timers/${roomId}/preset/${b.dataset.min}?start=${startOnTap}`)).then(shown, () => {});
+      guard(() => link("preset", { minutes: +b.dataset.min, start: startOnTap })).then(shown, () => {});
     });
 
     // quick messages: tap to show, tap the one on stage to hide it
@@ -88,7 +89,7 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
       $("[data-msgs]").innerHTML = msgs.map((m, i) => `<button data-mi="${i}" class="${onStage(m) ? "on live" : ""}" title="${onStage(m) ? "On stage: tap to clear it" : "Tap to show on stage"}">${esc(m)}</button>`).join("") || '<span class="muted small">No quick messages.</span>';
       $("[data-msgs]").querySelectorAll("[data-mi]").forEach((b) => b.onclick = () => {
         const t = msgs[+b.dataset.mi];
-        guard(() => onStage(t) ? post(`/api/timers/${roomId}/message/hide`) : post(`/api/timers/${roomId}/message/show`, { text: t, blink: blinkMsg || undefined }) /* unticked leaves the Blink switch as it is */).then(shown, () => {});
+        guard(() => onStage(t) ? link("message/hide") : link("message/show", { text: t, blink: blinkMsg || undefined }) /* unticked leaves the Blink switch as it is */).then(shown, () => {});
       });
       $("[data-medit]").classList.toggle("hidden", !canEdit || editing);
     }
@@ -103,7 +104,7 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
       guard(() => del("/api/timers-quick-messages")).then((r) => { if (r) { msgs = r.messages; editor(false); } });
 
     // the second line
-    const sec = (action, body) => guard(() => post(`/api/timers/${roomId}/secondary/${action}`, body || {})).then(shown, () => {});
+    const sec = (action, body) => guard(() => link(`secondary/${action}`, body || {})).then(shown, () => {});
     // Show text puts the typed text on stage; pressed again (or with the box empty) it takes it off.
     const textOn = () => { const x = s?.secondary; return !!(x && x.visible && x.mode === "text" && x.text); };
     const sameText = () => textOn() && s.secondary.text === $("[data-stext]").value.trim();

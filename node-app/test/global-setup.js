@@ -28,6 +28,8 @@ async function call(method, url, body, cookie) {
 
 module.exports = async () => {
   const data = fs.mkdtempSync(path.join(os.tmpdir(), "atsuit-test-"));
+  // With ATSUIT_TEST_MODELS (a folder holding the speech model) the laptop captions test runs too.
+  if (process.env.ATSUIT_TEST_MODELS) fs.symlinkSync(path.resolve(process.env.ATSUIT_TEST_MODELS), path.join(data, "models"), "junction");
   const python = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
   // licensed_server.py: AT-SUIT trusting a throwaway vendor key, with a matching licence in the data folder.
   const server = spawn(python, ["tests/licensed_server.py", "--host", "127.0.0.1", "--port", PORT], {

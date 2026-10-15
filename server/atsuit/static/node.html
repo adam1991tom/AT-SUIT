@@ -240,7 +240,7 @@
 <script src="/static/chat.js"></script>
 <script src="/static/previews.js"></script>
 <script src="/static/ui/desk.js"></script>
-<script src="/static/timerpanel.js"></script>
+<script src="/static/offline-timer.js"></script><script src="/static/timerpanel.js"></script>
 <script src="/static/cuelist.js"></script>
 <script src="/static/desk.js"></script>
 <script src="/static/livebar.js"></script><script src="/static/notes-panel.js"></script>
@@ -597,6 +597,8 @@
   let tstate = null, tphase = "", trun = "";
   if (boot.modules.timers) {
     api(`/api/timers/${roomId}`).then((s) => { tstate = s; liveBar.timer(s); }).catch(() => {});
+    // Presses worked out on this laptop while the server is out of reach (offline-timer.js).
+    document.addEventListener("atsuit:timer", (e) => { if (e.detail?._local && e.detail.room_id === roomId) { tstate = e.detail; liveBar.timer(tstate); } });
     setInterval(() => {
       if (!tstate || tstate.playback !== "play") return;
       const run = `${tstate.cue?.id || ""}:${tstate.started_at || tstate.first_started_at || ""}:${tstate.duration_ms}`;
@@ -964,13 +966,16 @@
       try { const m = localStorage.getItem("atsuit_mic"); if (m) sel.value = m; } catch (_) {}
     }
     await listMics();
-    let ctx = null, stream = null, ws = null, local = false;
+    let ctx = null, stream = null, ws = null, local = false, started = false, held = [], retry = null;
     // Captions made on this laptop (the AT-SUIT app): only the text goes to the server.
     // Anything in the way (an older app, no model yet) and the server listens instead.
     const LOCAL = APP?.captions && node?.captions_on_laptops;
     if (LOCAL) APP.captions.onEvent((m) => {
       if (!local || !ws) return;
-      if (m.type === "partial" || m.type === "final" || m.type === "level") { if (ws.readyState === 1) ws.send(JSON.stringify(m)); }
+      if (m.type === "partial" || m.type === "final" || m.type === "level") {
+        if (ws.readyState === 1) ws.send(JSON.stringify(m));
+        else if (m.type === "final" && held.length < 500) held.push(m); // no server: keep what was said, send it when it's back
+      }
       else if (m.type === "error") { problem("Captions on this laptop stopped", `${m.detail || ""} The server is listening instead.`); restart(false); }
     });
     // The model is big, so the app fetches it in the background; until then the server listens.
@@ -998,30 +1003,46 @@
       await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([worklet], { type: "application/javascript" })));
       const src = ctx.createMediaStreamSource(stream), proc = new AudioWorkletNode(ctx, "p");
       src.connect(proc);
-      const q = new URLSearchParams(nodeToken ? { node_token: nodeToken } : {});
-      if (local) q.set("mode", "local");
-      ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/audio/${roomId}${q.size ? "?" + q : ""}`);
-      ws.binaryType = "arraybuffer";
-      const sock = ws;
-      ws.onmessage = (e) => {
-        const m = JSON.parse(e.data);
-        if (m.type === "ready" && local) APP.captions.start(m.audio);
-        if (m.type === "audio" && local) { APP.captions.audio(m.audio); if (m.vocabulary) APP.captions.prepare(); }
-        if (m.type === "error") { problem("Captions mic stopped", m.message); stopMic(); }
-        if (m.type === "replaced") { alerts.add("chat", `${m.by} took over the captions mic`); stopMic(); }
-      };
-      ws.onclose = () => { if (ws === sock) stopMic(); };
+      connect();
       proc.port.onmessage = (e) => {
         if (local) APP.captions.feed(e.data);
-        else if (ws.readyState === 1) ws.send(e.data);
+        else if (ws && ws.readyState === 1) ws.send(e.data);
       };
       btn.textContent = "Stop my mic"; btn.classList.remove("primary"); btn.classList.add("danger");
       note.textContent = local ? "Your microphone is captioning this room. Speech becomes text on this laptop." : "Your microphone is captioning this room.";
     }
+    // The link to the server for this mic. Captions made on this laptop keep going when it drops:
+    // what is said meanwhile is held here and sent when the server is back.
+    function connect() {
+      const q = new URLSearchParams(nodeToken ? { node_token: nodeToken } : {});
+      if (local) q.set("mode", "local");
+      const sock = ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/audio/${roomId}${q.size ? "?" + q : ""}`);
+      ws.binaryType = "arraybuffer";
+      ws.onmessage = (e) => {
+        const m = JSON.parse(e.data);
+        if (m.type === "ready" && local) {
+          if (started) APP.captions.audio(m.audio); else { APP.captions.start(m.audio); started = true; }
+          if (held.length) { held.splice(0).forEach((x) => sock.send(JSON.stringify(x))); note.textContent = "Back online: the captions said meanwhile are on the server now."; }
+          else note.textContent = "Your microphone is captioning this room. Speech becomes text on this laptop.";
+        }
+        if (m.type === "audio" && local) { APP.captions.audio(m.audio); if (m.vocabulary) APP.captions.prepare(); }
+        if (m.type === "error") { problem("Captions mic stopped", m.message); stopMic(); }
+        if (m.type === "replaced") { alerts.add("chat", `${m.by} took over the captions mic`); stopMic(); }
+      };
+      ws.onclose = () => {
+        if (ws !== sock) return;
+        if (!local || !started) return stopMic();
+        note.textContent = "No connection to the server: captions keep running on this laptop and catch up when it's back.";
+        retry = setTimeout(() => { retry = null; if (ws === sock && local) connect(); }, 2000);
+      };
+    }
     function stopMic() {
       if (local) APP.captions.stop();
-      local = false;
-      if (ws && ws.readyState <= 1) ws.close();
+      local = started = false; held = [];
+      clearTimeout(retry); retry = null;
+      const w = ws;
+      ws = null;
+      if (w && w.readyState <= 1) w.close();
       stream && stream.getTracks().forEach((t) => t.stop());
       ctx && ctx.close().catch(() => {});
       ws = stream = ctx = null;

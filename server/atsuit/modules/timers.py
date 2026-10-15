@@ -17,6 +17,7 @@ import re
 import shutil
 import time
 import zipfile
+from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -43,6 +44,19 @@ BUILTIN_VIEWS = {"hcc": "Standard", "minimal": "Minimal timer", "clock": "Clock"
 # view=bdng shows the imported "bdng" view if there is one, else the Standard view.
 LEGACY_VIEWS = {"bdng": "hcc", "stage": "hcc"}
 MAX_DURATION = 24 * 3600 * 1000
+
+# A laptop that lost the server keeps running the timer itself and sends what the tech did
+# when it's back (POST /api/timers/{room}/sync). Each change is applied as of when it was made.
+_at: ContextVar[float | None] = ContextVar("timer_at", default=None)
+_changed_by_people: dict[int, float] = {}  # room -> when a person last changed its timer
+
+
+def _clock() -> float:
+    return _at.get() or time.time()
+
+
+def _touched(room_id: int) -> None:
+    _changed_by_people[room_id] = max(_changed_by_people.get(room_id, 0.0), _clock())
 
 
 # ------------------------------------------------------------------ state --
@@ -171,7 +185,7 @@ def _run_key(r):
 
 def _log(c, before, after) -> None:
     """Keep each room's timer runs and stage messages for the show report."""
-    now = time.time()
+    now = _clock()
     old, new = _run_key(before), _run_key(after)
     if old != new:
         if old:
@@ -193,7 +207,7 @@ def _log(c, before, after) -> None:
 
 
 def _load(c, room_id: int, q, start: bool) -> None:
-    now = time.time()
+    now = _clock()
     _update(c, room_id, cue_id=q["id"], title=q["title"], duration_ms=q["duration_ms"], remaining_ms=q["duration_ms"],
             timer_type=q["timer_type"], end_action=q["end_action"], added_ms=0,
             warn_ms=q["warn_ms"] if q["warn_ms"] is not None else 300000,
@@ -249,9 +263,10 @@ async def timer_action(room_id: int, action: str, body: TimerAction | None = Non
     body = body or TimerAction()
     if action not in ACTIONS:
         raise HTTPException(404, "Unknown timer action")
-    now = time.time()
+    now = _clock()
     with db.tx() as c:
         room_or_404(c, room_id, p)
+        _touched(room_id)
         r = _row(c, room_id)
         left = remaining(r, now)
         running = bool(r["running"])
@@ -335,9 +350,10 @@ async def preset(room_id: int, body: Preset, p: Principal = Depends(require_tech
     """Load a timer of so many minutes and start it (start=false to load it
     ready): Companion's 3, 5, 10 ... 60 minute buttons."""
     ms = int(body.minutes * 60000)
-    now = time.time() if body.start else None
+    now = _clock() if body.start else None
     with db.tx() as c:
         room_or_404(c, room_id, p)
+        _touched(room_id)
         _row(c, room_id)
         _update(c, room_id, cue_id=None, title=body.title, duration_ms=ms, remaining_ms=ms, added_ms=0,
                 timer_type="count-down", end_action="none", warn_ms=body.warn_ms, danger_ms=body.danger_ms,
@@ -394,9 +410,10 @@ async def secondary(room_id: int, action: str, body: SecondaryIn | None = None, 
     body = body or SecondaryIn()
     if action not in SECONDARY_ACTIONS:
         raise HTTPException(404, f"Use one of {', '.join(SECONDARY_ACTIONS)}")
-    now = time.time()
+    now = _clock()
     with db.tx() as c:
         room_or_404(c, room_id, p)
+        _touched(room_id)
         r = _row(c, room_id)
         left, running = sec_left(r, now), r["sec_started_at"] is not None
         if action == "text":
@@ -1257,6 +1274,63 @@ def ontime_rest_rundown(room_id: int):
         events = [ontime_event(q) for q in cue_list(c, room_id)]
     return {"id": "default", "title": "", "order": [e["id"] for e in events], "flatOrder": [e["id"] for e in events],
             "entries": {e["id"]: e for e in events}, "revision": 0}
+
+
+# ------------------------------------------------------- offline laptops --
+class SyncOp(BaseModel):
+    path: str = Field(max_length=40)  # what the button posted to: "toggle", "add", "preset", "message/show", "secondary/add", ...
+    body: dict = Field(default_factory=dict)
+    at: float  # when the tech pressed it, in server time (the laptop corrects for its own clock)
+
+
+class SyncIn(BaseModel):
+    ops: list[SyncOp] = Field(max_length=500)
+
+
+SYNC_WINDOW = 12 * 3600
+
+
+async def _run_op(room_id: int, op: SyncOp, p: Principal) -> None:
+    path, body = op.path, op.body
+    if path == "preset":
+        await preset(room_id, Preset(**body), p)
+    elif path == "message/show":
+        await message_show(room_id, MessageShow(**body), p)
+    elif path == "message/hide":
+        await message_hide(room_id, p)
+    elif path.startswith("secondary/"):
+        await secondary(room_id, path.split("/", 1)[1], SecondaryIn(**body), p)
+    elif path in ACTIONS:
+        await timer_action(room_id, path, TimerAction(**body), p)
+    else:
+        raise HTTPException(404, "Unknown timer action")
+
+
+@router.post("/api/timers/{room_id}/sync")
+async def sync(room_id: int, body: SyncIn, p: Principal = Depends(require_tech)):
+    """What a tech did to the timer while their laptop couldn't reach the server, in order.
+    The latest change wins: anything older than a change someone made here meanwhile is left out."""
+    with db.ro() as c:
+        room_or_404(c, room_id, p)
+    since, now = _changed_by_people.get(room_id, 0.0), time.time()
+    applied = skipped = 0
+    for op in body.ops:
+        at = min(op.at, now)
+        if at <= since or at < now - SYNC_WINDOW:
+            skipped += 1
+            continue
+        token = _at.set(at)
+        try:
+            await _run_op(room_id, op, p)
+            applied += 1
+        except Exception:  # a cue deleted meanwhile, the last cue, a bad body: leave that one out
+            skipped += 1
+        finally:
+            _at.reset(token)
+    if applied:
+        with db.tx() as c:
+            db.audit(c, p.name, "timer.sync", f"room {room_id}: {applied} offline changes, {skipped} left out")
+    return {"applied": applied, "skipped": skipped, "state": await publish(room_id)}
 
 
 # Registered last so /api/timers/<room>/cues/... routes win over /<action>.
