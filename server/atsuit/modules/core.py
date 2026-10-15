@@ -447,6 +447,7 @@ def get_settings(p: Principal = Depends(require_admin)):
             "tech_passwords": db.get_setting(c, "tech_passwords", True),
             "forgot_resets_at_once": db.get_setting(c, "forgot_resets_at_once", False),
             "transcript_keep_hours": db.get_setting(c, "transcript_keep_hours", 12),
+            "help_escalate_minutes": db.get_setting(c, "help_escalate_minutes", 2),
             "licence": lic.public(),
         }
 
@@ -460,6 +461,7 @@ class SettingsIn(BaseModel):
     tech_passwords: bool | None = None
     forgot_resets_at_once: bool | None = None
     transcript_keep_hours: int | None = Field(None, ge=1, le=168)
+    help_escalate_minutes: float | None = Field(default=None, ge=0, le=60)
 
 
 @router.put("/api/admin/settings")
@@ -483,6 +485,8 @@ def put_settings(body: SettingsIn, p: Principal = Depends(require_admin)):
         for key in ("tech_passwords", "forgot_resets_at_once", "transcript_keep_hours"):
             if getattr(body, key) is not None:
                 db.set_setting(c, key, getattr(body, key))
+        if body.help_escalate_minutes is not None:
+            db.set_setting(c, "help_escalate_minutes", body.help_escalate_minutes)
         db.audit(c, p.name, "settings.update", ",".join(k for k, v in body.model_dump().items() if v is not None))
     return {"ok": True}
 

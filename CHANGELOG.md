@@ -35,6 +35,21 @@ the GitHub release.
 - The quick timer and message panels keep their styling when they're docked in windows of their own. They had lost it, so the active buttons never showed.
 - Smoother timers. Every page used to restart its count from the moment each update arrived, so small network delays nudged the seconds back and forth, and the 10-times-a-second redraw flipped each second up to a tenth late. Pages now keep a steady link to the server's clock and redraw exactly when a second changes: the stage screen, the desk timer, the backstage clock and the top bar all tick at an even second.
 
+## 1.0.9
+
+**Show reports**
+- New console page, **Show reports**: a PDF for each room and show day to hand the client. It lists every run of the timer with what was planned, how long it ran and how far it went over (in red) or finished early; the help calls with who answered and how long it took; the messages shown to the speaker on the stage screens; how many messages the crew sent in the room's chat (their words only with **Include the crew's chat messages** ticked); when captions were live and the caption transcript.
+- A show day runs from 05:00 to 05:00 the next morning, site time, like the tech laptops' day. Today's report shows what has happened so far.
+- Each morning the day before is kept by itself for every room that had a show, so it survives chat clean-ups. Kept reports are listed on the page to open or delete, and **Keep a copy** keeps one by hand. Managers and admins can use the page.
+
+**Help calls that nobody answers**
+- A help call nobody has answered with **On my way** goes out again after 2 minutes, then twice more at the same gap: to every laptop and every console and workspace page on the site. A Main PC still shows nothing, and there is never any sound.
+- It is marked **no answer** in the help lists, and backstage and speaker preview screens say **NO ANSWER** instead of HELP NEEDED.
+- Settings → General sets the minutes (0 turns it off).
+
+**Pre-show check**
+- The console dashboard opens with a pre-show check: every tech laptop, screen and caption mic, room by room. Green is ready, amber wants a look (a laptop that's on but not started today, a screen showing nothing, a live mic that's very quiet), red isn't working (offline, or captions not live). Rooms with captions turned off, and laptops in no room that are switched off, are grey. It refreshes every few seconds.
+
 ## 1.0.8
 
 **Tech workspace**

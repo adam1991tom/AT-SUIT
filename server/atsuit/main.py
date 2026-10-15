@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import VERSION, asr, config, db, licence, updates
 from .hub import can_subscribe, hub
-from .modules import aihelper, captions, cluster, comms, core, dashboard, fleet, imports, notes, overlays, pairing, presenter, timers, weather
+from .modules import aihelper, captions, cluster, comms, core, dashboard, fleet, imports, notes, overlays, pairing, preshow, presenter, reports, timers, weather
 from .security import ws_principal
 
 STATIC = Path(__file__).parent / "static"
@@ -81,7 +81,8 @@ async def lifespan(app: FastAPI):
     pairing.reset()
     tasks = [asyncio.create_task(housekeeping()), asyncio.create_task(captions.load_engine()),
              asyncio.create_task(timers.end_actions()), asyncio.create_task(updates.loop()),
-             asyncio.create_task(licence.watch()), asyncio.create_task(captions.retention_loop())]
+             asyncio.create_task(licence.watch()), asyncio.create_task(comms.escalate_loop()),
+             asyncio.create_task(reports.save_loop()), asyncio.create_task(captions.retention_loop())]
     yield
     for t in tasks:
         t.cancel()
@@ -92,7 +93,8 @@ def create_app() -> FastAPI:
         from .helper import create_helper_app
         return create_helper_app()
     app = FastAPI(title="AT-SUIT", version=VERSION, lifespan=lifespan, docs_url="/api/docs", redoc_url=None)
-    for module in (core, comms, timers, fleet, pairing, captions, cluster, overlays, dashboard, presenter, imports, notes, weather, aihelper):
+    for module in (core, comms, timers, fleet, pairing, captions, cluster, overlays, dashboard, presenter, imports, notes, reports, preshow,
+                   weather, aihelper):
         app.include_router(module.router)
     app.include_router(fleet.legacy)
     app.include_router(updates.router)

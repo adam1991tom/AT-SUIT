@@ -297,7 +297,7 @@
     $("help").className = "box " + (open ? "alarm" : calls.length ? "" : "calm");
     $("flash").classList.toggle("on", fresh);
     $("helpBody").innerHTML = (calls.length ? calls.slice(0, 2).map((h) => `<div class="call ${esc(h.status)}">` +
-      `<span class="k">${h.status === "open" ? "HELP NEEDED" : "ON IT"}</span>` +
+      `<span class="k">${h.status === "open" ? (h.escalations ? "NO ANSWER" : "HELP NEEDED") : "ON IT"}</span>` +
       `<span class="d">${esc(h.description || h.category)}</span>` +
       `<span class="w">${h.status === "open" ? esc(h.requested_by) : esc(h.assigned_to || "")} · <span data-ago="${esc(h.created_at)}">${ago(h.created_at)}</span></span></div>`).join("")
       + (calls.length > 2 ? `<div class="more">and ${calls.length - 2} more</div>` : "")
@@ -315,7 +315,7 @@
     $("pvCount").textContent = calls.length ? `${open.length} open${calls.length > open.length ? ` · ${calls.length - open.length} on it` : ""}` : "";
     const shown = 6;
     $("pvHelpBody").innerHTML = calls.length ? calls.slice(0, shown).map((h) => `<div class="call ${esc(h.status)}">` +
-      `<span class="k">${h.status === "open" ? "HELP NEEDED" : "ON IT"}</span>` +
+      `<span class="k">${h.status === "open" ? (h.escalations ? "NO ANSWER" : "HELP NEEDED") : "ON IT"}</span>` +
       `<span class="r"><b>${esc(h.room_name)}</b><span>${esc(h.description ? `${h.category}: ${h.description}` : h.category)}</span></span>` +
       `<span class="w">${h.status === "open" ? esc(h.requested_by) : esc(h.assigned_to || "")} · ${ago(h.created_at)}</span></div>`).join("")
       + (calls.length > shown ? `<div class="more">and ${calls.length - shown} more</div>` : "")
