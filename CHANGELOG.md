@@ -21,6 +21,11 @@ The first step to AT-SUIT 2: the laptops do more of the work and tell the server
 - When the server is back, everything the tech pressed goes to every screen, each press as of when it was made, so a timer started offline five minutes ago shows five minutes gone.
 - The latest change wins: if someone changed that room's timer at the server during the drop, presses made before that change are left out, and the tech is told.
 
+**The AI helper knows show-day tech**
+- The AI helper now has a built-in tech guide with over 70 show-day fixes: feedback, dead mics, radio mic dropouts, hum, laptop sound, no signal, flicker, PowerPoint on the wrong screen, clickers, hybrid-event echo, streams, lighting, power, safety, comms, calling cues, changeovers and AT-SUIT itself.
+- It's built into AT-SUIT, so it works offline and nothing leaves your network. Your venue notes and past fixes always come first; the guide fills in what they don't cover.
+- With a private AI model it uses both to write the answer. Admins can turn the guide off in Settings → AI helper.
+
 **Laptop health, like a task manager**
 - Every laptop running the AT-SUIT app now reports its CPU, memory (and how much AT-SUIT itself uses), disk space, network addresses, screens, mains or battery, popped-out windows and the overlay with each heartbeat.
 - **Laptops & screens** shows a CPU and memory bar for each laptop, going amber at 75% and red at 90%. **Details** opens that laptop's task manager, with the last 15 minutes of CPU and memory as graphs, refreshed every 5 seconds.

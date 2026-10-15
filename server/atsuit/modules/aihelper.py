@@ -1,9 +1,11 @@
 """AI helper: answers techs' questions in the Help menu and its own window.
 
 It answers from what this venue knows first: the admins' venue notes, how past
-help calls were fixed, and answers techs marked "This fixed it". With a local
-model (Ollama) it writes those up as a short answer; without one it lists what
-worked before. Nothing leaves the venue's network unless an admin turns on web
+help calls were fixed, and answers techs marked "This fixed it". Then from the
+built-in tech guide (knowledge/*.md): show-day fixes for audio, video,
+presenters, hybrid events, lighting, safety, running the show and AT-SUIT
+itself, shipped with the app so it works offline. With a local model (Ollama)
+it writes those up as a short answer; without one it shows the best match. Nothing leaves the venue's network unless an admin turns on web
 quick search, and then only the question goes out (to DuckDuckGo), never the
 venue's notes, chat or names.
 """
@@ -12,6 +14,8 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
+from functools import lru_cache
+from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,7 +29,9 @@ router = APIRouter()
 
 NAME = "AI helper"
 DEFAULTS = {"enabled": True, "ai_url": "", "ai_model": "llama3.1:8b", "web_search": False, "learn_help": True,
-            "venue_notes": ""}
+            "builtin_guide": True, "venue_notes": ""}
+GUIDE = "tech guide"
+GUIDE_DIR = Path(__file__).resolve().parent.parent / "knowledge"
 SEARCH = "https://api.duckduckgo.com/"
 STOP = set("""a an and are as at be but by can do does for from has have how i if in into is it its me my no not of on or
 our so that the their them then there these this to too up us was we what when where which who why will with you your
@@ -41,8 +47,29 @@ def prefs(c) -> dict:
     return out
 
 
+def _stem(w: str) -> str:
+    """Enough to match "mics" with "mic" and "flickering" with "flicker"."""
+    for end in ("ing", "ed", "es", "s"):
+        if w.endswith(end) and len(w) - len(end) >= 3 and not w.endswith("ss"):
+            return w[: -len(end)]
+    return w
+
+
 def words(text: str) -> list[str]:
-    return [w for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOP and len(w) > 1]
+    return [_stem(w) for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOP and len(w) > 1]
+
+
+@lru_cache(maxsize=1)
+def guide() -> tuple[dict, ...]:
+    """The built-in tech guide: one item per "## " heading, its "Keywords:" line only for finding it."""
+    items = []
+    for f in sorted(GUIDE_DIR.glob("*.md")):
+        for block in re.split(r"^## ", f.read_text(encoding="utf-8"), flags=re.M)[1:]:
+            title, _, body = block.partition("\n")
+            keys = re.search(r"^Keywords:(.*)$", body, flags=re.M)
+            text = re.sub(r"^Keywords:.*\n?", "", body, flags=re.M).strip()
+            items.append({"kind": GUIDE, "title": title.strip(), "text": text, "keys": keys.group(1) if keys else ""})
+    return tuple(items)
 
 
 def knowledge(c, site_id: int | None) -> list[dict]:
@@ -65,18 +92,20 @@ def knowledge(c, site_id: int | None) -> list[dict]:
     return items
 
 
-def best(question: str, items: list[dict], top: int = 4) -> list[dict]:
-    """The items sharing the most (and the rarest) words with the question."""
+def best(question: str, items: list[dict], top: int = 4, cover: float = 0) -> list[dict]:
+    """The items sharing the most (and the rarest) words with the question; with `cover`, only
+    items holding at least that share of the question's words."""
     q = set(words(question))
     if not q or not items:
         return []
-    docs = [Counter(words(i["title"] + " " + i["text"])) for i in items]
+    docs = [Counter(words(f"{i['title']} {i.get('keys', '')} {i.get('keys', '')} {i['text']}")) for i in items]
     df = Counter(w for d in docs for w in set(d))
     n = len(docs)
     scored = []
     for item, d in zip(items, docs):
-        s = sum(math.log(1 + n / df[w]) * (1 + math.log(d[w])) for w in q if d.get(w))
-        if s > 0:
+        hit = [w for w in q if d.get(w)]
+        s = sum(math.log(1 + n / df[w]) * (1 + math.log(d[w])) for w in hit)
+        if s > 0 and len(hit) >= cover * len(q):
             scored.append((s / math.sqrt(1 + sum(d.values()) / 40), item))
     scored.sort(key=lambda x: -x[0])
     return [i for _, i in scored[:top]]
@@ -95,7 +124,7 @@ def web_search(question: str) -> dict | None:
 
 PROMPT = """You are {name}, helping a technician at a live event venue{venue}. They are busy, maybe mid-show.
 Answer in at most 6 short lines: practical steps first, plain words, no preamble.
-Use the venue information below first. If it doesn't cover the question, give general live-events advice and say so.
+Use the venue information below first, then the tech guide. If neither covers the question, give general live-events advice and say so.
 Never make up venue details like input numbers or room names. If it could be unsafe, say to call the crew.
 
 Venue information:
@@ -114,7 +143,10 @@ def generate(url: str, model: str, prompt: str) -> str:
 
 
 def answer(c_items: list[dict], cfg: dict, question: str, who: str, room: str, venue: str) -> dict:
-    found = best(question, c_items)
+    # What this venue knows comes first; the built-in guide fills in.
+    found = best(question, c_items, top=3)
+    from_guide = best(question, list(guide()), top=2, cover=0.5) if cfg.get("builtin_guide", True) else []
+    venue_found, found = found, found + from_guide
     web = None
     if cfg["web_search"] and len(found) < 2:
         try:
@@ -132,8 +164,14 @@ def answer(c_items: list[dict], cfg: dict, question: str, who: str, room: str, v
         except (httpx.HTTPError, ValueError):
             pass  # no model reachable: fall back to what worked before
     if found:
-        lines = [f"• {s['title']}: {s['text'].split('Fixed by: ')[-1].split('A: ')[-1]}" for s in found[:3]]
-        text = "Here's what has worked here before:\n" + "\n".join(lines)
+        parts = []
+        if venue_found:
+            lines = [f"• {s['title']}: {s['text'].split('Fixed by: ')[-1].split('A: ')[-1]}" for s in venue_found[:3]]
+            parts.append("Here's what has worked here before:\n" + "\n".join(lines))
+        if from_guide:
+            g = from_guide[0]
+            parts.append(f"From the tech guide, {g['title']}:\n{g['text']}")
+        text = "\n\n".join(parts)
     elif web:
         text = f"From the web ({web['title']}): {web['text']}"
     else:
@@ -196,6 +234,7 @@ class SettingsIn(BaseModel):
     ai_model: str = Field(default="llama3.1:8b", max_length=100)
     web_search: bool = False
     learn_help: bool = True
+    builtin_guide: bool = True
     venue_notes: str = Field(default="", max_length=50000)
 
 

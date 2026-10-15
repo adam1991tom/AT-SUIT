@@ -17,7 +17,8 @@ def test_answers_from_what_the_venue_knows(admin, monkeypatch):
     room = admin.get("/api/bootstrap").json()["rooms"][0]["id"]
     assert tech.get("/api/ai").json() == {"enabled": True, "name": "AI helper", "model": False, "web_search": False}
 
-    # nothing known yet: it says so, and nothing went anywhere
+    # nothing known yet (and the built-in guide off): it says so, and nothing went anywhere
+    admin.put("/api/admin/ai", json={"builtin_guide": False})
     r = tech.post("/api/ai/ask", json={"question": "The lectern mic is dead", "room_id": room}).json()
     assert "don't know" in r["answer"] and r["sources"] == [] and r["model"] is False and calls == []
 
@@ -68,3 +69,33 @@ def test_web_search_sends_only_the_question(admin, monkeypatch):
     r = tech.post("/api/ai/ask", json={"question": "xlr pin out"}).json()
     assert "Pin 1 is ground" in r["answer"] and r["sources"][-1]["url"] == "https://example.org/xlr"
     assert sent[0][0] == aihelper.SEARCH and sent[0][1]["q"] == "xlr pin out" and "ACME" not in str(sent)
+
+
+def test_the_built_in_tech_guide(admin, monkeypatch):
+    monkeypatch.setattr(aihelper.httpx, "get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no web")))
+    tech = _tech(admin)
+    assert len(aihelper.guide()) > 50 and all(g["title"] and g["text"] and "Keywords" not in g["text"] for g in aihelper.guide())
+    for question, title in [("the radio mic keeps cutting out", "Radio mic"), ("projector says no signal", "No signal"),
+                            ("howling from the speakers", "Feedback"), ("remote people hear an echo on teams", "echo"),
+                            ("speaker is overrunning", "overrunning"), ("hum from the laptop", "Hum")]:
+        r = tech.post("/api/ai/ask", json={"question": question}).json()
+        assert r["sources"][0] == {"kind": "tech guide", "title": r["sources"][0]["title"]} and title in r["sources"][0]["title"], (question, r)
+        assert r["answer"].startswith("From the tech guide") and "1." in r["answer"]
+
+    # The venue's own knowledge comes first, the guide after it.
+    admin.put("/api/admin/ai", json={"venue_notes": "Hall A projector no signal\nUse input HDMI 2 on the wall plate."})
+    r = tech.post("/api/ai/ask", json={"question": "Hall A projector no signal"}).json()
+    assert [s["kind"] for s in r["sources"]][:2] == ["venue notes", "tech guide"]
+    assert r["answer"].index("HDMI 2") < r["answer"].index("From the tech guide")
+
+    # A model gets both.
+    seen = {}
+    monkeypatch.setattr(aihelper, "generate", lambda url, model, prompt: seen.update(prompt=prompt) or "Use HDMI 2.")
+    admin.put("/api/admin/ai", json={"venue_notes": "Hall A projector no signal\nUse input HDMI 2.", "ai_url": "http://10.0.0.5:11434"})
+    tech.post("/api/ai/ask", json={"question": "Hall A projector no signal"})
+    assert "[venue notes]" in seen["prompt"] and "[tech guide]" in seen["prompt"]
+
+    # Turned off, it isn't used.
+    admin.put("/api/admin/ai", json={"builtin_guide": False})
+    assert admin.get("/api/admin/ai").json()["settings"]["builtin_guide"] is False
+    assert tech.post("/api/ai/ask", json={"question": "radio mic keeps cutting out"}).json()["sources"] == []
