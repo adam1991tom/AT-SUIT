@@ -330,6 +330,15 @@ admin signed in.
 | GET | `/api/comms/help` | `?status=` | Help requests (filter with ?status=open) |
 | PUT | `/api/comms/help/{help_id}` | `status` | Set a help request to acknowledged or resolved |
 
+### Handover notes
+
+| Method | Path | Body or query | What it does |
+|---|---|---|---|
+| GET | `/api/rooms/{room_id}/notes` |  | A room's handover notes: `open` (pinned first, then newest) and `done` (ticked off in the last 7 days) |
+| POST | `/api/rooms/{room_id}/notes` | `body`, `pinned` | Leave a note for the room |
+| PUT | `/api/notes/{note_id}` | `body`, `pinned`, `done` | Edit a note, pin it, tick it off (`done: true`) or put it back (`done: false`) |
+| DELETE | `/api/notes/{note_id}` |  | Delete a note for good |
+
 ### Dashboard links
 
 | Method | Path | Body or query | What it does |

@@ -109,6 +109,13 @@ and the rest) is a window, like on Windows:
 - An admin signed in to the workspace can choose **Layouts → Use on every
   laptop** to make their arrangement the starting layout for every tech. Techs
   can still change their own.
+- The middle of the top bar shows what's live in the room: the venue time,
+  the timer (with "message on stage" when one is showing), the session on now
+  or next and how many presenters are here, how many screens are connected,
+  captions, and the handover notes. Each one opens its window.
+- **Handover notes** are per room and stay until someone presses Done, so the
+  next shift or the next day sees them. Pin one to keep it at the top. Unread
+  notes are counted on the window and in the top bar; nothing pops up.
 
 ## Remote screens
 

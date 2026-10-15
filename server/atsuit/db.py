@@ -153,7 +153,14 @@ MIGRATIONS: list[str] = [
     CREATE TABLE helpers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL COLLATE NOCASE,
         secret_hash TEXT UNIQUE NOT NULL, added_at TEXT NOT NULL, last_seen TEXT);
     """,
-    # 10: help calls that nobody answers are sent again; each room's timer runs and stage messages,
+    # 10: handover notes, kept per room until a tech ticks them off
+    """
+    CREATE TABLE room_notes(id INTEGER PRIMARY KEY AUTOINCREMENT, room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+        body_enc TEXT NOT NULL, pinned INTEGER NOT NULL DEFAULT 0, author TEXT NOT NULL, created_at TEXT NOT NULL,
+        edited_at TEXT, done_at TEXT, done_by TEXT);
+    CREATE INDEX room_notes_room ON room_notes(room_id, done_at);
+    """,
+    # 11: help calls that nobody answers are sent again; each room's timer runs and stage messages,
     # kept for the show report; the saved show reports
     """
     ALTER TABLE help_requests ADD COLUMN escalations INTEGER NOT NULL DEFAULT 0;
