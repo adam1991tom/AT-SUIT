@@ -21,6 +21,7 @@
   // The console's sections. A section with more than one tab shows them under its heading.
   // role: "manager" (managers and admins) or "admin" (admins only); mod: the module it needs.
   const SECTIONS = {
+    reports: { title: "Show reports", role: "manager", tabs: { reports: ["Show reports", showReports] } },
     rooms: { title: "Rooms", role: "manager", tabs: { rooms: ["Rooms", admSites] } },
     laptops: { title: "Laptops & screens", mod: "fleet", tabs: { list: ["All laptops & screens", fleet], setup: ["Add laptops", admFleet, "admin"], overlays: ["Overlay laptops", admOverlays, "admin"] } },
     people: { title: "People", role: "manager", tabs: { people: ["People", admAccounts] } },
@@ -101,6 +102,7 @@
     if (chat) chat.onEvent(evt);
     else if (evt.type === "message.new" || evt.type === "message.deleted") refreshUnread();
     if (evt.type === "help.new") { toast(`Help needed in ${evt.data.room_name}: ${evt.data.description || evt.data.category}`, "bad"); refreshHelpCount(); }
+    if (evt.type === "help.escalated") { toast(`Still no answer: help in ${evt.data.room_name} (${Math.max(1, Math.round((evt.data.waited_s || 0) / 60))} min). ${evt.data.description || evt.data.category}`, "bad"); refreshHelpCount(); }
     if (evt.type === "help.updated") refreshHelpCount();
     if (evt.type === "rooms.changed") api("/api/bootstrap").then((b) => { boot = b; });
     view && view.onEvent && view.onEvent(evt);
@@ -159,6 +161,66 @@
   const roomName = (id) => boot.rooms.find((r) => r.id === id)?.name || "";
   const roomOptions = (sel, blank = "No room") => `<option value="">${blank}</option>` + boot.rooms.map((r) => `<option value="${r.id}" ${r.id === sel ? "selected" : ""}>${esc(r.name)}</option>`).join("");
 
+  // ------------------------------------------------------ pre-show check --
+  // Every tech laptop, screen and caption mic, room by room: green when it's ready, amber when
+  // something wants a look, red when it isn't working. Refreshes every few seconds.
+  function preshow(box) {
+    const KIND = { laptop: "Laptop", screen: "Screen", source: "Caption source", mic: "Captions" };
+    const label = (i) => i.kind === "laptop" ? ({ main: "Main PC", backup: "Backup PC" }[i.mode] || "Laptop") : KIND[i.kind];
+    const item = (i) => `<div class="pre ${esc(i.state)}"><span class="dot"></span><span class="grow"><b>${esc(i.name)}</b> <span class="muted small">${esc(label(i))}</span><div class="small what">${esc(i.detail)}</div></span></div>`;
+    const draw = async () => {
+      if (!box.isConnected) return clearInterval(tick);
+      const d = await api("/api/preshow").catch(() => null);
+      if (!d) return;
+      const n = d.counts, cards = d.rooms.map((r) => `<div class="pre-room"><h3>${esc(r.name)}</h3>${r.items.map(item).join("") || '<p class="muted small">Nothing in this room yet.</p>'}</div>`);
+      if (d.unplaced.length) cards.push(`<div class="pre-room"><h3>Not in a room</h3>${d.unplaced.map(item).join("")}</div>`);
+      const all = n.good + n.warn + n.bad;
+      box.innerHTML = `<div class="row" style="justify-content:space-between"><h2 style="margin:0">Pre-show check</h2>
+        <span class="pre-sum">${all ? `<span class="pill good">${n.good} ready</span>${n.warn ? `<span class="pill warn">${n.warn} to check</span>` : ""}${n.bad ? `<span class="pill bad">${n.bad} not working</span>` : ""}` : ""}<span class="muted small">checked ${new Date(d.checked_at * 1000).toLocaleTimeString()}</span></span></div>
+        ${all || d.unplaced.length ? `<div class="grid" style="margin-top:.6rem">${cards.join("")}</div>` : '<p class="muted small">No laptops, screens or caption mics yet. Add them in Laptops &amp; screens.</p>'}`;
+    };
+    const tick = setInterval(draw, 5000);
+    draw();
+  }
+
+  // -------------------------------------------------------- show reports --
+  // After a show: each room's timer runs, help calls, stage messages and caption transcript as a
+  // PDF for the client. Each morning the day before is kept for every room that had a show.
+  async function showReports(a) {
+    const list = await api("/api/reports");
+    const site = boot.sites[0]?.id, today = list.today[site] || new Date().toISOString().slice(0, 10);
+    a.innerHTML = `<div class="panel"><h2>Make a report</h2>
+        <p class="small muted" style="margin-top:0">A show day runs from 05:00 to 05:00 the next morning. Today's report shows what has happened so far.</p>
+        <div class="row" style="flex-wrap:wrap;align-items:flex-end">
+          <span><label>Room</label><select id="rRoom">${boot.rooms.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select></span>
+          <span><label>Day</label><input id="rDay" type="date" value="${esc(today)}" max="${esc(today)}"></span>
+          <label style="margin-bottom:.5rem"><input type="checkbox" id="rChat" style="width:auto"> Include the crew's chat messages</label>
+        </div>
+        <div id="rSum" class="small" style="margin:.6rem 0"></div>
+        <div class="row"><button class="primary" id="rOpen">Open the PDF</button><button id="rKeep">Keep a copy</button></div></div>
+      <div class="panel" style="margin-top:1rem"><h2>Kept reports</h2>
+        <p class="small muted" style="margin-top:0">Made by themselves each morning for every room that had a show the day before (the timer ran, a help call, a stage message or captions).</p>
+        ${list.reports.length ? `<table><tr><th>Day</th><th>Room</th><th>Made</th><th></th></tr>${list.reports.map((r) => `<tr><td>${esc(r.day)}</td><td>${esc(r.room_name)}</td><td class="small muted">${when(r.created_at)}</td>
+          <td class="row"><a class="btn small" href="/api/reports/saved/${r.id}.pdf" target="_blank">Open</a><button class="small danger" data-rm="${r.id}">Delete</button></td></tr>`).join("")}</table>` : '<p class="muted">None yet.</p>'}</div>`;
+    const q = () => `day=${encodeURIComponent(a.querySelector("#rDay").value)}`, room = () => a.querySelector("#rRoom").value;
+    const summary = async () => {
+      const box = a.querySelector("#rSum");
+      if (!room()) { box.textContent = "Add a room first."; return; }
+      try {
+        const s = (await api(`/api/reports/${room()}?${q()}`)).summary;
+        const mins = (ms) => { const t = Math.ceil(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+        box.innerHTML = [`<b>${s.runs}</b> timer run${s.runs === 1 ? "" : "s"}`, s.over ? `<span style="color:var(--bad-ink)"><b>${s.over}</b> ran over (${mins(s.over_ms)} in all)</span>` : "nothing ran over",
+          `<b>${s.help}</b> help call${s.help === 1 ? "" : "s"}${s.escalated ? ` (${s.escalated} with no answer at first)` : ""}`, `<b>${s.stage_messages}</b> stage message${s.stage_messages === 1 ? "" : "s"}`,
+          `<b>${s.crew_messages}</b> chat message${s.crew_messages === 1 ? "" : "s"}`, s.captions_s ? `captions live ${Math.round(s.captions_s / 60)} min, ${s.transcript_lines} transcript lines` : "no captions"].join(" · ");
+      } catch (e) { box.textContent = e.message; }
+    };
+    a.querySelector("#rRoom").onchange = summary; a.querySelector("#rDay").onchange = summary;
+    a.querySelector("#rOpen").onclick = () => room() && open(`/api/reports/${room()}/pdf?${q()}${a.querySelector("#rChat").checked ? "&chat=1" : ""}`, "_blank");
+    a.querySelector("#rKeep").onclick = () => room() && guard(() => post(`/api/reports/${room()}/save?${q()}`)).then(() => { toast("Kept. It's in the list below.", "good"); showReports(a); });
+    a.querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => confirm("Delete this kept report? You can make it again while the day's records are still on the server.") && guard(() => del(`/api/reports/saved/${b.dataset.rm}`)).then(() => showReports(a)));
+    summary();
+  }
+
   // ---------------------------------------------------------- dashboard --
   async function dashboard(el) {
     const links = await api("/api/dashboard/links");
@@ -174,7 +236,8 @@
     const strip = rooms.length ? `<div class="row" style="justify-content:space-between"><h1>Dashboard</h1><span class="row"><a class="btn primary" href="/node">Open the workspace</a>${boot.me.role === "admin" ? '<a class="btn" href="#/links">Edit links</a>' : ""}</span></div>
       <div class="grid" id="dashRooms" style="margin-top:.6rem">${rooms.map((r) => `<div class="panel" data-room="${r.id}"><div class="row" style="justify-content:space-between"><h2>${esc(r.name)}</h2><span class="small"><a href="/timer/${r.id}" target="_blank">Standard ↗</a></span></div>
         <div class="clock" style="font-size:2.6rem">--:--</div><div class="small now" style="font-weight:600"></div><div class="muted small next"></div></div>`).join("")}</div>` : "";
-    el.innerHTML = (strip || `<div class="row" style="justify-content:space-between"><h1>Dashboard</h1>${boot.me.role === "admin" ? '<a class="btn" href="#/links">Edit links</a>' : ""}</div>`) + (strip ? '<h2 style="margin-top:1.4rem">Links</h2>' : "") +
+    const pre = '<div class="panel" id="preshow" style="margin-top:.6rem"><p class="muted small">Checking every laptop, screen and caption mic…</p></div>';
+    el.innerHTML = (strip ? strip.replace('<div class="grid" id="dashRooms"', pre + '<div class="grid" id="dashRooms"') : `<div class="row" style="justify-content:space-between"><h1>Dashboard</h1>${boot.me.role === "admin" ? '<a class="btn" href="#/links">Edit links</a>' : ""}</div>` + pre) + (strip ? '<h2 style="margin-top:1.4rem">Links</h2>' : "") +
       (links.length ? Object.entries(groups).map(([g, ls]) => `<h3 style="margin-top:1.2rem">${esc(g)}</h3><div class="tiles">` +
         ls.map((l) => `<a class="tile" href="${esc(l.url)}" target="_blank" rel="noopener"><span class="dot" data-ping="${l.id}"></span><span class="grow">${esc(l.label)}</span></a>`).join("") + "</div>").join("")
         : '<p class="muted">No links yet. Admins can import the old Homarr board or add links in Links.</p>');
@@ -192,6 +255,7 @@
       }, 250);
       view = { onEvent: (e) => { if (e.type === "timer" && e.data?.room_id in live) live[e.data.room_id] = e.data; } };
     }
+    preshow(el.querySelector("#preshow"));
     try {
       const ping = await api("/api/dashboard/ping");
       el.querySelectorAll("[data-ping]").forEach((d) => d.classList.add(ping[d.dataset.ping] ? "on" : "off"));
@@ -209,7 +273,7 @@
       const rows = await api("/api/comms/help");
       el.innerHTML = `<h1>Help requests</h1><div class="panel"><table><tr><th>When</th><th>Room</th><th>From</th><th>What</th><th>Status</th><th></th></tr>` +
         rows.map((h) => `<tr><td>${when(h.created_at)}</td><td>${esc(h.room_name)}</td><td>${esc(h.requested_by)}</td><td>${esc(h.category)}: ${esc(h.description)}</td>` +
-          `<td><span class="pill ${h.status === "open" ? "bad" : h.status === "resolved" ? "good" : "warn"}">${esc(h.status)}</span> ${esc(h.assigned_to)}</td>` +
+          `<td><span class="pill ${h.status === "open" ? "bad" : h.status === "resolved" ? "good" : "warn"}">${esc(h.status)}</span>${h.status === "open" && h.escalations ? ' <span class="pill bad" title="Nobody answered in time, so it went out again to every laptop and page">no answer</span>' : ""} ${esc(h.assigned_to)}</td>` +
           `<td class="row">${h.status === "open" ? `<button class="small" data-s="acknowledged" data-id="${h.id}">On my way</button>` : ""}${h.status !== "resolved" ? `<button class="small" data-s="resolved" data-id="${h.id}">Resolved</button>` : ""}</td></tr>`).join("") +
         "</table></div>";
       el.querySelectorAll("[data-s]").forEach((b) => b.onclick = () => guard(() => put(`/api/comms/help/${b.dataset.id}`, { status: b.dataset.s })));
@@ -496,6 +560,8 @@
       <h2 style="margin-top:1rem">Other</h2>
       <label><input type="checkbox" name="legacy" ${s.legacy_fleet_api ? "checked" : ""} style="width:auto"> Accept old kiosk agents (Device Suite API, no sign-in)</label>
       <label>Delete chat messages older than (days, 0 = keep)</label><input name="retention" type="number" min="0" value="${s.message_retention_days}">
+      <label>Send a help call out again when nobody answers it in (minutes, 0 = never)</label><input name="escalate" type="number" min="0" max="60" step="0.5" value="${s.help_escalate_minutes}">
+      <p class="small muted" style="margin-top:.2rem">It goes again to every laptop and console page on the site (never a Main PC), up to three times, until someone presses On my way.</p>
       <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form></div>`;
     const bf = a.querySelector("#brand");
     bf.onsubmit = (e) => { e.preventDefault(); guard(() => put("/api/admin/settings", { branding: Object.fromEntries(new FormData(bf)) })).then(() => location.reload()); };
@@ -503,7 +569,7 @@
     mf.onsubmit = (e) => {
       e.preventDefault();
       const modules = Object.fromEntries(Object.keys(s.modules).map((m) => [m, mf[m].checked]));
-      guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value })).then(() => location.reload());
+      guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value, help_escalate_minutes: +mf.escalate.value })).then(() => location.reload());
     };
   }
 

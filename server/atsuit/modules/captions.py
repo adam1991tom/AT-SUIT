@@ -278,6 +278,15 @@ def to_vtt(text: str) -> str:
     return "WEBVTT\n\n" + "\n".join(blocks) if blocks else "WEBVTT\n"
 
 
+def room_event(room_id: int, kind: str, detail: str = "") -> None:
+    """When captions went live and stopped, for the show report."""
+    try:
+        with db.tx() as c:
+            c.execute("INSERT INTO room_events(room_id,at,kind,detail) VALUES(?,?,?,?)", (room_id, time.time(), kind, detail[:200]))
+    except Exception as exc:  # a report line is never worth dropping the captions for
+        print("captions.room_event:", exc)
+
+
 # ------------------------------------------------------------------ audio --
 @ws_router.websocket("/ws/audio/{room_id}")
 async def audio_in(ws: WebSocket, room_id: int):
@@ -318,6 +327,7 @@ async def audio_in(ws: WebSocket, room_id: int):
         _start_transcript(st, room_id)
         st.auto_transcript = True
     await ws.send_json({"type": "ready", "sample_rate": asr.SAMPLE_RATE})
+    room_event(room_id, "captions_on", p.name)
     await hub.publish(f"captions:{room_id}", "status", {"live": True, "source": p.name})
     last_level = 0.0
     try:
@@ -350,6 +360,7 @@ async def audio_in(ws: WebSocket, room_id: int):
             st.ws, st.source, st.partial, st.session = None, "", "", None
             if st.auto_transcript:  # one started by hand keeps going until Stop
                 _stop_transcript(st, room_id)
+            room_event(room_id, "captions_off")
             await hub.publish(f"captions:{room_id}", "status", {"live": False, "source": ""})
 
 

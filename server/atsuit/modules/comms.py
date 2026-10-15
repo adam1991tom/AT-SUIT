@@ -2,6 +2,7 @@
 Replaces AT-RoomComms."""
 from __future__ import annotations
 
+import asyncio
 import mimetypes
 import time
 import uuid
@@ -14,13 +15,15 @@ from pydantic import BaseModel, Field
 from .. import config, db
 from ..hub import hub
 from ..security import Principal, decrypt, encrypt, require_admin, require_tech, require_user
-from .core import require_module, room_or_404, site_ok
+from .core import modules_enabled, require_module, room_or_404, site_ok
 
 router = APIRouter(dependencies=[Depends(require_module("comms"))])
 
 PRIORITIES = ("normal", "important", "urgent")
 HELP_STATUSES = ("open", "acknowledged", "resolved")
 HELP_REPEAT_S = 30  # the same help call again within this many seconds is not sent twice
+ESCALATE_DEFAULT_MIN = 2  # a help call nobody answers goes out again after this many minutes (Settings → General)
+ESCALATE_MAX = 3  # and again each time that passes, this many times at most
 
 
 def channel_topic(ch) -> str:
@@ -356,7 +359,7 @@ async def request_help(body: HelpIn, p: Principal = Depends(require_tech)):
 
 
 BOARD_FIELDS = ("id", "room_id", "room_name", "requested_by", "category", "description", "priority", "status",
-                "assigned_to", "created_at", "acknowledged_at")
+                "assigned_to", "created_at", "acknowledged_at", "escalations")
 
 
 def help_board(c, room_id: int) -> dict:
@@ -467,3 +470,56 @@ async def update_help(help_id: int, body: HelpUpdate, p: Principal = Depends(req
     await hub.publish(f"site:{out['site_id']}", "help.updated", out)
     await publish_board(out["room_id"])
     return out
+
+
+# ------------------------------------------------------------- escalation --
+def escalate_minutes(c) -> float:
+    try:
+        return max(0.0, float(db.get_setting(c, "help_escalate_minutes", ESCALATE_DEFAULT_MIN)))
+    except (TypeError, ValueError):
+        return float(ESCALATE_DEFAULT_MIN)
+
+
+def due_escalations(c, now: float) -> list[dict]:
+    """Open help calls that have waited another escalation period with nobody on the way.
+    Each is marked, so it goes out once per period, ESCALATE_MAX times at most."""
+    minutes = escalate_minutes(c)
+    if not minutes:
+        return []
+    step = minutes * 60
+    out = []
+    for h in c.execute("SELECT * FROM help_requests WHERE status='open' AND escalations<?", (ESCALATE_MAX,)).fetchall():
+        try:
+            waited = now - datetime.fromisoformat(h["created_at"]).timestamp()
+        except ValueError:
+            continue
+        level = min(ESCALATE_MAX, int(waited // step))
+        if level > h["escalations"]:
+            c.execute("UPDATE help_requests SET escalations=?, escalated_at=? WHERE id=?", (level, db.now_iso(), h["id"]))
+            out.append({**dict(c.execute("SELECT * FROM help_requests WHERE id=?", (h["id"],)).fetchone()),
+                        "waited_s": int(waited)})
+    return out
+
+
+async def escalate(now: float | None = None) -> list[dict]:
+    """Send unanswered help calls out again: every page and laptop on the site hears it
+    (a Main PC shows nothing, as always), and the room's backstage screens mark it."""
+    with db.tx() as c:
+        if not modules_enabled(c).get("comms"):
+            return []
+        due = due_escalations(c, now or time.time())
+    for h in due:
+        await hub.publish(f"site:{h['site_id']}", "help.escalated", h)
+        await publish_board(h["room_id"])
+    return due
+
+
+async def escalate_loop() -> None:
+    while True:
+        await asyncio.sleep(5)
+        try:
+            await escalate()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # keep watching whatever happens
+            print("comms.escalate:", exc)
