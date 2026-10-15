@@ -3,7 +3,7 @@
 It answers from what this venue knows first: the admins' venue notes, how past
 help calls were fixed, and answers techs marked "This fixed it". Then from the
 built-in tech guide (knowledge/*.md): show-day fixes for audio, video,
-presenters, hybrid events, lighting, safety, running the show and AT-SUIT
+presenters, hybrid events, lighting, safety, running the show and AT-SUITE
 itself, shipped with the app so it works offline. With a local model (Ollama)
 it writes those up as a short answer; without one it shows the best match. Nothing leaves the venue's network unless an admin turns on web
 quick search, and then only the question goes out (to DuckDuckGo), never the

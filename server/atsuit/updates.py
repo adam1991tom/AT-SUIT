@@ -133,7 +133,7 @@ def status(c) -> dict:
 
 # ----------------------------------------------------------------- GitHub --
 def _headers(token: str, accept: str = "application/vnd.github+json") -> dict:
-    h = {"Accept": accept, "User-Agent": f"AT-SUIT/{VERSION}", "X-GitHub-Api-Version": "2022-11-28"}
+    h = {"Accept": accept, "User-Agent": f"AT-SUITE/{VERSION}", "X-GitHub-Api-Version": "2022-11-28"}
     if token:
         h["Authorization"] = f"Bearer {token}"
     return h
@@ -245,7 +245,7 @@ def mirror_app() -> None:
             ytmp = app_dir() / ".latest.yml.part"
             ytmp.write_bytes(yml)
             files["latest.yml"] = ytmp  # last, so laptops never see a latest.yml before its installer
-        publish_app_files({n: p for n, p in files.items() if p}, "AT-SUIT updates")
+        publish_app_files({n: p for n, p in files.items() if p}, "AT-SUITE updates")
         with db.tx() as c:
             save_state(c, app_error="")
     except Exception as exc:

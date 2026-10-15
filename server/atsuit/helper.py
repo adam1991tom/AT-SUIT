@@ -1,5 +1,5 @@
 """Helper mode (ATSUIT_ROLE=helper). This server has no rooms, accounts or
-screens of its own: it joins a main AT-SUIT server with a one-time code and
+screens of its own: it joins a main AT-SUITE server with a one-time code and
 runs whatever work the main server hands it (live caption recognition for
 now). See modules/cluster.py for the main server's side and the wire format.
 
@@ -260,7 +260,7 @@ def create_helper_app() -> FastAPI:
         yield
         task.cancel()
 
-    app = FastAPI(title="AT-SUIT helper", version=VERSION, lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="AT-SUITE helper", version=VERSION, lifespan=lifespan, docs_url=None, redoc_url=None)
 
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 

@@ -1,10 +1,10 @@
 name: Release
 
-# Pushes to the ATSUITE branch (ATSUIT before the rename) publish ghcr.io/<owner>/at-suit:edge.
+# Pushes to the ATSUITE branch publish ghcr.io/<owner>/at-suit:edge.
 # A tag like v0.1.0 publishes :0.1.0 and :latest and creates (or fills in) the GitHub release.
 on:
   push:
-    branches: [ATSUIT, ATSUITE]
+    branches: [ATSUITE]
     tags: ["v*"]
   # A release made on GitHub's Releases page doesn't always send a tag push.
   release:
@@ -49,7 +49,7 @@ jobs:
     if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     env:
-      # A token that can write releases to <owner>/AT-SUIT-releases, the public repository servers
+      # A token that can write releases to <owner>/AT-SUITE-releases, the public repository servers
       # and laptops update from (so this one can be private). Without it, releases go here only.
       RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
     steps:
@@ -71,7 +71,6 @@ jobs:
         with:
           images: ${{ steps.img.outputs.name }}
           tags: |
-            type=edge,branch=ATSUIT
             type=edge,branch=ATSUITE
             type=semver,pattern={{version}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -102,7 +101,7 @@ jobs:
           path: windows-app
       - name: Install files (no source code)
         if: startsWith(github.ref, 'refs/tags/v')
-        # What get.sh and update.sh install from a release: the scripts and compose file; AT-SUIT
+        # What get.sh and update.sh install from a release: the scripts and compose file; AT-SUITE
         # itself is the image published above.
         run: |
           mkdir bundle

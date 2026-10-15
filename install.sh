@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install or reinstall AT-SUIT with Docker. Safe to run again; data is kept.
+# Install or reinstall AT-SUITE with Docker. Safe to run again; data is kept.
 #   ./install.sh                 port 8080
 #   ./install.sh --port 8180     another port (side-by-side with old apps)
 #   ./install.sh --tls           also serve https (needed for browser microphones)
@@ -23,7 +23,7 @@ updater() {
   [ -n "$DATA" ] && [ -d "$DATA" ] && FLAG="$DATA/update-now"
   cat > /etc/systemd/system/atsuit-update.service <<UNIT
 [Unit]
-Description=AT-SUIT automatic update (Settings → Updates decides)
+Description=AT-SUITE automatic update (Settings → Updates decides)
 After=docker.service
 Wants=docker.service
 
@@ -36,7 +36,7 @@ UNIT
   if [ -n "$FLAG" ]; then
     cat > /etc/systemd/system/atsuit-update.path <<UNIT
 [Unit]
-Description=Update AT-SUIT as soon as an admin presses Install now
+Description=Update AT-SUITE as soon as an admin presses Install now
 
 [Path]
 PathExists=$FLAG
@@ -48,7 +48,7 @@ UNIT
   fi
   cat > /etc/systemd/system/atsuit-update.timer <<UNIT
 [Unit]
-Description=Ask AT-SUIT every 10 minutes whether to install an update
+Description=Ask AT-SUITE every 10 minutes whether to install an update
 
 [Timer]
 OnBootSec=5min
@@ -107,7 +107,7 @@ if [ -n "$PULL" ]; then
   docker compose "${PROFILE[@]}" pull
   docker compose "${PROFILE[@]}" up -d --no-build
 else
-  echo "Building AT-SUIT (this takes a few minutes the first time)…"
+  echo "Building AT-SUITE (this takes a few minutes the first time)…"
   docker compose "${PROFILE[@]}" build --build-arg VERSION="$(cat VERSION 2>/dev/null || echo dev)"
   docker compose "${PROFILE[@]}" up -d
 fi
@@ -118,7 +118,7 @@ for _ in $(seq 1 60); do
   echo -n "."; sleep 2
 done
 echo
-echo "AT-SUIT is running."
+echo "AT-SUITE is running."
 echo "  Open http://${IP:-SERVER-IP}:${ATSUIT_PORT}/ to finish setup in the browser."
 [ "$TLS" = 1 ] && echo "  https: https://${HOST:-SERVER-IP}:${ATSUIT_TLS_PORT}/ (install the root certificate on laptops; see docs/INSTALL.md)"
 echo "  Tech laptops: open /node on the same address."

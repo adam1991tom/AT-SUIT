@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Update AT-SUIT safely. Data is kept.
+# Update AT-SUITE safely. Data is kept.
 #   1. back up the data and remember the version that is running now;
 #   2. get the new version (git pull or the newest release, then build; or pull the published image);
 #   3. start it and wait until it answers healthy on the new version;
@@ -43,7 +43,7 @@ if [ "${1:-}" = "--auto" ]; then
   WANT="$(plan VERSION)" TOKEN="$(plan TOKEN)"
   ATSUIT_REF="$(plan TAG)"; export ATSUIT_REF
   if [ -f .atsuit-repo ] && [ -n "$(plan REPO)" ]; then plan REPO > .atsuit-repo; fi
-  echo "$(date '+%F %T') Installing AT-SUIT ${WANT} (running ${OLD_VERSION:-unknown})"
+  echo "$(date '+%F %T') Installing AT-SUITE ${WANT} (running ${OLD_VERSION:-unknown})"
   trap 'report failed "$WANT" "update.sh stopped at line $LINENO before the new version started"' ERR
 fi
 
@@ -85,7 +85,7 @@ elif [ -f .atsuit-repo ]; then
   [ -n "$REF" ] || REF="$(curl -fsSL "${AUTH[@]}" "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
   TMP="$(mktemp -d)"
   if [ -n "$REF" ] && curl -fsSL "https://github.com/${REPO}/releases/download/${REF}/at-suit-install.tar.gz" -o "$TMP.bundle" 2>/dev/null; then
-    # A release's install files (no source code): AT-SUIT itself is the published image of that release.
+    # A release's install files (no source code): AT-SUITE itself is the published image of that release.
     tar xzf "$TMP.bundle" -C "$TMP" && rm -f "$TMP.bundle"
     WANT="${WANT:-${REF#v}}"
     if grep -q '^ATSUIT_IMAGE=' .env 2>/dev/null; then sed -i "s|^ATSUIT_IMAGE=.*|ATSUIT_IMAGE=ghcr.io/adam1991tom/at-suit:${WANT}|" .env
@@ -102,7 +102,7 @@ elif [ -f .atsuit-repo ]; then
   fi
   cp -a "$TMP"/. ./ && rm -rf "$TMP"
 elif [ "$AUTO" = 1 ] && [ "$IMAGE_INSTALL" = 0 ]; then
-  echo "This copy of AT-SUIT can't fetch new versions by itself (it isn't a git checkout, from get.sh or the published image)."
+  echo "This copy of AT-SUITE can't fetch new versions by itself (it isn't a git checkout, from get.sh or the published image)."
   trap - ERR; report failed "$WANT" "this install can't fetch new versions by itself: reinstall with get.sh"; exit 1
 fi
 if [ "$IMAGE_INSTALL" = 1 ]; then

@@ -87,7 +87,7 @@ async function prepare(server, token) {
 
 function startWorker() {
   if (worker) return worker;
-  worker = utilityProcess.fork(path.join(__dirname, "captions-worker.js"), [], { serviceName: "AT-SUIT captions" });
+  worker = utilityProcess.fork(path.join(__dirname, "captions-worker.js"), [], { serviceName: "AT-SUITE captions" });
   worker.on("message", (m) => {
     if (m.type === "loaded") { loadedKey = m.key; set({ state: "ready", detail: "", progress: 100 }); }
     else if (m.type === "load-error") set({ state: "error", detail: m.detail });

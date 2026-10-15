@@ -1,11 +1,11 @@
-# AT-SUIT
+# AT-SUITE
 
 ## Captions not showing
 Keywords: captions not working, no captions, subtitles, live captions, transcript, captioning
 1. In the Captions panel, check your mic is picked and Send my mic is on (the button says Stop my mic).
 2. Watch the level meter while someone speaks; if it doesn't move, pick the right mic or check the desk sends to the laptop.
 3. Check the caption screen shows the right room.
-4. In the AT-SUIT app, captions are made on the laptop; the first time, it fetches the speech model from the server, and the server listens until it has it.
+4. In the AT-SUITE app, captions are made on the laptop; the first time, it fetches the speech model from the server, and the server listens until it has it.
 5. Add names and words the speakers use to the room's vocabulary, so they come out right.
 
 ## Captions get words wrong

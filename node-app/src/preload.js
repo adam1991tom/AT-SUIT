@@ -1,4 +1,4 @@
-// Bridge between the AT-SUIT server's /node page and this app. Only the
+// Bridge between the AT-SUITE server's /node page and this app. Only the
 // server's own page gets answers (checked again in main.js).
 const { contextBridge, ipcRenderer } = require("electron");
 
@@ -6,7 +6,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 // page never gets them inside this app.
 contextBridge.executeInMainWorld({
   func: () => {
-    window.alert = (m) => console.warn("alert() is disabled in AT-SUIT Node:", m);
+    window.alert = (m) => console.warn("alert() is disabled in AT-SUITE Node:", m);
     window.confirm = () => false;
     window.prompt = () => null;
   },

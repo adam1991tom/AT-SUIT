@@ -27,7 +27,7 @@
   const q = new URLSearchParams(location.search);
   let st;
   try { st = await api("/api/captions/status"); }
-  catch (e) { document.getElementById("panel").innerHTML = `<p>Sign in first: <a href="/">open AT-SUIT</a>.</p><p class="muted">${esc(e.message)}</p>`; return; }
+  catch (e) { document.getElementById("panel").innerHTML = `<p>Sign in first: <a href="/">open AT-SUITE</a>.</p><p class="muted">${esc(e.message)}</p>`; return; }
   const sel = document.getElementById("room");
   sel.innerHTML = st.rooms.map((r) => `<option value="${r.id}">${esc(r.name)}</option>`).join("");
   const roomId = +(q.get("room") || st.rooms[0]?.id);

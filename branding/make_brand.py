@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AT-SUIT brand generator.
+"""AT-SUITE brand generator.
 
 Builds every logo, app icon and social image from geometry so the pack is
 reproducible:  python3 make_brand.py
@@ -26,7 +26,7 @@ SHARE = "/mnt/project-files/branding"
 
 # ----------------------------------------------------------------- colours --
 COLOURS = {
-    "orange":   {"name": "AT-SUIT Orange", "hex": "#FF7A1A",
+    "orange":   {"name": "AT-SUITE Orange", "hex": "#FF7A1A",
                  "use": "The gear. Primary accent: buttons, active tabs, highlights, links on dark."},
     "black":    {"name": "Outline Black", "hex": "#000000",
                  "use": "Outer outline of the gear and the letters. Never removed."},
@@ -35,7 +35,7 @@ COLOURS = {
     "navy":     {"name": "Night Navy", "hex": "#0B1020",
                  "use": "Brand background: banners, social images, splash screens, the logo plate."},
     "ui_dark":  {"name": "App Dark", "hex": "#0E1116",
-                 "use": "AT-SUIT app UI background (dark theme)."},
+                 "use": "AT-SUITE app UI background (dark theme)."},
     "orange_dark":  {"name": "Ember", "hex": "#C85400",
                      "use": "Orange pressed / hover-dark state, orange text on white (AA large)."},
     "orange_light": {"name": "Glow", "hex": "#FFB27A",
@@ -47,7 +47,7 @@ FAMILY = [
     ("AT NET", "#9B0AFF", "Networking"),
     ("AT EVENTS", "#0AFF2A", "Events"),
     ("AT HANDYMAN", "#FC05E2", "Handyman services (sampled)"),
-    ("AT SUIT", "#FF7A1A", "Room control software (this brand)"),
+    ("AT SUITE", "#FF7A1A", "Room control software (this brand)"),
 ]
 ORANGE = COLOURS["orange"]["hex"]
 NAVY = COLOURS["navy"]["hex"]
@@ -188,7 +188,7 @@ def path_d(geom, s=1.0, dx=0.0, dy=0.0, nd=2):
     return "".join(out)
 
 
-def svg_doc(w, h, layers, bg=None, title="AT-SUIT"):
+def svg_doc(w, h, layers, bg=None, title="AT-SUITE"):
     """layers: list of (geom, fill). Geometry already in pixel units."""
     body = []
     if bg:
@@ -286,7 +286,7 @@ def write(path, text):
 
 def emit(name, layers, w, h, pad, bg=None, png=True, png_w=None):
     lay = fit(layers, w, h, pad)
-    svg = svg_doc(w, h, lay, bg=bg, title="AT-SUIT")
+    svg = svg_doc(w, h, lay, bg=bg, title="AT-SUITE")
     p = os.path.join(HERE, name + ".svg")
     write(p, svg)
     if png:
@@ -347,12 +347,12 @@ const { chromium } = require('/home/claude/AT-SUIT/node-app/node_modules/playwri
 def main():
     gear = gear_body()
     at = at_letters()
-    suit = word_letters("SUIT")
+    suit = word_letters("SUITE")
 
     icon = full_colour(gear, at)
     wordmark = full_colour(gear, unary_union([at, suit]))
-    # stacked: icon above "AT SUIT"
-    stack_word = word_letters("AT SUIT", x0=0, cap=0.42)
+    # stacked: icon above "AT SUITE"
+    stack_word = word_letters("AT SUITE", x0=0, cap=0.42)
     sw = stack_word.bounds
     stack_word = affinity.translate(stack_word, -(sw[0] + sw[2]) / 2, 1.0 + 0.10 + 0.21 + 0.06)
     stacked = full_colour(gear, at) + [
@@ -421,7 +421,7 @@ def main():
 
     # ---- colours.json
     write(os.path.join(HERE, "colours.json"), json.dumps({
-        "brand": "AT-SUIT",
+        "brand": "AT-SUITE",
         "colours": {k: dict(v, rgb=hex_rgb(v["hex"])) for k, v in COLOURS.items()},
         "family": [{"brand": b, "hex": h, "rgb": hex_rgb(h), "note": n} for b, h, n in FAMILY],
         "fonts": {"logo": "Saira ExtraBold 800 (outlined in the logo files)",
@@ -560,7 +560,7 @@ def social_svg(w, h, layers):
     for geom, fill in layers:
         body.append('<path fill="%s" fill-rule="evenodd" d="%s"/>' % (fill, path_d(geom)))
     return ('<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">'
-            '<title>AT-SUIT</title><defs>'
+            '<title>AT-SUITE</title><defs>'
             '<radialGradient id="g1" cx="0.92" cy="0.95" r="0.75"><stop offset="0" stop-color="#FF7A1A" stop-opacity="0.38"/>'
             '<stop offset="1" stop-color="#FF7A1A" stop-opacity="0"/></radialGradient>'
             '<radialGradient id="g2" cx="0.05" cy="0.0" r="0.6"><stop offset="0" stop-color="#2A3A8C" stop-opacity="0.55"/>'

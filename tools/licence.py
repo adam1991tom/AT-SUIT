@@ -11,11 +11,11 @@
 
 Plans set how many laptops (nodes) can join; every plan has every module. A paid
 period gets SPARE_DAYS on top, so a renewal that's a few days late never trips
-the warnings; after the end there are 14 days of grace before AT-SUIT locks.
+the warnings; after the end there are 14 days of grace before AT-SUITE locks.
 Renewing is issuing a new key for the next period: the customer pastes it into Licence.
 
 The public key printed by keygen lives in server/atsuit/vendor_pubkey.txt and is
-the only key AT-SUIT trusts. Licences are checked offline.
+the only key AT-SUITE trusts. Licences are checked offline.
 """
 from __future__ import annotations
 

@@ -17,7 +17,7 @@ done
 VOL=$(docker volume ls -q | grep -E '(^|_)atsuit-data$' | head -1)
 [ -n "$VOL" ] || { echo "No atsuit-data volume found. Run ./install.sh first."; exit 1; }
 if [ "$YES" != 1 ]; then
-  read -r -p "This replaces all current AT-SUIT data with $FILE. Type RESTORE to continue: " ok
+  read -r -p "This replaces all current AT-SUITE data with $FILE. Type RESTORE to continue: " ok
   [ "$ok" = "RESTORE" ] || exit 1
 fi
 docker compose stop atsuit

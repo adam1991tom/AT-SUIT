@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AT-SUIT node agent.
+"""AT-SUITE node agent.
 
 Runs on a tech laptop, kiosk or caption PC (Windows, Linux or macOS). It
 enrols with the server, sends heartbeats, carries out commands (open a
@@ -214,7 +214,7 @@ async def mic_loop(args, state) -> None:
 
 # --------------------------------------------------------------------- main --
 def main() -> None:
-    ap = argparse.ArgumentParser(description="AT-SUIT node agent")
+    ap = argparse.ArgumentParser(description="AT-SUITE node agent")
     ap.add_argument("--server", help="e.g. http://10.100.70.101:8180")
     ap.add_argument("--code", help="enrolment code (first run only)")
     ap.add_argument("--name", default=socket.gethostname().split(".")[0])

@@ -1,6 +1,6 @@
 // Pure helpers, kept apart from the Companion plumbing so they can be tested.
 const PRESETS = [3, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
-// The quick messages AT-SUIT ships with (Admin can change the workspace's list).
+// The quick messages AT-SUITE ships with (Admin can change the workspace's list).
 const QUICK_MESSAGES = ["Please wrap up", "5 minutes", "2 minutes", "1 minute", "Time is up", "Please come off stage",
   "Stand behind the mic", "Please speak into the mic", "Mic closer please", "Please slow down", "Louder please",
   "There is an issue, please wait", "Slides are coming", "Questions from the room next", "Last question",

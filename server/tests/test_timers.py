@@ -130,7 +130,7 @@ def test_custom_view_upload_and_shim(admin, client):
 def test_venue_ontime_project_presets_and_flash(admin):
     """Shaped like the venue's own Ontime files: a group of timer presets, a
     clock, 12-hour time, and an automation that blinks the timer at danger
-    (pointing at another room's Ontime port, which AT-SUIT ignores)."""
+    (pointing at another room's Ontime port, which AT-SUITE ignores)."""
     rid = room(admin, "HD")
     entries = {"g": {"type": "group", "id": "g", "title": "TIMERS do not touch", "parent": None},
                "c": {"type": "event", "id": "c", "cue": ".01", "title": "CLOCK", "duration": 0, "timerType": "clock",

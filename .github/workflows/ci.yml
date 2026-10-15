@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ATSUIT, ATSUITE]  # ATSUITE once the branch is renamed
+    branches: [ATSUITE]
   pull_request:
 
 jobs:
