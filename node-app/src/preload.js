@@ -29,6 +29,10 @@ contextBridge.exposeInMainWorld("atsuitApp", {
   // changes any of them and resolves to the new state; overlayState() just reads it.
   overlay: (cfg) => ipcRenderer.invoke("app:overlay", cfg),
   overlayState: () => ipcRenderer.invoke("app:overlay-state"),
+  // Task-manager numbers for the heartbeat: system() → { cpu, mem_total, mem_free, app_mem, disk, net, displays, … }
+  system: () => ipcRenderer.invoke("app:system"),
+  // Small JPEGs of each screen, only sent when the venue turns snapshots on and a manager is looking.
+  snapshot: () => ipcRenderer.invoke("app:snapshot"),
   // A window popped out of the workspace: keep it above everything else.
   popoutOnTop: (name, on) => ipcRenderer.invoke("app:popout-top", name, on),
 });

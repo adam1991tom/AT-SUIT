@@ -38,6 +38,13 @@ all of them without breaking a show:
   set 1 to 168 hours in Settings → General). Export them for the client as text,
   SRT or VTT before then. A transcript still recording is never cut short.
 
+## Laptop screen snapshots
+
+Off unless an admin turns them on. A laptop only sends small pictures of its
+screens while a manager has that laptop open on the console, the tech sees a
+note on their screen the whole time, and the pictures are only ever held in the
+server's memory.
+
 ## People and passwords
 
 - Staff accounts hold a username, a display name, a role and a password hash
@@ -55,6 +62,8 @@ all of them without breaking a show:
 | Crew chat and help requests | Until deleted, or the number of days set in Settings → General |
 | Handover notes (encrypted) | Until ticked off, then 30 days |
 | Show reports | As long as the venue keeps them |
+| Laptop health (CPU, memory, disk, network) | In the server's memory for 15 minutes; never saved |
+| Laptop screen snapshots (off by default) | In the server's memory while a manager is looking; never saved |
 | Presenter details (name, email, phone) | Until the session is deleted |
 | Audit log | On the server, for the venue's own records |
 

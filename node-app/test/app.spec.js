@@ -164,6 +164,37 @@ test("a workspace window pops out into a window of its own, stays on top if aske
   await expect.poll(popped).toEqual([]);
 });
 
+test("the laptop reports its health, and shows its screens only while a manager looks", async () => {
+  const login = await fetch(`${env.base}/api/auth/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "admin", password: "correct-horse" }),
+  });
+  const Cookie = login.headers.get("set-cookie").split(";")[0];
+  const as = (method, url, body) => fetch(`${env.base}${url}`, { method, headers: { "Content-Type": "application/json", Cookie }, body: body && JSON.stringify(body) }).then((r) => r.json());
+  await as("PUT", "/api/admin/settings", { laptop_snapshots: true });
+  try {
+    app = await launch();
+    const page = await mainPage(app);
+    await expect(page.locator("#ws")).toBeVisible();
+    const me = async () => (await as("GET", "/api/fleet/nodes")).find((n) => n.kind === "tech" && n.info?.system);
+    await expect.poll(me, { timeout: 15000 }).toBeTruthy();
+    const sys = (await me()).info.system;
+    expect(sys.mem_total).toBeGreaterThan(0);
+    expect(sys.cores).toBeGreaterThan(0);
+    expect(sys.displays.length).toBeGreaterThan(0);
+    await expect(page.locator("#watched")).toBeHidden(); // nobody looking yet
+
+    // A manager opens the laptop on the console: within a heartbeat it sends its screens, and says so.
+    const id = (await me()).id;
+    const health = () => as("GET", `/api/fleet/nodes/${id}/health`);
+    await expect.poll(async () => (await health()).snapshot?.shots?.length || 0, { timeout: 25000, intervals: [2000] }).toBeGreaterThan(0);
+    const shot = (await health()).snapshot.shots[0];
+    expect(shot.image).toMatch(/^data:image\/jpeg;base64,/);
+    await expect(page.locator("#watched")).toBeVisible();
+  } finally {
+    await as("PUT", "/api/admin/settings", { laptop_snapshots: false });
+  }
+});
+
 test("the backup PC: pop-ups are silent, on top and never take focus", async () => {
   app = await launch();
   const page = await mainPage(app);

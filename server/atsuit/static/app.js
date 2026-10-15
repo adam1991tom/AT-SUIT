@@ -512,19 +512,26 @@
   }
 
   // -------------------------------------------------------------- fleet --
-  async function fleet(el) {
+  async function fleet(page) {
     let nodes = [];
+    page.innerHTML = '<div data-list></div><div data-health></div>';
+    const el = page.querySelector("[data-list]"), healthBox = page.querySelector("[data-health]");
+    const load = (sys) => {
+      if (!sys) return '<span class="muted small">–</span>';
+      const mem = sys.mem_total ? Math.round(100 * (sys.mem_total - sys.mem_free) / sys.mem_total) : null;
+      return `<div class="small" style="white-space:nowrap">${meter(sys.cpu, "CPU")} ${meter(mem, "Mem")}</div>`;
+    };
     const render = async () => {
       nodes = await api("/api/fleet/nodes");
       const isAdmin = isAdminRole;
-      el.innerHTML = `<div class="panel"><table><tr><th></th><th>Name</th><th>Kind</th><th>Room</th><th>Address</th><th>Version</th><th>Showing</th><th>Last seen</th><th></th></tr>
+      el.innerHTML = `<div class="panel"><table><tr><th></th><th>Name</th><th>Kind</th><th>Room</th><th>Address</th><th>Version</th><th>Load</th><th>Showing</th><th>Last seen</th><th></th></tr>
         ${nodes.map((n) => `<tr data-n="${n.id}"><td><span class="dot ${n.online ? "on" : "off"}"></span></td><td><b>${esc(n.name)}</b>${n.legacy ? ' <span class="pill">old agent</span>' : ""}${n.kind === "tech" && n.operator && n.room_id ? `<div class="small muted">${esc(n.operator)}${n.mode ? ` · <span class="pill ${n.mode === "backup" ? "warn" : ""}">${n.mode === "backup" ? "Backup" : "Main"}</span>` : ""}</div>` : ""}</td>
           <td>${isAdmin ? `<select data-kind style="width:auto">${["tech", "kiosk", "caption"].map((k) => `<option ${k === n.kind ? "selected" : ""}>${k}</option>`).join("")}</select>` : esc(n.kind)}</td>
           <td>${isManager ? `<select data-room style="width:auto">${roomOptions(n.room_id)}</select>` : esc(n.room_name || "")}</td>
-          <td class="small">${esc(n.ip)}</td><td class="small">${esc(n.version)}</td><td class="small" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.current_url)}</td>
+          <td class="small">${esc(n.ip)}</td><td class="small">${esc(n.version)}</td><td>${n.online ? load(n.info?.system) : '<span class="muted small">–</span>'}</td><td class="small" style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n.current_url)}</td>
           <td class="small">${n.last_seen ? when(new Date(n.last_seen * 1000).toISOString()) : "never"}</td>
-          <td class="row"><button class="small" data-url>Set screen</button><button class="small" data-cmd="identify">Identify</button>
-          ${isAdmin ? '<button class="small" data-cmd="reboot">Reboot</button><button class="small danger" data-delnode>Remove</button>' : ""}</td></tr>`).join("") || '<tr><td colspan="9" class="muted">No nodes yet.</td></tr>'}</table></div>`;
+          <td class="row">${isManager && n.info?.system ? '<button class="small" data-health>Details</button>' : ""}<button class="small" data-url>Set screen</button><button class="small" data-cmd="identify">Identify</button>
+          ${isAdmin ? '<button class="small" data-cmd="reboot">Reboot</button><button class="small danger" data-delnode>Remove</button>' : ""}</td></tr>`).join("") || '<tr><td colspan="10" class="muted">No nodes yet.</td></tr>'}</table></div>`;
       el.querySelectorAll("[data-n]").forEach((row) => {
         const id = +row.dataset.n, n = nodes.find((x) => x.id === id);
         const save = () => guard(() => put(`/api/fleet/nodes/${id}`, { room_id: row.querySelector("[data-room]").value ? +row.querySelector("[data-room]").value : null, kind: row.querySelector("[data-kind]")?.value || null }));
@@ -540,7 +547,38 @@
         };
         row.querySelectorAll("[data-cmd]").forEach((b) => b.onclick = () => (b.dataset.cmd !== "reboot" || confirm(`Reboot ${n.name}?`)) && guard(() => post(`/api/fleet/nodes/${id}/command`, { kind: b.dataset.cmd })).then(() => toast("Sent", "good")));
         row.querySelector("[data-delnode]") && (row.querySelector("[data-delnode]").onclick = () => confirm(`Remove ${n.name}? It can enrol again later.`) && guard(() => del(`/api/fleet/nodes/${id}`)).then(render));
+        row.querySelector("[data-health]") && (row.querySelector("[data-health]").onclick = () => showHealth(id));
       });
+    };
+    // A laptop's task manager, refreshed every 5 seconds while it's open.
+    let healthId = null, healthTimer = null;
+    const closeHealth = () => { healthId = null; clearTimeout(healthTimer); healthBox.innerHTML = ""; };
+    const showHealth = (id) => { healthId = id; clearTimeout(healthTimer); drawHealth(); healthBox.scrollIntoView({ behavior: "smooth", block: "start" }); };
+    const drawHealth = async () => {
+      if (healthId == null || !page.isConnected) return;
+      const id = healthId;
+      let h;
+      try { h = await api(`/api/fleet/nodes/${id}/health`); } catch (e) { healthBox.innerHTML = `<div class="panel"><p class="bad">${esc(e.message)}</p></div>`; return; }
+      if (id !== healthId) return;
+      const s = h.system || {}, n = h.node;
+      const mem = s.mem_total ? Math.round(100 * (s.mem_total - s.mem_free) / s.mem_total) : null;
+      const diskUsed = s.disk?.total ? Math.round(100 * (s.disk.total - s.disk.free) / s.disk.total) : null;
+      const shots = !h.snapshots ? '<p class="small muted">Screen snapshots are off. An admin can turn them on in Settings → General → Privacy.</p>'
+        : h.snapshot ? `<div class="row" style="flex-wrap:wrap;gap:.6rem">${h.snapshot.shots.map((x) => `<figure style="margin:0"><img src="${esc(x.image)}" alt="${esc(x.name)}" style="width:320px;max-width:100%;border:1px solid var(--line);border-radius:var(--radius)"><figcaption class="small muted">${esc(x.name)} · ${h.snapshot.age}s ago</figcaption></figure>`).join("")}</div>`
+        : `<p class="small muted">${n.online ? "Asking the laptop for its screens. They appear within 10 seconds, and the tech sees a note while you look." : "This laptop is offline."}</p>`;
+      healthBox.innerHTML = `<div class="panel" style="margin-top:1rem"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(n.name)} <span class="dot ${n.online ? "on" : "off"}"></span></h2><button class="small" data-close>Close</button></div>
+        <div class="grid" style="margin-top:.6rem">
+          <div><h3>CPU ${s.cpu ?? "–"}%</h3>${spark(h.history, "cpu")}<p class="small muted">${esc(s.cpu_model || "")}${s.cores ? ` · ${s.cores} cores` : ""}</p></div>
+          <div><h3>Memory ${mem ?? "–"}%</h3>${spark(h.history, "mem")}<p class="small muted">${bytes(s.mem_total - s.mem_free)} of ${bytes(s.mem_total)} · AT-SUIT uses ${bytes(s.app_mem)}</p></div>
+          <div>${kv([["Disk", s.disk ? `${meter(diskUsed, s.disk.drive)} ${bytes(s.disk.free)} free of ${bytes(s.disk.total)}` : "–"],
+            ["Network", s.online === false ? '<span class="bad">offline</span>' : (s.net || []).map((x) => `${esc(x.ip)} <span class="muted small">${esc(x.name)}</span>`).join("<br>") || "–"],
+            ["Screens", (s.displays || []).map((d) => `${d.w}×${d.h}${d.primary ? " (main)" : ""}`).join(", ") || "–"],
+            ["Power", s.power === "battery" ? '<span class="warn">on battery</span>' : s.power ? "plugged in" : "–"],
+            ["Windows", `${s.windows ?? 0} popped out${s.overlay ? ", overlay on" : ""}`],
+            ["System", `${esc(s.os || "")} · up ${ago(s.uptime)}`], ["App", `${esc(s.app_version || n.version || "")} · open ${ago(s.app_uptime)}`]])}</div>
+        </div><h3>Screens</h3>${shots}</div>`;
+      healthBox.querySelector("[data-close]").onclick = closeHealth;
+      healthTimer = setTimeout(drawHealth, 5000);
     };
     let pending = null;
     view = { onEvent: (e) => { if (e.topic === "fleet" && !pending) pending = setTimeout(() => { pending = null; render(); }, 1500); } };
@@ -556,6 +594,15 @@
   const bytes = (n) => n == null ? "–" : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : n < 1073741824 ? `${(n / 1048576).toFixed(1)} MB` : `${(n / 1073741824).toFixed(1)} GB`;
   const ago = (s) => s == null ? "–" : s < 3600 ? `${Math.floor(s / 60)} min` : s < 86400 ? `${Math.floor(s / 3600)} h ${Math.floor(s % 3600 / 60)} min` : `${Math.floor(s / 86400)} days ${Math.floor(s % 86400 / 3600)} h`;
   const date = (t) => t ? new Date(t * 1000).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
+  // A small bar for a percentage, and a line of the last 15 minutes.
+  const meter = (pct, label) => pct == null ? `${esc(label)} –` : `<span title="${esc(label)} ${pct}%" style="display:inline-flex;align-items:center;gap:.25rem">${esc(label)}<span style="display:inline-block;width:48px;height:6px;border-radius:3px;background:var(--line);overflow:hidden"><span style="display:block;height:100%;width:${Math.min(100, Math.max(0, pct))}%;background:var(${pct >= 90 ? "--bad" : pct >= 75 ? "--warn" : "--accent"})"></span></span>${pct}%</span>`;
+  const spark = (hist, key) => {
+    const pts = (hist || []).filter((x) => x[key] != null);
+    if (pts.length < 2) return '<p class="small muted">Collecting…</p>';
+    const W = 300, H = 60;
+    const line = pts.map((x, i) => `${(i / (pts.length - 1) * W).toFixed(1)},${(H - x[key] / 100 * H).toFixed(1)}`).join(" ");
+    return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:60px;background:var(--panel2);border-radius:var(--radius)"><polyline points="${line}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+  };
   const kv = (rows) => `<table class="kv">${rows.filter(Boolean).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${v}</td></tr>`).join("")}</table>`;
 
   async function admGeneral(a) {
@@ -581,6 +628,8 @@
       <h2 style="margin-top:1rem">Privacy</h2>
       <label>Delete caption transcripts this many hours after they end (1 to 168)</label><input name="keephours" type="number" min="1" max="168" value="${s.transcript_keep_hours}">
       <p class="small muted" style="margin:.1rem 0 .4rem">12 hours by default. Captions are made on this server and never leave your network; transcripts are stored encrypted.</p>
+      <label><input type="checkbox" name="snaps" ${s.laptop_snapshots ? "checked" : ""} style="width:auto"> Managers can see snapshots of laptop screens</label>
+      <p class="small muted" style="margin:.1rem 0 .4rem">Off by default. Laptops only send them while a manager has that laptop's details open, the tech sees a note while it happens, and they are never saved.</p>
       <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form></div>`;
     const bf = a.querySelector("#brand");
     bf.onsubmit = (e) => { e.preventDefault(); guard(() => put("/api/admin/settings", { branding: Object.fromEntries(new FormData(bf)) })).then(() => location.reload()); };
@@ -610,7 +659,7 @@
     mf.onsubmit = (e) => {
       e.preventDefault();
       const modules = Object.fromEntries(Object.keys(s.modules).map((m) => [m, mf[m].checked]));
-      guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value, help_escalate_minutes: +mf.escalate.value, tech_passwords: mf.techpw.checked, forgot_resets_at_once: mf.forgotnow.checked, transcript_keep_hours: +mf.keephours.value || 12 })).then(() => location.reload());
+      guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value, help_escalate_minutes: +mf.escalate.value, tech_passwords: mf.techpw.checked, forgot_resets_at_once: mf.forgotnow.checked, transcript_keep_hours: +mf.keephours.value || 12, laptop_snapshots: mf.snaps.checked })).then(() => location.reload());
     };
   }
 

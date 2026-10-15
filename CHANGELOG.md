@@ -5,6 +5,20 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.8.0
+
+The first step to AT-SUIT 2: the laptops start doing more of the work and telling the server how they are. Captions and the timer move onto the laptops in the next releases.
+
+**Laptop health, like a task manager**
+- Every laptop running the AT-SUIT app now reports its CPU, memory (and how much AT-SUIT itself uses), disk space, network addresses, screens, mains or battery, popped-out windows and the overlay with each heartbeat.
+- **Laptops & screens** shows a CPU and memory bar for each laptop, going amber at 75% and red at 90%. **Details** opens that laptop's task manager, with the last 15 minutes of CPU and memory as graphs, refreshed every 5 seconds.
+- The numbers are kept in the server's memory only, for 15 minutes, and forgotten when a laptop is removed.
+
+**Screen snapshots (off by default)**
+- An admin can let managers see small snapshots of a laptop's screens (Settings → General → Privacy). They show under the laptop's Details, one per screen.
+- A laptop only takes them while a manager has its Details open, and stops within 30 seconds of them closing it. The tech sees a note at the bottom of their workspace the whole time.
+- Snapshots go straight to your own server and are held in memory only: never saved to disk or the database, never in backups, and gone when you turn snapshots off.
+
 ## 1.0.10
 
 **Passwords**

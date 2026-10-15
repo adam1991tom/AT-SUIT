@@ -10,6 +10,7 @@ import os
 import re
 import sqlite3
 import time
+from collections import deque
 from datetime import datetime, timedelta
 from html import escape
 from pathlib import Path
@@ -169,6 +170,43 @@ async def enrol(body: EnrolIn):
     return {"node_id": node_id, "name": name, "token": token, "site_id": site["id"]}
 
 
+# ------------------------------------------------- laptop health (memory) --
+# The desktop app reports CPU, memory, disk and network with each heartbeat.
+# The last 15 minutes are kept here for the console's graphs. Screen snapshots
+# are only taken while snapshots are turned on AND a manager has a laptop's
+# details open, and are only ever held in memory: never written to disk or the
+# database, and gone when the server restarts or the laptop is removed.
+HISTORY = 90  # samples: 15 minutes at one heartbeat every 10 seconds
+WATCH_SECONDS = 30  # a laptop keeps sending snapshots this long after the console last asked
+SNAP_MAX = 4  # screens
+SNAP_BYTES = 300_000  # each, as a data: URL
+_history: dict[int, deque] = {}
+_snaps: dict[int, dict] = {}
+_watched: dict[int, float] = {}
+
+
+def snapshots_on(c) -> bool:
+    return bool(db.get_setting(c, "laptop_snapshots", False))
+
+
+def _sample(node_id: int, sysinfo: dict) -> None:
+    if not isinstance(sysinfo, dict):
+        return
+    total, free = sysinfo.get("mem_total") or 0, sysinfo.get("mem_free") or 0
+    mem = round(100 * (total - free) / total) if total else None
+    _history.setdefault(node_id, deque(maxlen=HISTORY)).append(
+        {"t": int(time.time()), "cpu": sysinfo.get("cpu"), "mem": mem, "app_mem": sysinfo.get("app_mem")})
+
+
+def forget_health(node_id: int) -> None:
+    for d in (_history, _snaps, _watched):
+        d.pop(node_id, None)
+
+
+def watching(node_id: int) -> bool:
+    return _watched.get(node_id, 0) > time.time()
+
+
 class HeartbeatIn(BaseModel):
     ip: str = ""
     mac: str = ""
@@ -198,12 +236,57 @@ async def heartbeat(body: HeartbeatIn, request: Request, p: Principal = Depends(
         pending = c.execute("SELECT COUNT(*) FROM node_commands WHERE node_id=? AND status='queued'", (p.id,)).fetchone()[0]
         n = c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone()
         room_id = current_room_id(c, n)
+        snap = snapshots_on(c) and watching(p.id)
+    _sample(p.id, body.info.get("system"))
     await hub.publish("fleet", "node.heartbeat", {"id": p.id})
     out = {"ok": True, "pending_commands": pending, "room_id": room_id, "screen_view": n["screen_view"],
-           "agent": agent_release()}
+           "agent": agent_release(), "snapshot": snap}
     if n["kind"] == "kiosk":
         out["screen_agent"] = screen_release()
     return out
+
+
+class Shot(BaseModel):
+    name: str = Field(default="Screen", max_length=40)
+    image: str = Field(max_length=SNAP_BYTES, pattern=r"^data:image/(jpeg|png);base64,[A-Za-z0-9+/=]+$")
+
+
+class SnapshotIn(BaseModel):
+    shots: list[Shot] = Field(max_length=SNAP_MAX)
+
+
+@router.post("/api/nodes/me/snapshot")
+def node_snapshot(body: SnapshotIn, p: Principal = Depends(require_node)):
+    """Pictures of this laptop's screens, while a manager is looking. Memory only."""
+    with db.ro() as c:
+        if not snapshots_on(c):
+            raise HTTPException(403, "Screen snapshots are turned off")
+    if not watching(p.id):
+        return {"ok": True, "snapshot": False}
+    _snaps[p.id] = {"at": time.time(), "shots": [s.model_dump() for s in body.shots]}
+    return {"ok": True, "snapshot": True}
+
+
+@router.get("/api/fleet/nodes/{node_id}/health")
+def node_health(node_id: int, p: Principal = Depends(require_manager)):
+    """A laptop's task manager: the latest numbers, the last 15 minutes and, if
+    snapshots are on, its screens. Asking keeps the laptop sending snapshots."""
+    with db.ro() as c:
+        n = c.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
+        if not n or not site_ok(p, n["site_id"]):
+            raise HTTPException(404, "Node not found")
+        on = snapshots_on(c)
+        out = node_out(n, c)
+    snap = None
+    if on:
+        _watched[node_id] = time.time() + WATCH_SECONDS
+        s = _snaps.get(node_id)
+        if s and time.time() - s["at"] < WATCH_SECONDS:
+            snap = {"age": round(time.time() - s["at"]), "shots": s["shots"]}
+    else:
+        _snaps.pop(node_id, None)
+    return {"node": out, "system": out["info"].get("system"), "history": list(_history.get(node_id, ())),
+            "snapshots": on, "snapshot": snap}
 
 
 @router.get("/api/nodes/agent")
@@ -616,6 +699,7 @@ async def delete_node(node_id: int, p: Principal = Depends(require_admin)):
     with db.tx() as c:
         c.execute("DELETE FROM nodes WHERE id=?", (node_id,))
         db.audit(c, p.name, "node.delete", str(node_id))
+    forget_health(node_id)
     await hub.publish("fleet", "node.changed", {"id": node_id})
     return {"ok": True}
 

@@ -20,6 +20,7 @@ const path = require("path");
 const os = require("os");
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, net, screen, session, shell } = require("electron");
 const config = require("./config");
+const health = require("./health");
 
 if (process.env.ATSUIT_NODE_USERDATA) app.setPath("userData", process.env.ATSUIT_NODE_USERDATA);
 
@@ -491,6 +492,11 @@ function ipc() {
   ipcMain.handle("app:notify", (e, n) => (fromMain(e) ? showPopup(n || {}) : false));
   ipcMain.handle("app:overlay", (e, cfg) => (fromMain(e) ? applyOverlay(cfg && typeof cfg === "object" ? cfg : {}) : { ok: false }));
   ipcMain.handle("app:overlay-state", (e) => (fromMain(e) ? overlayState() : {}));
+  ipcMain.handle("app:system", (e) => (fromMain(e) ? health.system({
+    windows: [...pops.values()].filter((w) => !w.isDestroyed()).length,
+    overlay: !!(overlayWin && !overlayWin.isDestroyed() && overlayWin.isVisible()),
+  }) : null));
+  ipcMain.handle("app:snapshot", (e) => (fromMain(e) ? health.snapshot() : []));
   ipcMain.handle("app:popout-top", (e, name, on) => {
     const w = fromMain(e) && pops.get(String(name));
     if (!w || w.isDestroyed()) return false;
