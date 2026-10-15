@@ -5,6 +5,14 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.0.10
+
+**Timer**
+- Quick timer and message buttons show what's live. The loaded quick timer is outlined in the brand colour; once it's running it fills and gently pulses. A message on stage fills and pulses too, as do Clock, Blink and Blackout while they're on. Turning off animations in the appearance settings (or in Windows) swaps the pulse for a steady outline.
+- Tap a loaded quick timer again to start it. Tapping one that's already running leaves it running and says so, instead of resetting it. Tapping the message that's on stage still takes it off.
+- The quick timer and message panels keep their styling when they're docked in windows of their own. They had lost it, so the active buttons never showed.
+- Smoother timers. Every page used to restart its count from the moment each update arrived, so small network delays nudged the seconds back and forth, and the 10-times-a-second redraw flipped each second up to a tenth late. Pages now keep a steady link to the server's clock and redraw exactly when a second changes: the stage screen, the desk timer, the backstage clock and the top bar all tick at an even second.
+
 ## 1.0.8
 
 **Tech workspace**

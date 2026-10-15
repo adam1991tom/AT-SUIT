@@ -27,6 +27,10 @@ button.primary:hover { background: var(--glow); border-color: var(--glow); }
 button.primary:active { background: var(--ember); border-color: var(--ember); color: #fff; }
 button.danger { border-color: var(--bad); color: var(--bad-ink); }
 button.lit { background: var(--warn); border-color: var(--warn); color: #111; font-weight: 700; }
+/* Something live on stage (a running timer, a message, the clock, blink, blackout): the button glows and pulses. */
+button.lit, button.live { animation: btn-live 1.6s ease-in-out infinite; }
+@keyframes btn-live { 0%, 100% { box-shadow: 0 0 0 0 var(--glow, rgba(250, 204, 21, .7)); filter: none; } 50% { box-shadow: 0 0 0 5px transparent; filter: brightness(1.3); } }
+@media (prefers-reduced-motion: reduce) { button.lit, button.live { animation: none; outline: 2px solid currentColor; outline-offset: 1px; } }
 button.small { padding: .25rem .55rem; font-size: .85rem; }
 button:disabled { opacity: .5; cursor: default; }
 input, select, textarea { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: var(--ctl-radius); padding: .5rem .65rem; font: inherit; width: 100%; }

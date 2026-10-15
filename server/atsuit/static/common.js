@@ -80,6 +80,44 @@ const AT = (() => {
     return (neg ? "+" : "") + body;
   }
 
+  // Marks when a timer state arrived (x._rx), which every page counts the time from.
+  // Each copy takes a slightly different time to arrive, so taking every arrival as
+  // "now" makes the seconds jump about. While the gap between the server's clock and
+  // ours stays within half a second of the last copy's, keep the last copy's gap, so
+  // the count carries on smoothly; anything bigger is a real jump and is taken as it is.
+  function stamp(x, prev) {
+    const now = Date.now();
+    x._rx = now;
+    if (x.server_time) {
+      x._off = x.server_time * 1000 - now;
+      if (prev && prev._off !== undefined && Math.abs(x._off - prev._off) < 500) {
+        x._rx = now + (prev._off - x._off);
+        x._off = prev._off;
+      }
+    }
+    return x;
+  }
+
+  // Redraws a timer page the moment a shown second changes (the timer, the second
+  // line or the time of day) or a new state arrives, and every quarter second anyway.
+  // A fixed 100ms timer flips each second up to a tenth late, a different amount
+  // each time, which reads as stutter on a big screen.
+  function ticker(get, fn) {
+    let key = "", at = 0, last = null;
+    const sec = (ms) => Math.floor(ms / 1000);
+    const frame = (t) => {
+      requestAnimationFrame(frame);
+      const x = get();
+      if (!x || !x._rx) return;
+      const ago = Date.now() - x._rx, y = x.secondary || {};
+      const k = [sec(x.running ? x.remaining_ms - ago : x.remaining_ms), sec((x.clock_ms || 0) + ago), sec(y.running ? y.remaining_ms - ago : 0)].join("|");
+      if (k === key && x === last && t - at < 250) return;
+      key = k; at = t; last = x;
+      fn();
+    };
+    requestAnimationFrame(frame);
+  }
+
   // Keeps a timer state ticking locally, corrected for server clock offset.
   // Remaining ms of a timer state, counted locally from when this copy arrived.
   function timerClock(state) {
@@ -139,6 +177,16 @@ const AT = (() => {
     }
     return null;
   }
+  // Every match, here and in the parts moved out into windows of their own.
+  function qa(root, sel) {
+    const all = [...root.querySelectorAll(sel)];
+    for (const d of detached) {
+      if (d.from !== root && !root.contains(d.from)) continue;
+      if (d.el.matches(sel)) all.push(d.el);
+      all.push(...d.el.querySelectorAll(sel));
+    }
+    return [...new Set(all)];
+  }
 
-  return { esc, api, post, put, del, upload, socket, toast, guard, fmtTime, timerClock, timerDisplay, when, branding, h, detach, q };
+  return { esc, api, post, put, del, upload, socket, toast, guard, fmtTime, stamp, ticker, timerClock, timerDisplay, when, branding, h, detach, q, qa };
 })();

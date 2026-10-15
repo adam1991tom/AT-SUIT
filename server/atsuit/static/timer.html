@@ -210,7 +210,7 @@
   if (kind === "clock") document.body.classList.remove("has-status");
 
   let s = await AT.api(`/api/timers/${roomId}`), cues = [];
-  const got = (x) => { x._rx = Date.now(); s = x; };
+  const got = (x) => { AT.stamp(x, s._rx ? s : null); s = x; };
   got(s);
   $("room").textContent = s.room;
   // keep the status bar's first item clear of the room name in the corner
@@ -290,6 +290,7 @@
   }
   const bar = $("bar"), [zn, zw, zd, mask] = bar.children;
   const place = (el, left, width) => { el.style.left = left + "%"; el.style.width = width + "%"; };
+  const put = (n, t) => { if (n.textContent !== t) n.textContent = t; };
   const draw = () => {
     const type = s.timer_type || "count-down", loaded = s.playback !== "stop";
     const idle = !loaded; // a loaded timer shows its time straight away, before GO
@@ -310,13 +311,14 @@
       t.textContent = text;
       if (grew) fit(t);
     }
-    t.className = phase + (s.message_blink && !clock ? " blink" : ""); // the time of day never pulses
-    $("tod").textContent = todText();
+    const tc = phase + (s.message_blink && !clock ? " blink" : ""); // the time of day never pulses
+    if (t.className !== tc) t.className = tc; // setting it again would restart the blink
+    put($("tod"), todText());
     $("tod").style.visibility = clock ? "hidden" : "";
-    if (kind === "clock") $("title").textContent = "Current time";
+    if (kind === "clock") put($("title"), "Current time");
     else {
-      $("title").textContent = s.title || "";
-      $("next").textContent = s.next ? `Next: ${s.next.title}` : "";
+      put($("title"), s.title || "");
+      put($("next"), s.next ? `Next: ${s.next.title}` : "");
     }
     drawSecondary();
     if (statusOn) drawStatus(left, phase, clock, idle);
@@ -336,7 +338,7 @@
     if (showMsg && $("msg").firstChild.textContent !== s.message) { $("msg").firstChild.textContent = s.message; fitMsg(); }
     $("black").classList.toggle("on", !!s.blackout);
   };
-  setInterval(draw, 100);
+  AT.ticker(() => s, draw);
   // Re-read the venue clock every few minutes, so a screen left up overnight keeps time across a clock change.
   setInterval(() => AT.api(`/api/timers/${roomId}`).then(got).catch(() => {}), 300000);
   draw();
