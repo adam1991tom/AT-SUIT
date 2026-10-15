@@ -83,6 +83,8 @@ if docker exec atsuit-alpha python -c "import urllib.request;urllib.request.urlo
 ok "alpha's container can't reach beta's"
 is "$(docker inspect -f '{{.HostConfig.ReadonlyRootfs}} {{.Config.User}}' atsuit-alpha)" "true atsuit" "read-only, not root"
 has "$(get alpha /api/guide/help)" '"slug":"at-suit"' "the tech guide is there"
+has "$(docker inspect -f '{{json .Config.Env}}' atsuit-alpha)" '"ATSUIT_ASR=0".*"ATSUIT_LAPTOP_MODELS=1"' "no captions on the server; laptops get the speech model"
+is "$(docker exec atsuit-alpha python -c "import sqlite3;print(sqlite3.connect('/data/atsuit.db').execute(\"SELECT value FROM settings WHERE key='captions_private'\").fetchone()[0])")" true "captions stay on the laptops"
 
 echo "5. Pause and resume"
 "$AT" suspend beta >/dev/null

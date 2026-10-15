@@ -124,3 +124,17 @@ def test_hosted_venues_use_the_providers_ai_model(admin, monkeypatch):
     with db.ro() as c:
         p = aihelper.prefs(c)
     assert (p["ai_url"], p["ai_model"]) == ("http://10.0.0.5:11434", "mistral")  # the venue's own wins
+
+
+def test_a_hosted_venue_keeps_captions_on_its_laptops(hosted_env, client):
+    with db.ro() as c:
+        assert db.get_setting(c, "captions_private") is True
+    with db.tx() as c:
+        db.set_setting(c, "captions_private", False)  # the venue's own choice
+        hosted.apply_defaults(c)
+        assert db.get_setting(c, "captions_private") is False
+
+
+def test_a_venue_server_starts_without_hosted_defaults(client):
+    with db.ro() as c:
+        assert db.get_setting(c, "captions_private") is None

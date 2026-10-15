@@ -74,6 +74,8 @@ async def lifespan(app: FastAPI):
     db.migrate()
     with db.tx() as c:
         licence.prepare(c)
+        if config.cfg.hosted:
+            hosted.apply_defaults(c)
     licence.forget()
     asr.engine = asr.Engine()
     captions.rooms.clear()

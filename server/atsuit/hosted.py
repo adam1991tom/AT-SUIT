@@ -6,7 +6,8 @@ With ATSUIT_HOSTED=1:
     (ATSUIT_SETUP_CODE; that also works on a venue's own server), so a stranger can't claim it;
   - the provider updates every venue, so Settings → Updates says so, nothing asks GitHub,
     and nothing installs by itself;
-  - the server makes no captions itself (ATSUIT_ASR=0): the laptops do.
+  - the server makes no captions itself (ATSUIT_ASR=0): the laptops do, with the speech model
+    they fetch from it (ATSUIT_LAPTOP_MODELS=1), and their captions stay private by default.
 
 For atcloud, run inside a venue's container:
   python -m atsuit.hosted info               one line of JSON: version, set up, licence, rooms, laptops
@@ -138,6 +139,19 @@ def snapshot() -> Path:
         src.close()
     tmp.replace(dest)
     return dest
+
+
+# Settings a hosted venue starts with. A venue admin can still change them.
+DEFAULTS = {
+    "captions_private": True,  # captions stay on the laptops and never reach the cloud server
+}
+
+
+def apply_defaults(c: sqlite3.Connection) -> None:
+    """Give a hosted venue its starting settings, leaving any the venue has already set."""
+    for key, value in DEFAULTS.items():
+        if c.execute("SELECT 1 FROM settings WHERE key=?", (key,)).fetchone() is None:
+            db.set_setting(c, key, value)
 
 
 def install_licence(key: str) -> dict:

@@ -233,6 +233,7 @@ def start_container(c: dict, t: dict) -> None:
         "ATSUIT_SETUP_CODE": t["setup_code"],
         "ATSUIT_PUBLIC_URL": address(c, t["slug"]),
         "ATSUIT_ASR": "0",  # captions are made on the laptops; the server never hears the audio
+        "ATSUIT_LAPTOP_MODELS": "1",  # but it still hands the laptops the shared speech model
         "ATSUIT_KB_DIR": "/kb",
         "TZ": c["ATCLOUD_TZ"],
     }

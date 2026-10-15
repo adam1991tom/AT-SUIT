@@ -33,7 +33,9 @@ Strict-NDA venues can still run AT-SUIT on their own server, as before (docs/INS
   - The venue's admins see "Updates are looked after by your AT-SUIT provider". Nothing updates
     by itself; you move venues to a new version with `atcloud update`, which never happens during a show.
   - The server never makes captions (`ATSUIT_ASR=0`): laptops do, with a speech model they fetch
-    from their venue once. There is one shared, read-only copy of that model on the server.
+    from their venue once (`ATSUIT_LAPTOP_MODELS=1`). There is one shared, read-only copy of that
+    model on the server. New venues start with private captions on, so captions stay on the
+    laptops; a venue admin can change that.
   - Caption transcripts are never in backups.
 - **Tech guide.** The AI helper's built-in show-day guide (`server/atsuit/knowledge`) ships
   with AT-SUIT, and techs can read it at `/guide/help`. Your own articles for every venue go in
