@@ -450,9 +450,11 @@ test("the next day the tech starts again, without enrolling again", async () => 
   for (const room of ["RH", "CC"]) {
     await page.selectOption("#room", { label: room });
     await expect(page.locator("#roomAskText")).toHaveText(`Move this laptop to ${room}?`);
+    const reloaded = page.waitForEvent("load"); // the workspace starts over in the new room
     await page.click("#roomMove");
-    await expect(page.locator("#room option:checked")).toHaveText(room, { timeout: 15000 });
+    await reloaded;
     await expect(page.locator("#ws")).toBeVisible();
+    await expect(page.locator("#room option:checked")).toHaveText(room);
   }
   // Sign out at the end of the day: back to the start screen, and nothing pops up.
   await page.click("#out");
