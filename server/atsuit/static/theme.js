@@ -8,7 +8,7 @@ var ATTheme = (() => { // var: other scripts look for window.ATTheme
     if (!a) return;
     const root = document.documentElement;
     ATTRS.forEach((k) => { if (a[k]) root.dataset[k] = a[k]; });
-    root.style.colorScheme = a.theme === "light" ? "light" : "dark";
+    root.style.colorScheme = a.theme === "light" ? "light" : a.theme === "auto" ? "light dark" : "dark";
   }
   function remember(a) { try { localStorage.setItem(KEY, JSON.stringify(a)); } catch (_) {} }
   try { apply(JSON.parse(localStorage.getItem(KEY) || "null")); } catch (_) {}

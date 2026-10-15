@@ -671,8 +671,9 @@
     const s = await api("/api/admin/settings"), saved = { ...s.branding.appearance };
     let cur = { ...saved };
     const THEMES = [
-      ["dark", "Dark", "The AT-SUIT look: dark and calm for the control room.", ["#0e1116", "#161b24", "#2a3342", "#e8ebf2"]],
-      ["light", "Light", "Bright and clear for the office or a sunny foyer.", ["#f3f5f9", "#ffffff", "#d6dce6", "#141a26"]],
+      ["dark", "Dark", "The AT-SUIT look: dark and calm for the control room.", ["#0d1117", "#151b23", "#3d444d", "#f0f6fc"]],
+      ["light", "Light", "Bright and clear for the office or a sunny foyer.", ["#f6f8fa", "#ffffff", "#d1d9e0", "#1f2328"]],
+      ["auto", "Match the laptop", "Light or dark, as each laptop's Windows or Mac is set.", ["#0d1117", "#ffffff", "#3d444d", "#59636e"]],
       ["modern", "Modern", "Soft, rounded and roomy, with gentle shadows.", ["#0f1115", "#181b22", "#20242d", "#eef0f5"]],
       ["futuristic", "Futuristic", "Glass panels, glowing edges and a mono font for the numbers.", ["#04070e", "#0a1222", "#16314f", "#dbeafe"]],
     ];
@@ -766,6 +767,8 @@
       <label><input type="checkbox" name="enabled" ${s.enabled ? "checked" : ""} style="width:auto"> Turn on the AI helper</label>
       <label>Venue notes</label><textarea name="venue_notes" rows="10" placeholder="One topic per paragraph, its first line a heading. E.g.&#10;Hall A projector&#10;Use input HDMI 2. The remote is on the lectern shelf.">${esc(s.venue_notes)}</textarea>
       <label><input type="checkbox" name="learn_help" ${s.learn_help ? "checked" : ""} style="width:auto"> Learn from how help calls were fixed</label>
+      <label><input type="checkbox" name="builtin_guide" ${s.builtin_guide !== false ? "checked" : ""} style="width:auto"> Use the built-in tech guide</label>
+      <p class="small muted" style="margin:.1rem 0 .4rem">Show-day fixes for sound, video, presenters' laptops, hybrid events, lighting, safety and running the show, built into AT-SUIT. It works offline. Your own notes and fixes always come first.</p>
       <h2 style="margin-top:1rem">Private AI model (optional)</h2>
       <p class="small muted" style="margin-top:0">With a model on your own network (<a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>), it writes a short answer from those notes. Without one it lists what worked before. Leave the address empty to use the one set in Presenters${d.presenter_ai_url ? ` (${esc(d.presenter_ai_url)})` : ""}.</p>
       <label>Ollama address</label><input name="ai_url" placeholder="http://192.168.1.50:11434" value="${esc(s.ai_url)}">
@@ -778,7 +781,7 @@
     const f = a.querySelector("#aif");
     f.onsubmit = (e) => {
       e.preventDefault();
-      guard(() => put("/api/admin/ai", { enabled: f.enabled.checked, venue_notes: f.venue_notes.value, learn_help: f.learn_help.checked, ai_url: f.ai_url.value.trim(), ai_model: f.ai_model.value.trim() || "llama3.1:8b", web_search: f.web_search.checked }))
+      guard(() => put("/api/admin/ai", { enabled: f.enabled.checked, venue_notes: f.venue_notes.value, learn_help: f.learn_help.checked, builtin_guide: f.builtin_guide.checked, ai_url: f.ai_url.value.trim(), ai_model: f.ai_model.value.trim() || "llama3.1:8b", web_search: f.web_search.checked }))
         .then((ok) => ok && toast("Saved", "good"));
     };
     a.querySelectorAll("[data-forget]").forEach((b) => b.onclick = () => confirm("Forget this answer?") && guard(() => del(`/api/admin/ai/learned/${b.dataset.forget}`)).then(() => admAi(a)));

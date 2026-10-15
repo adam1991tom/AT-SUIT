@@ -3,10 +3,10 @@ name: Cloud
 # The hosting kit (cloud/): two venues behind the front door, end to end, on the runner's Docker.
 on:
   push:
-    branches: [ATSUIT]
-    paths: ["cloud/**", "server/**", "docs/kb/**", "Dockerfile", ".github/workflows/cloud.yml"]
+    branches: [ATSUITE]
+    paths: ["cloud/**", "server/**", "Dockerfile", ".github/workflows/cloud.yml"]
   pull_request:
-    paths: ["cloud/**", "server/**", "docs/kb/**", "Dockerfile", ".github/workflows/cloud.yml"]
+    paths: ["cloud/**", "server/**", "Dockerfile", ".github/workflows/cloud.yml"]
 
 jobs:
   e2e:

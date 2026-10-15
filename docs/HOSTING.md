@@ -4,7 +4,7 @@ How to run AT-SUIT as a hosted service: one cloud server in the EU, each custome
 own sealed AT-SUIT, reached at `https://<venue>.<your domain>`. The laptops at the venue still do
 the sensitive work themselves (captions and the timer run on the laptop and carry on if the
 internet drops); the cloud server holds chat, the venue's laptops and screens, accounts and
-passwords, the licence, updates, the help library and the AI helper.
+passwords, the licence, updates, the tech guide and the AI helper.
 
 Strict-NDA venues can still run AT-SUIT on their own server, as before (docs/INSTALL.md).
 
@@ -35,10 +35,10 @@ Strict-NDA venues can still run AT-SUIT on their own server, as before (docs/INS
   - The server never makes captions (`ATSUIT_ASR=0`): laptops do, with a speech model they fetch
     from their venue once. There is one shared, read-only copy of that model on the server.
   - Caption transcripts are never in backups.
-- **Help library.** The how-to articles in `docs/kb` ship with AT-SUIT. Every venue's AI helper
-  answers from them, after the venue's own notes and fixes, and techs can read them at
-  `/guide/help`. Your own articles go in `/srv/atcloud/kb` (Markdown, one `# Title` per file,
-  `## Sections`). One with the same file name replaces AT-SUIT's own.
+- **Tech guide.** The AI helper's built-in show-day guide (`server/atsuit/knowledge`) ships
+  with AT-SUIT, and techs can read it at `/guide/help`. Your own articles for every venue go in
+  `/srv/atcloud/kb`, in the same format: Markdown, `# Title`, then one `## Problem` per fix with
+  a `Keywords:` line. A file with the same name as a built-in one replaces it.
 - **AI helper model (optional).** `atcloud ai on` runs one private model (Ollama, `llama3.2:3b`
   by default) on the server for every venue. Questions never leave your server. Without it the
   helper still lists what has worked before and the matching help articles. It needs about 3 GB

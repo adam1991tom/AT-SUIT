@@ -54,7 +54,7 @@ OLD_DEFAULT_ACCENT = "#4f7cff"  # before the AT-SUIT logo; servers set up then s
 # How every staff page looks (the console, the tech workspace, setup and the presenter
 # page). One look for the whole site, set by an admin; stage screens keep their own.
 APPEARANCE_CHOICES = {
-    "theme": ("dark", "light", "modern", "futuristic"),
+    "theme": ("dark", "light", "auto", "modern", "futuristic"),
     "density": ("compact", "normal", "roomy"),
     "corners": ("square", "rounded", "round"),
     "font": ("system", "brand", "rounded", "mono"),

@@ -82,7 +82,7 @@ if docker exec atsuit-alpha python -c "import urllib.request;urllib.request.urlo
   die "alpha's container can reach beta's"; fi
 ok "alpha's container can't reach beta's"
 is "$(docker inspect -f '{{.HostConfig.ReadonlyRootfs}} {{.Config.User}}' atsuit-alpha)" "true atsuit" "read-only, not root"
-has "$(get alpha /api/guide/help)" '"slug":"room-timer"' "help library is there"
+has "$(get alpha /api/guide/help)" '"slug":"at-suit"' "the tech guide is there"
 
 echo "5. Pause and resume"
 "$AT" suspend beta >/dev/null

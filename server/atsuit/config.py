@@ -27,10 +27,8 @@ class Config:
         self.hosted = os.getenv("ATSUIT_HOSTED", "0") == "1"
         # The one-time code in the setup link; without it nobody can set up a new server.
         self.setup_code = os.getenv("ATSUIT_SETUP_CODE", "").strip()
-        # Help articles every venue's AI helper answers from, as well as the venue's own notes.
-        kb = os.getenv("ATSUIT_KB_DIR", "")
-        self.kb_dirs = [Path(p) for p in kb.split(os.pathsep) if p] if kb else [
-            Path(__file__).parent / "kb", Path(__file__).resolve().parents[2] / "docs" / "kb"]
+        # A provider's own tech guide articles, added to the built-in guide for every venue it hosts.
+        self.kb_dirs = [Path(p) for p in os.getenv("ATSUIT_KB_DIR", "").split(os.pathsep) if p]
         # The provider's private AI model, used when the venue hasn't set one of its own.
         self.ai_url = os.getenv("ATSUIT_AI_URL", "").rstrip("/")
         self.ai_model = os.getenv("ATSUIT_AI_MODEL", "")

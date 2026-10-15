@@ -97,20 +97,20 @@ def test_the_provider_publishes_the_windows_app(admin, tmp_path):
     assert not (config.cfg.data / "app" / "notes.txt").exists()
 
 
-def test_help_library_feeds_the_ai_helper(admin, tmp_path, monkeypatch):
+def test_a_providers_own_guide_articles_reach_every_venue(admin, tmp_path, monkeypatch):
     own = tmp_path / "kb"
     own.mkdir()
-    (own / "dante.md").write_text("# Dante audio\n\nAll Dante kit is on the AUDIO VLAN.\n\n## No audio from the desk\n"
-                                  "Check the Dante Controller subscription to the stage box, then reboot the stage box.\n")
-    (own / "captions.md").write_text("# Captions, our way\n\nCall the caption desk on channel 4.\n")
-    monkeypatch.setattr(config.cfg, "kb_dirs", config.cfg.kb_dirs + [own])
+    (own / "dante.md").write_text("# Dante audio\n\n## No audio from the Dante desk\nKeywords: dante, desk, no audio, stage box\n"
+                                  "1. Check the Dante Controller subscription to the stage box.\n2. Reboot the stage box.\n")
+    (own / "safety.md").write_text("# Our safety rules\n\n## Fire alarm\nKeywords: fire alarm, evacuate\nStop the show and call the duty manager on channel 1.\n")
+    monkeypatch.setattr(config.cfg, "kb_dirs", [own])
     arts = {a["slug"]: a for a in admin.get("/api/guide/help").json()["articles"]}
-    assert arts["dante"]["title"] == "Dante audio"
-    assert arts["captions"]["title"] == "Captions, our way"  # the provider's article replaces AT-SUIT's own
-    assert "room-timer" in arts  # AT-SUIT's own articles ship with the server
+    assert arts["dante"]["title"] == "Dante audio" and "Keywords" not in arts["dante"]["markdown"]
+    assert arts["safety"]["title"] == "Our safety rules"  # the provider's file replaces AT-SUIT's own
+    assert "audio" in arts and "at-suit" in arts  # AT-SUIT's own guide is there too
     r = admin.post("/api/ai/ask", json={"question": "no audio from the dante desk"}).json()
     assert "Dante Controller subscription" in r["answer"]
-    assert r["sources"][0] == {"kind": "AT-SUIT guide", "title": "Dante audio: No audio from the desk", "url": "/guide/help#dante"}
+    assert {"kind": "tech guide", "title": "No audio from the Dante desk", "url": "/guide/help#dante"} in r["sources"]
     assert admin.get("/guide/help").status_code == 200
 
 
