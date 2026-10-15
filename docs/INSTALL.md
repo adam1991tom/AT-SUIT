@@ -143,12 +143,16 @@ while a show is on, meaning a timer that is running or paused in any room.
 
 The install itself runs on the host, not in the container: `install.sh` sets
 up a systemd timer, `atsuit-update.timer`, that runs `./update.sh --auto`
-every 10 minutes. That asks the server whether to install and, when it says
+every 10 minutes, and `atsuit-update.path`, which runs it at once when an
+admin presses Install now (or Install by itself finds a new version): the
+server drops an `update-now` file in its data volume and systemd starts the
+update as soon as it appears. That asks the server whether to install and, when it says
 yes, does the same safe update as above with the release's tag. It then tells
 the server how it went, so Settings → Updates shows the result. A version that
 failed and was rolled back isn't tried again by itself; Install now tries
 again. For an install from before 1.0.2, run `sudo ./install.sh --updater`
-once, or let the next `sudo ./update.sh` set it up. `journalctl -u
+once, or let the next `sudo ./update.sh` set it up. Updaters set up before
+1.8.0 add the Install now part by themselves on their next run. `journalctl -u
 atsuit-update` shows what it did.
 
 Once the server runs a new version, it also fetches that release's Windows app

@@ -14,6 +14,11 @@ The first step to AT-SUIT 2: the laptops start doing more of the work and tellin
 - **Laptops & screens** shows a CPU and memory bar for each laptop, going amber at 75% and red at 90%. **Details** opens that laptop's task manager, with the last 15 minutes of CPU and memory as graphs, refreshed every 5 seconds.
 - The numbers are kept in the server's memory only, for 15 minutes, and forgotten when a laptop is removed.
 
+**Install now is instant**
+- Pressing **Install now** in Settings → Updates starts the update straight away, instead of at the server's next 10-minute check. It also asks GitHub first, so a release published a minute ago is found without pressing Check now.
+- **Install by itself** also starts as soon as the server sees a new version. As always, nothing installs while a show is on.
+- Servers already set up get this by themselves on their next automatic update. It works from the update after 1.8.0 is installed.
+
 **Screen snapshots (off by default)**
 - An admin can let managers see small snapshots of a laptop's screens (Settings → General → Privacy). They show under the laptop's Details, one per screen.
 - A laptop only takes them while a manager has its Details open, and stops within 30 seconds of them closing it. The tech sees a note at the bottom of their workspace the whole time.

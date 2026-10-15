@@ -1,7 +1,7 @@
 """Updates from GitHub releases: the server checks, update.sh --auto asks it what to do."""
 import httpx
 
-from atsuit import VERSION, db, updates
+from atsuit import VERSION, config, db, updates
 
 
 def release(version, assets=(), repo="adam1991tom/AT-SUIT-releases"):
@@ -132,6 +132,33 @@ def test_the_server_fetches_its_own_versions_windows_app(admin, monkeypatch):
     assert admin.get("/api/nodes/app/latest.yml").content == yml
     assert admin.get(f"/api/nodes/app/{exe}").content == b"MZ installer"
     assert admin.get("/api/nodes/app").json()["version"] == VERSION
+
+
+def test_install_now_starts_the_host_updater_at_once(admin, monkeypatch):
+    """Install now (and Install by itself) drop a file the host's atsuit-update.path watches,
+    so update.sh runs straight away instead of at its next 10-minute run."""
+    flag = config.cfg.data / updates.FLAG
+    new = bump(VERSION)
+    admin.put("/api/admin/updates", json={"mode": "notify"})
+    monkeypatch.setattr(updates, "fetch_latest", lambda repo, token: release(new))
+    # A release published a moment ago: Install now asks GitHub itself, no Check first.
+    st = admin.post("/api/admin/updates/install").json()
+    assert st["requested"] == new and flag.read_text().strip() == new
+    flag.unlink()
+
+    # Tell me only: a check never starts it by itself.
+    admin.post("/api/admin/updates/check")
+    assert not flag.exists()
+    # Install by itself: a check that finds a new version starts it, but not during a show.
+    admin.put("/api/admin/updates", json={"mode": "auto"})
+    rid = admin.get("/api/bootstrap").json()["rooms"][0]["id"]
+    admin.post(f"/api/timers/{rid}/set", json={"duration_ms": 60000, "title": "Keynote"})
+    admin.post(f"/api/timers/{rid}/start")
+    admin.post("/api/admin/updates/check")
+    assert not flag.exists()
+    admin.post(f"/api/timers/{rid}/reset")
+    admin.post("/api/admin/updates/check")
+    assert flag.read_text().strip() == new
 
 
 def test_releases_come_from_the_releases_repository(admin, monkeypatch):
