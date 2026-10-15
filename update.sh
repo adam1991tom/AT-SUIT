@@ -68,6 +68,11 @@ if grep -q '^ATSUIT_IMAGE=ghcr.io/' .env 2>/dev/null; then IMAGE_INSTALL=1; fi
 # refuses to touch another user's repository ("dubious ownership") unless told it's safe.
 git() { command git -c safe.directory="$PWD" "$@"; }
 if [ -d .git ]; then
+  # The repository was renamed AT-SUIT -> AT-SUITE; GitHub redirects the old name, but use the new one.
+  case "$(git remote get-url origin 2>/dev/null)" in
+    https://github.com/adam1991tom/AT-SUIT|https://github.com/adam1991tom/AT-SUIT.git)
+      git remote set-url origin https://github.com/adam1991tom/AT-SUITE.git ;;
+  esac
   if [ "$AUTO" = 1 ]; then
     git "${GITAUTH[@]}" fetch -q origin "refs/tags/${ATSUIT_REF}:refs/tags/${ATSUIT_REF}"
     if ! git merge -q --ff-only "$ATSUIT_REF" 2>/dev/null; then

@@ -16,7 +16,7 @@ the GitHub release.
 - Updates look for releases under the new GitHub names (`AT-SUITE-releases`, then `AT-SUITE`) and fall back to the old `AT-SUIT` names until the repositories are renamed. Servers and laptops keep updating before, during and after the rename.
 - A server that saved one of the old repository names in Settings → Updates moves to the new one by itself.
 - The release workflow builds from the renamed `ATSUITE` branch and publishes to whichever releases repository exists.
-- The install one-liner uses `AT-SUITE-releases`.
+- The install one-liner uses `AT-SUITE-releases`, and a server installed from a git copy points it at `AT-SUITE` at its next update.
 
 ## 1.8.0
 
