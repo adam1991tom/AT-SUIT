@@ -245,6 +245,7 @@ body:has(> .center:not(.hidden):not(#boot), > #shell:not(.hidden), > #ws:not(.hi
 /* motion off: no animation or transitions (the Help button keeps a steady outline instead of flashing) */
 :root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after { animation: none !important; transition: none !important; }
 :root[data-motion="off"] .help-alarm { outline: 3px solid var(--bad); }
+:root[data-motion="off"] button.lit, :root[data-motion="off"] button.live { outline: 2px solid currentColor; outline-offset: 1px; }
 
 /* Admin → Appearance */
 .theme-grid { display: grid; gap: var(--gap); grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
