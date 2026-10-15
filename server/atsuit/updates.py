@@ -34,8 +34,11 @@ from .security import Principal, decrypt, encrypt, require_admin
 
 # Releases come from a public repository that holds only the releases (no source code), so
 # servers need no token. Until it has a release, the source repository is asked instead.
-REPO_DEFAULT = "adam1991tom/AT-SUIT-releases"
-REPO_SOURCE = "adam1991tom/AT-SUIT"
+REPO_DEFAULT = "adam1991tom/AT-SUITE-releases"
+REPO_SOURCE = "adam1991tom/AT-SUITE"
+# The repositories were called AT-SUIT before the product became AT SUITE. GitHub redirects the old
+# names, but each new name is asked first and its old one only when the new one isn't there (yet).
+RENAMED = {REPO_DEFAULT: "adam1991tom/AT-SUIT-releases", REPO_SOURCE: "adam1991tom/AT-SUIT"}
 MODES = ("auto", "notify", "off")
 CHECK_EVERY_S = 30 * 60  # a new release shows within half an hour; GitHub allows 60 calls an hour without a token
 FLAG = "update-now"  # in the data folder: the host's atsuit-update.path starts update.sh as soon as it appears
@@ -61,6 +64,7 @@ def conf(c) -> dict:
     s = db.get_setting(c, "updates", {}) or {}
     mode = s.get("mode") if s.get("mode") in MODES else "auto"
     repo = s.get("repo") if REPO_RE.match(str(s.get("repo") or "")) else REPO_DEFAULT
+    repo = next((new for new, old in RENAMED.items() if repo.lower() == old.lower()), repo)  # saved before the rename
     if repo.lower() == REPO_SOURCE.lower() and not s.get("token_enc"):
         repo = REPO_DEFAULT  # saved before releases moved; the source repository may be private now
     token = ""
@@ -81,7 +85,7 @@ def save_conf(c, mode: str | None = None, repo: str | None = None, token: str | 
     if repo is not None:
         repo = repo.strip().removeprefix("https://github.com/").strip("/")
         if not REPO_RE.match(repo):
-            raise ValueError("The repository is owner/name, for example adam1991tom/AT-SUIT")
+            raise ValueError("The repository is owner/name, for example adam1991tom/AT-SUITE-releases")
         s["repo"] = repo
     if token is not None:
         token = token.strip()
@@ -135,10 +139,26 @@ def _headers(token: str, accept: str = "application/vnd.github+json") -> dict:
     return h
 
 
+class NoRelease(RuntimeError):
+    pass
+
+
 def fetch_latest(repo: str, token: str) -> dict:
+    """The newest release of repo, or of its old name while only that one exists."""
+    old = next((o for n, o in RENAMED.items() if n.lower() == repo.lower()), None)
+    try:
+        return _fetch_latest(repo, token)
+    except NoRelease:
+        if not old:
+            raise
+        return _fetch_latest(old, token)
+
+
+def _fetch_latest(repo: str, token: str) -> dict:
+    # follow_redirects: a renamed repository answers from its old name with a redirect.
     r = httpx.get(f"{API}/repos/{repo}/releases/latest", headers=_headers(token), timeout=20, follow_redirects=True)
     if r.status_code == 404:
-        raise RuntimeError("No release found. If the repository is private, add a GitHub token.")
+        raise NoRelease("No release found. If the repository is private, add a GitHub token.")
     if r.status_code in (401, 403):
         raise RuntimeError(f"GitHub refused ({r.status_code}). Check the token, or try again later.")
     r.raise_for_status()

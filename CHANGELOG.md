@@ -5,6 +5,14 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.8.1
+
+**Ready for the new name, AT SUITE**
+- Updates look for releases under the new GitHub names (`AT-SUITE-releases`, then `AT-SUITE`) and fall back to the old `AT-SUIT` names until the repositories are renamed. Servers and laptops keep updating before, during and after the rename.
+- A server that saved one of the old repository names in Settings → Updates moves to the new one by itself.
+- The release workflow builds from the `ATSUITE` branch as well as `ATSUIT`, and publishes to whichever releases repository exists.
+- Nothing else changes: data, the Docker volume, the published image name and licence keys stay as they are.
+
 ## 1.8.0
 
 The first step to AT-SUIT 2: the laptops do more of the work and tell the server how they are.
