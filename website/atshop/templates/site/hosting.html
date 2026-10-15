@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<p class="eyebrow">Hosting</p>
+<h1>Managed hosting, or your own server</h1>
+<p class="lead">Every plan works both ways, and you can switch later. Captions and timers always run on the laptops, wherever the server is.</p>
+<div class="table-wrap" style="margin-top:28px"><table>
+<thead><tr><th scope="col"></th><th scope="col">Managed hosting</th><th scope="col">Your own server</th></tr></thead>
+<tbody>
+<tr><th scope="row">Price</th><td>+{{ money(cat.hosting.monthly) }} a month or +{{ money(cat.hosting.yearly) }} a year, on top of your plan</td><td>Included in your plan</td></tr>
+<tr><th scope="row">Server</th><td>We run it in the EU (Hetzner, Germany or Finland), behind Cloudflare</td><td>A small Linux PC or server at your venue</td></tr>
+<tr><th scope="row">Set-up</th><td>We send you a setup link</td><td>One install command (<a href="/docs/self-hosted-install">guide</a>)</td></tr>
+<tr><th scope="row">Your address</th><td><code>https://yourvenue.{{ s.hosting_domain or 'atsuite.app' }}</code></td><td>Your server's address on your network</td></tr>
+<tr><th scope="row">Updates</th><td>We do them, never during a show</td><td>Automatic, or when you choose</td></tr>
+<tr><th scope="row">Backups</th><td>Nightly, encrypted, 7 daily and 4 weekly copies</td><td>Built-in backup tools; you keep the copies</td></tr>
+<tr><th scope="row">Internet needed</th><td>Yes, for chat and sync. Timers and captions carry on without it</td><td>No. Works fully offline, licence included</td></tr>
+<tr><th scope="row">Good for</th><td>Venues without IT staff, freelancers, multiple sites</td><td>Strict-NDA events, venues with no outside internet</td></tr>
+</tbody></table></div>
+
+<section style="padding-bottom:0"><div class="grid2">
+<div>
+<h2>What managed hosting includes</h2>
+<ul class="ticks">
+  <li>Your own sealed AT SUITE server. Nothing is shared with other venues: not data, not accounts, not network.</li>
+  <li>HTTPS everywhere, with a firewall that only accepts traffic through Cloudflare</li>
+  <li>Nightly encrypted backups to separate storage in the same region. We can restore on request.</li>
+  <li>Health monitoring, with updates done for you outside show times</li>
+  <li>Licence renewals installed for you</li>
+  <li>A Data Processing Agreement, with you as controller and us as processor (<a href="/legal/dpa">read the draft</a>)</li>
+</ul>
+</div>
+<div class="card">
+<h3>What never reaches our server</h3>
+<p class="muted">Live audio is turned into captions on the tech's laptop. Caption transcripts are never backed up and are deleted after 12 hours by default. Laptop screen snapshots are off by default, held only in memory while a manager looks, and never saved.</p>
+<p class="muted small">We don't promise an uptime figure yet. The target is in the draft terms, pending solicitor review.</p>
+<a class="btn primary" href="/buy?plan=venue&amp;cycle=year&amp;hosting=1">Buy with managed hosting</a>
+</div>
+</div></section>
+</div></div>
+{% endblock %}

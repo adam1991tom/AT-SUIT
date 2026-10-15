@@ -1,0 +1,9 @@
+<div class="table-wrap"><table><thead><tr><th>Serial</th>{% if show_email %}<th>Customer</th>{% endif %}<th>Source</th><th>Plan</th><th>Laptops</th><th>Ends</th><th>Issued</th><th>State</th><th></th></tr></thead><tbody>
+{% for l in (rows if show_email else licences) %}<tr>
+<td>{{ l.serial }}</td>{% if show_email %}<td><a href="/admin/customers/{{ l.account_id }}">{{ l.email }}</a></td>{% endif %}
+<td>{{ l.source }}</td><td>{{ l.edition }}</td><td>{{ l.max_nodes or 'unlimited' }}</td><td>{{ l.expires | day }}</td><td>{{ l.issued | when }}</td>
+<td>{% if l.revoked_at %}<span class="badge bad">revoked</span>{% elif l.replaced_by %}<span class="badge grey">replaced</span>{% else %}<span class="badge ok">current</span>{% endif %}</td>
+<td class="row-actions"><a class="btn small" href="/admin/licences/{{ l.serial }}.txt">Key</a>
+{% if not l.revoked_at %}<form class="inline-form" method="post" action="/admin/licences/{{ l.serial }}/revoke"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="reason" value="revoked by admin"><button class="btn small danger" type="submit" data-confirm="Revoke {{ l.serial }}? The shop stops renewing it. A key already pasted into a server keeps working offline until it ends.">Revoke</button></form>{% endif %}</td>
+</tr>{% else %}<tr><td colspan="9" class="muted">None.</td></tr>{% endfor %}
+</tbody></table></div>

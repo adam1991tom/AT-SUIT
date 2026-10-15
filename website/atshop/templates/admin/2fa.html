@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap" style="max-width:600px">
+<h1>Admin sign-in</h1>
+{% if errors %}<div class="errors" role="alert"><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+{% if setup %}
+<p>Admin pages need a second step. Add AT SUITE to an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Bitwarden…) with this key:</p>
+<p class="key" id="secret">{{ secret }}</p>
+<p><button class="btn small" type="button" data-copy="secret">Copy key</button> <a class="small" href="{{ uri }}">Open in an authenticator app on this device</a></p>
+<p class="small muted">Type: time-based, 6 digits, every 30 seconds. Keep a copy of the key in your password manager in case you lose your phone.</p>
+{% else %}<p>Enter the 6-digit code from your authenticator app.</p>{% endif %}
+<form class="stack" method="post" action="/admin/2fa">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="field"><label for="code">Code</label><input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" required autofocus></div>
+  <div><button class="btn primary" type="submit">Continue</button></div>
+</form>
+</div></div>
+{% endblock %}

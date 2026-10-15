@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>Support</h1>
+{% include "admin/_nav.html" %}
+<p>{% for st in ['open','answered','closed','all'] %}<a class="btn small{% if st == status %} primary{% endif %}" href="/admin/tickets?status={{ st }}">{{ st }}</a> {% endfor %}</p>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Subject</th><th>From</th><th>Kind</th><th>Status</th><th>Updated</th></tr></thead><tbody>
+{% for t in rows %}<tr><td>{{ t.id }}</td><td><a href="/admin/tickets/{{ t.id }}">{{ t.subject }}</a></td><td>{{ t.email }}{% if t.organisation %}<br><span class="small muted">{{ t.organisation }}</span>{% endif %}</td><td>{{ t.kind }}</td><td>{{ t.status }}</td><td>{{ t.updated_at | when }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">Nothing here.</td></tr>{% endfor %}
+</tbody></table></div>
+</div></div>
+{% endblock %}

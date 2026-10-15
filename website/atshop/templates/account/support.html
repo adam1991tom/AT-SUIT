@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>Your messages</h1>
+{% include "account/_nav.html" %}
+<p><a class="btn small primary" href="/contact?kind=support">New message</a></p>
+{% for t in tickets %}
+<div class="card" style="margin-bottom:16px">
+  <h3>#{{ t.id }} {{ t.subject }} <span class="badge {{ 'ok' if t.status == 'answered' else 'grey' }}">{{ t.status }}</span></h3>
+  {% for m in msgs[t.id] %}<div style="border-left:3px solid {{ 'var(--orange)' if m.author == 'staff' else 'var(--line)' }};padding-left:12px;margin:12px 0">
+    <p class="small muted" style="margin:0">{{ 'AT SUITE support' if m.author == 'staff' else 'You' }}, {{ m.created_at | when }}</p>
+    <p style="white-space:pre-wrap;margin:0">{{ m.body }}</p></div>{% endfor %}
+  {% if t.status != 'closed' %}
+  <form class="stack" method="post" action="/account/support/{{ t.id }}" style="max-width:none">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    <div class="field"><label for="m{{ t.id }}">Reply</label><textarea id="m{{ t.id }}" name="message" required maxlength="8000" style="min-height:90px"></textarea></div>
+    <div><button class="btn small" type="submit">Send reply</button></div>
+  </form>{% endif %}
+</div>
+{% else %}<p class="muted">No messages yet.</p>{% endfor %}
+</div></div>
+{% endblock %}

@@ -1,0 +1,5 @@
+# Never commit these: settings with secrets, the shop's database, signing keys.
+.env
+data/
+secrets/
+*.pem

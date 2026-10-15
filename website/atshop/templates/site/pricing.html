@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page" data-cycle="year"><div class="wrap">
+<div class="center">
+  <p class="eyebrow">Pricing</p>
+  <h1>One price per venue, every feature included</h1>
+  <p class="lead" style="margin-inline:auto">Plans differ only by how many tech laptops can connect. Screens, rooms and crew are unlimited. Pay yearly and get two months free.</p>
+  <div class="cycle" role="group" aria-label="Billing period">
+    <button type="button" data-value="year" aria-pressed="true">Yearly (2 months free)</button>
+    <button type="button" data-value="month" aria-pressed="false">Monthly</button>
+  </div>
+</div>
+
+<div class="plans">
+  {% for p in cat.plan_list %}
+  <div class="plan{% if p.featured %} featured{% endif %}">
+    {% if p.featured %}<span class="badge">Most popular</span>{% endif %}
+    <h3>{{ p.name }}</h3>
+    <p class="muted small">{{ p.for_ }}</p>
+    <p class="price yearly">{{ money(p.yearly) }}<small> / year</small></p>
+    <p class="price monthly">{{ money(p.monthly) }}<small> / month</small></p>
+    <p class="small muted yearly">Works out at {{ money((p.yearly / 12) | round(0)) }} a month. You save {{ money(p.yearly_saving) }}.</p>
+    <p class="small muted monthly">Or {{ money(p.yearly) }} a year if you pay yearly.</p>
+    <ul class="ticks">
+      <li><strong>Up to {{ p.laptops }} tech laptops</strong></li>
+      <li>Every feature</li>
+      <li>Unlimited rooms, screens and crew</li>
+      <li>Updates and email support</li>
+    </ul>
+    <a class="btn{% if p.featured %} primary{% endif %}" data-buy href="/buy?plan={{ p.key }}&amp;cycle=year">Choose {{ p.name }}</a>
+    <a class="small center" style="margin-top:10px" data-buy href="/buy?plan={{ p.key }}&amp;cycle=year&amp;hosting=1">or with managed hosting</a>
+  </div>
+  {% endfor %}
+  <div class="plan">
+    <h3>{{ cat.enterprise.name }}</h3>
+    <p class="muted small">{{ cat.enterprise.for }}</p>
+    <p class="price" style="font-size:1.8rem">Let's talk</p>
+    <ul class="ticks">
+      <li>More than 75 laptops</li>
+      <li>Several venues on one account</li>
+      <li>Dedicated hosting, invoicing and terms</li>
+      <li>Help setting up on site</li>
+    </ul>
+    <a class="btn" href="/contact?kind=sales&amp;plan=enterprise">Contact sales</a>
+  </div>
+</div>
+<p class="small muted center" style="margin-top:16px">{{ cat.vat_note }} Prices in pounds sterling.</p>
+
+<section style="padding-bottom:0">
+  <div class="grid3">
+    <div class="card"><h3>Managed hosting</h3><p class="price brand-font" style="font-size:1.6rem;margin:0"><span class="yearly">+{{ money(cat.hosting.yearly) }} / year</span><span class="monthly">+{{ money(cat.hosting.monthly) }} / month</span></p>
+      <p class="muted">We run your AT SUITE server for you in the EU, with nightly encrypted backups, updates outside show times and monitoring. Add it to any plan. <a href="/hosting">Details</a></p></div>
+    <div class="card"><h3>{{ cat.event.name }}</h3><p class="price brand-font" style="font-size:1.6rem;margin:0">{{ money(cat.event.price) }} one-off</p>
+      <p class="muted">{{ cat.event.for }}. Every feature, no subscription. Ideal for AV hire and one-off shows.</p><a class="btn small" href="/buy/event">Buy an event pass</a></div>
+    <div class="card"><h3>Free trial</h3><p class="price brand-font" style="font-size:1.6rem;margin:0">{{ cat.trial.days }} days free</p>
+      <p class="muted">Every feature and up to {{ cat.trial.laptops }} laptops, on your own server. No card needed.</p><a class="btn small" href="/register?next=/account">Start a trial</a></div>
+  </div>
+</section>
+
+<section>
+<h2>Compare the plans</h2>
+<div class="table-wrap"><table>
+  <thead><tr><th scope="col"></th>{% for p in cat.plan_list %}<th scope="col">{{ p.name }}</th>{% endfor %}<th scope="col">Enterprise</th></tr></thead>
+  <tbody>
+    <tr><th scope="row">Tech laptops</th>{% for p in cat.plan_list %}<td>{{ p.laptops }}</td>{% endfor %}<td>As agreed</td></tr>
+    <tr><th scope="row">Yearly</th>{% for p in cat.plan_list %}<td>{{ money(p.yearly) }}</td>{% endfor %}<td>Quote</td></tr>
+    <tr><th scope="row">Monthly</th>{% for p in cat.plan_list %}<td>{{ money(p.monthly) }}</td>{% endfor %}<td>Quote</td></tr>
+    {% for f in ['Show timers and stage views','Crew chat, help calls and handover notes','Live captions on the laptop','Screens and test patterns','Laptop management and updates','Presenter pages and show reports','Companion module and REST API','AI tech guide'] %}
+    <tr><th scope="row">{{ f }}</th>{% for p in cat.plan_list %}<td>✓</td>{% endfor %}<td>✓</td></tr>
+    {% endfor %}
+    <tr><th scope="row">Venues (sites)</th>{% for p in cat.plan_list %}<td>1</td>{% endfor %}<td>Several</td></tr>
+    <tr><th scope="row">Managed hosting</th>{% for p in cat.plan_list %}<td>Add-on</td>{% endfor %}<td>Included or dedicated</td></tr>
+  </tbody>
+</table></div>
+</section>
+
+<section style="padding-top:0">
+<h2>Billing questions</h2>
+<details><summary>Who takes the payment?</summary><div>Our reseller Paddle.com sells AT SUITE to you. Paddle handles the card payment, invoices and VAT, so your invoice comes from Paddle. You can pay by card, and by other methods Paddle offers in your country.</div></details>
+<details><summary>What happens when I renew?</summary><div>Your subscription renews by itself. A new licence key for the next period appears in your account and arrives by email. With managed hosting we install it for you. On your own server, paste it into Licence.</div></details>
+<details><summary>Can I change plan?</summary><div>Yes, from your account. A bigger plan starts straight away and you pay the difference for the rest of the period. A smaller plan is credited on your next bill.</div></details>
+<details><summary>How do I cancel?</summary><div>From your account, any time. Your plan runs to the end of the period you've paid for, then AT SUITE gives you 14 days of grace before it locks, and it never locks during a show. Your data is kept. See <a href="/legal/billing">billing, cancellation and refunds</a>.</div></details>
+</section>
+</div></div>
+{% endblock %}

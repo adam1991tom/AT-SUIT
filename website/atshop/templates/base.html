@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if title and title.startswith('AT SUITE') %}{{ title }}{% else %}{{ title }} · AT SUITE{% endif %}</title>
+<meta name="description" content="{% block description %}AT SUITE runs live events: show timers, crew chat, live captions on the laptop, screens and laptop management for venues, AV technicians and production companies.{% endblock %}">
+<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+<meta property="og:title" content="{{ title }}">
+<meta property="og:image" content="{{ s.site_url }}/static/img/og.jpg">
+<meta name="theme-color" content="#0B1020">
+<link rel="stylesheet" href="/static/css/site.css?v={{ version }}">
+{% block head %}{% endblock %}
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+{% if s.paddle_env == 'sandbox' and s.billing_ready %}<div class="sandbox-bar">Test mode: payments use Paddle's sandbox, no real money is taken.</div>{% endif %}
+<header class="top">
+  <div class="wrap">
+    <a class="logo" href="/" aria-label="AT SUITE home"><img src="/static/img/wordmark-640.png" alt="AT SUITE" width="90" height="34"></a>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
+    <nav class="nav" id="nav" aria-label="Main">
+      {% for href, label in [('/features','Features'),('/how-it-works','How it works'),('/pricing','Pricing'),('/hosting','Hosting'),('/docs','Docs'),('/support','Support')] %}
+      <a href="{{ href }}"{% if path == href or (href != '/' and path.startswith(href + '/')) %} aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+      {% if sess %}
+        {% if is_admin %}<a href="/admin">Admin</a>{% endif %}
+        <a class="btn small" href="/account">Your account</a>
+      {% else %}
+        <a href="/login">Sign in</a>
+        <a class="btn primary small" href="/pricing">Buy AT SUITE</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+<main id="main">
+{% block main %}{% endblock %}
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <img src="/static/img/wordmark-640.png" alt="AT SUITE" width="110" height="42" style="margin-bottom:12px">
+        <p>Show control for live events: timers, crew chat, captions, screens and laptops in one place.</p>
+        <p class="small">AT SUITE is sold by our reseller Paddle.com, who handle payment, invoices and VAT.</p>
+      </div>
+      <div><h4>Product</h4><ul>
+        <li><a href="/features">Features</a></li><li><a href="/how-it-works">How it works</a></li>
+        <li><a href="/pricing">Pricing</a></li><li><a href="/hosting">Hosting</a></li><li><a href="/downloads">Downloads</a></li></ul></div>
+      <div><h4>Help</h4><ul>
+        <li><a href="/docs">Documentation</a></li><li><a href="/faq">Questions</a></li>
+        <li><a href="/support">Support</a></li><li><a href="/contact">Contact sales</a></li></ul></div>
+      <div><h4>Legal</h4><ul>
+        <li><a href="/legal/terms">Terms</a></li><li><a href="/legal/privacy">Privacy</a></li>
+        <li><a href="/legal/dpa">Data processing</a></li><li><a href="/legal/billing">Billing and refunds</a></li>
+        <li><a href="/legal/acceptable-use">Acceptable use</a></li></ul></div>
+    </div>
+    <p class="small" style="margin-top:32px">© {{ s.company_name }}. AT SUITE is part of the AT family.</p>
+  </div>
+</footer>
+<script src="/static/js/site.js?v={{ version }}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

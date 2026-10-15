@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap" style="max-width:620px">
+<h1>{{ heading }}</h1>
+<p class="lead">{{ text }}</p>
+{% if action %}<a class="btn primary" href="{{ action[0] }}">{{ action[1] }}</a>{% endif %}
+</div></div>
+{% endblock %}

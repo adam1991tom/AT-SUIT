@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>Admin</h1>
+{% include "admin/_nav.html" %}
+{% if not signing_ready %}<div class="notice warn"><strong>No licence signing key.</strong> Set LICENCE_SIGNING_KEY_FILE; payments will be recorded but no keys can be made until then.</div>{% endif %}
+{% if missing_prices %}<div class="notice warn"><strong>Checkout is off for:</strong> {{ missing_prices | join(', ') }}. Run <code>python tools/paddle_setup.py</code> to create these prices in Paddle.</div>{% endif %}
+{% if s.paddle_env == 'sandbox' %}<p class="notice small">Paddle <strong>sandbox</strong>: test payments only.</p>{% endif %}
+<div class="dash">
+  <div class="card"><p class="muted small">Customers</p><p class="stat">{{ stats.customers }}</p></div>
+  <div class="card"><p class="muted small">Active subscriptions</p><p class="stat">{{ stats.active }}</p>{% if stats.past_due %}<p class="badge bad">{{ stats.past_due }} payment due</p>{% endif %}</div>
+  <div class="card"><p class="muted small">Monthly recurring (before VAT)</p><p class="stat">{{ money(stats.mrr) }}</p><p class="small muted">From today's catalogue prices; Paddle's reports are the record.</p></div>
+  <div class="card"><p class="muted small">Trials running</p><p class="stat">{{ stats.trials }}</p></div>
+  <div class="card"><p class="muted small">Open messages</p><p class="stat"><a href="/admin/tickets">{{ stats.tickets }}</a></p></div>
+  <div class="card"><p class="muted small">Hosting jobs waiting</p><p class="stat"><a href="/admin/hosting">{{ stats.jobs }}</a></p></div>
+</div>
+{% if problems %}<h2 style="margin-top:32px">Needs a look</h2>
+<div class="table-wrap"><table><thead><tr><th>Subscription</th><th>Customer</th><th>Problem</th></tr></thead><tbody>
+{% for p in problems %}<tr><td>{{ p.id }}</td><td>{% if p.account_id %}<a href="/admin/customers/{{ p.account_id }}">{{ p.email }}</a>{% else %}No account matched (Paddle customer {{ p.paddle_customer_id }}){% endif %}</td><td>{{ p.problem or '' }}</td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
+{% if failed %}<h2 style="margin-top:32px">Failed Paddle events</h2><p class="muted">Paddle retries these by itself. <a href="/admin/events">All events</a></p>
+<div class="table-wrap"><table><tbody>{% for e in failed %}<tr><td>{{ e.event_type }}</td><td>{{ e.note }}</td><td>{{ e.received_at | when }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<h2 style="margin-top:32px">Latest Paddle events</h2>
+<div class="table-wrap"><table><thead><tr><th>When</th><th>Event</th><th>Result</th></tr></thead><tbody>
+{% for e in events %}<tr><td>{{ e.received_at | when }}</td><td>{{ e.event_type }}</td><td>{{ e.status }}{% if e.note %}: {{ e.note }}{% endif %}</td></tr>{% else %}<tr><td colspan="3" class="muted">None yet.</td></tr>{% endfor %}
+</tbody></table></div>
+</div></div>
+{% endblock %}

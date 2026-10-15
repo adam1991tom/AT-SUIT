@@ -1,0 +1,15 @@
+# Caddy in front of the shop on its own small server: HTTPS certificates, and www → apex.
+# Replace example.com with the real domain. Install Caddy (https://caddyserver.com/docs/install),
+# copy this to /etc/caddy/Caddyfile and run `systemctl reload caddy`.
+# Behind Cloudflare, set SSL/TLS to "Full (strict)".
+
+www.example.com {
+	redir https://example.com{uri} permanent
+}
+
+example.com {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8090 {
+		header_up X-Forwarded-For {client_ip}
+	}
+}

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap{% if section == 'docs' %} sidebar-layout{% endif %}">
+{% if section == 'docs' %}<nav class="side" aria-label="Documentation">{% for slug, t in docs %}<a href="/docs/{{ slug }}"{% if path == '/docs/' ~ slug %} aria-current="page"{% endif %}>{{ t }}</a>{% endfor %}</nav>{% endif %}
+<article class="prose">
+{% if draft %}<div class="notice draft"><strong>Draft for solicitor review. Not legal advice.</strong> This page has not been finalised. Words in [square brackets] are still to be filled in.</div>{% endif %}
+{{ html | safe }}
+</article>
+</div></div>
+{% endblock %}

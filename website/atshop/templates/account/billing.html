@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>Billing</h1>
+{% include "account/_nav.html" %}
+{% if acc.paddle_customer_id %}
+<div class="card">
+  <p>Payments, cards and invoices are handled by Paddle, our reseller. These buttons open your Paddle billing pages.</p>
+  <div class="actions">
+    <form method="post" action="/account/billing/portal"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="go" value="card"><button class="btn primary small" type="submit">Update payment method</button></form>
+    <form method="post" action="/account/billing/portal"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small" type="submit">Billing overview</button></form>
+    {% if active_sub and not active_sub.scheduled_change %}<form method="post" action="/account/billing/portal"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="go" value="cancel"><button class="btn small danger" type="submit" data-confirm="Open the cancellation page? Your plan will run to the end of the period you've paid for.">Cancel subscription</button></form>{% endif %}
+  </div>
+</div>
+{% else %}<p class="muted">No payments yet. <a href="/pricing">See plans</a>.</p>{% endif %}
+{% if error %}<p class="notice warn">Couldn't load invoices from Paddle just now ({{ error }}). Showing what we have.</p>{% endif %}
+<h2 style="margin-top:32px">Invoices</h2>
+{% if txns %}
+<div class="table-wrap"><table><thead><tr><th>Date</th><th>For</th><th class="num">Total</th><th>Status</th><th></th></tr></thead><tbody>
+{% for t in txns %}<tr>
+  <td>{{ (t.billed_at or t.created_at) | day }}</td>
+  <td>{% for i in t['items'] %}{{ (i.price or {}).description or (i.price or {}).name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+  <td class="num">{{ ((t.details or {}).totals or {}).grand_total | int / 100 if ((t.details or {}).totals or {}).grand_total else '' }} {{ t.currency_code }}</td>
+  <td>{{ t.status }}</td>
+  <td><a href="/account/invoice/{{ t.id }}">Invoice (PDF)</a></td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% elif local %}
+<div class="table-wrap"><table><thead><tr><th>Date</th><th>Period</th><th class="num">Total</th><th></th></tr></thead><tbody>
+{% for t in local %}<tr><td>{{ t.billed_at | day }}</td><td>{{ t.period_start | day }} to {{ t.period_end | day }}</td><td class="num">{{ (t.total | int / 100) if t.total else '' }} {{ t.currency or '' }}</td><td><a href="/account/invoice/{{ t.id }}">Invoice (PDF)</a></td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}<p class="muted">No invoices yet.</p>{% endif %}
+<p class="small muted" style="margin-top:16px">Need a VAT number or company address on an invoice? Add it in the billing overview, or <a href="/contact?kind=billing">ask us</a>.</p>
+</div></div>
+{% endblock %}

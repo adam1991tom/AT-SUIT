@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap" style="max-width:620px">
+<h1>Thank you</h1>
+<p class="lead">Your payment is being confirmed. Your licence key will appear in your account, and arrive by email, in a moment.</p>
+<p class="notice" data-order="{{ ref }}" role="status">Waiting for confirmation…</p>
+<a class="btn" href="/account">Go to your account</a>
+</div></div>
+{% endblock %}

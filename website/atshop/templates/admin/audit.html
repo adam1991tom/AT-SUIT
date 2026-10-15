@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>Audit log</h1>
+{% include "admin/_nav.html" %}
+<form method="get" class="actions" style="margin-bottom:16px"><label class="skip" for="q">Search</label><input id="q" type="search" name="q" value="{{ q }}" placeholder="Who, what or on" style="max-width:360px"><button class="btn small" type="submit">Search</button></form>
+{% include "admin/_audit_table.html" %}
+</div></div>
+{% endblock %}

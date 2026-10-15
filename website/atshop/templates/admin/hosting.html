@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>Hosting</h1>
+{% include "admin/_nav.html" %}
+<p class="muted">{% if mode == 'ssh' %}Jobs run by themselves on the hosting server over SSH. Failed ones can be retried.{% else %}Manual mode: run each job's command on the hosting server, then mark it done. For a key job, download the key first and save it as the file the command names. To run them automatically, set HOSTING_MODE=ssh.{% endif %}</p>
+<h2>Jobs</h2>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Venue</th><th>Job</th><th>Status</th><th>Command</th><th></th></tr></thead><tbody>
+{% for j in jobs %}<tr>
+  <td>{{ j.id }}</td><td>{{ j.slug }}</td><td>{{ j.action }}</td>
+  <td>{% if j.status == 'done' %}<span class="badge ok">done</span>{% elif j.status == 'failed' %}<span class="badge bad">failed</span>{% else %}<span class="badge warn">to do</span>{% endif %}<br><span class="small muted">{{ j.created_at | when }}</span></td>
+  <td><code class="small">{{ cmds[j.id] }}</code>{% if j.result and j.status != 'todo' %}<details><summary class="small">Output</summary><div><pre class="small" style="white-space:pre-wrap">{{ j.result }}</pre></div></details>{% endif %}</td>
+  <td class="row-actions">
+    {% if j.licence_serial %}<a class="btn small" href="/admin/hosting/jobs/{{ j.id }}/key.txt">Key file</a>{% endif %}
+    {% if j.status != 'done' %}
+    <form class="inline-form" method="post" action="/admin/hosting/jobs/{{ j.id }}/done"><input type="hidden" name="csrf" value="{{ csrf }}">
+      {% if j.action == 'new' %}<label class="skip" for="o{{ j.id }}">Setup link</label><input id="o{{ j.id }}" name="output" type="text" placeholder="Paste the setup link it printed" style="min-height:36px;padding:6px 10px;max-width:260px">{% endif %}
+      <button class="btn small primary" type="submit">Mark done</button></form>
+    <form class="inline-form" method="post" action="/admin/hosting/jobs/{{ j.id }}/retry"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small" type="submit">Retry</button></form>
+    {% endif %}
+  </td></tr>
+{% else %}<tr><td colspan="6" class="muted">No jobs.</td></tr>{% endfor %}
+</tbody></table></div>
+
+<h2 style="margin-top:32px">Venues</h2>
+<div class="table-wrap"><table><thead><tr><th>Address</th><th>Name</th><th>Customer</th><th>Status</th><th>Subscription</th><th></th></tr></thead><tbody>
+{% for v in venues %}<tr>
+  <td>{% if address(v.slug) %}<a href="{{ address(v.slug) }}" rel="noopener">{{ v.slug }}</a>{% else %}{{ v.slug }}{% endif %}</td><td>{{ v.name }}</td>
+  <td><a href="/admin/customers/{{ v.account_id }}">{{ v.email }}</a></td><td>{{ v.status }}</td><td>{{ v.sub_status or '–' }}</td>
+  <td class="row-actions">
+    {% for act, label, warn in [('licence','Send key',''),('suspend','Suspend','Pause this venue? Its address will say it is paused. Data is kept.'),('resume','Resume','')] %}
+    <form class="inline-form" method="post" action="/admin/hosting/{{ v.id }}/{{ act }}"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small{% if act == 'suspend' %} danger{% endif %}" type="submit"{% if warn %} data-confirm="{{ warn }}"{% endif %}>{{ label }}</button></form>
+    {% endfor %}
+  </td></tr>
+{% else %}<tr><td colspan="6" class="muted">No hosted venues.</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="small muted">Removing a venue and its data is never done from here: run <code>atcloud remove VENUE --yes</code> on the server yourself.</p>
+
+<details style="margin-top:24px"><summary>Add a hosted venue by hand</summary><div>
+<form class="stack" method="post" action="/admin/hosting/new"><input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="field"><label for="h-email">Customer email (must have an account)</label><input id="h-email" name="email" type="email" required></div>
+  <div class="field"><label for="h-slug">Address</label><input id="h-slug" name="slug" type="text" required pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?"></div>
+  <div class="field"><label for="h-name">Venue name</label><input id="h-name" name="name" type="text"></div>
+  <div><button class="btn primary" type="submit">Queue the venue</button></div>
+</form></div></details>
+</div></div>
+{% endblock %}

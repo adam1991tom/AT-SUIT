@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap" style="max-width:560px">
+<h1>Create your account</h1>
+<p class="muted">You'll get a link by email to confirm it. Then you can start a free trial or buy a plan.</p>
+{% if errors %}<div class="errors" role="alert"><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+<form class="stack" method="post" action="/register">
+  <input type="hidden" name="next" value="{{ next }}">
+  <div class="field"><label for="name">Your name</label><input id="name" name="name" type="text" autocomplete="name" required maxlength="120" value="{{ (form or {}).get('name','') }}"></div>
+  <div class="field"><label for="organisation">Venue or company</label><input id="organisation" name="organisation" type="text" autocomplete="organization" maxlength="120" value="{{ (form or {}).get('organisation','') }}">
+    <span class="hint">This name goes on your licence key. Leave it empty to use your own name.</span></div>
+  <div class="field"><label for="email">Work email</label><input id="email" name="email" type="email" autocomplete="email" autocapitalize="off" spellcheck="false" required value="{{ (form or {}).get('email','') }}"></div>
+  <div class="field"><label for="phone">Phone <span class="hint">(optional)</span></label><input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="40" value="{{ (form or {}).get('phone','') }}"></div>
+  <label class="check"><input type="checkbox" name="terms" value="1" required> I agree to the <a href="/legal/terms" target="_blank">terms</a> and have read the <a href="/legal/privacy" target="_blank">privacy policy</a>. I'm buying for a business, not as a consumer.</label>
+  <label class="check"><input type="checkbox" name="marketing" value="1"> Send me occasional product news (you can unsubscribe at any time).</label>
+  <div><button class="btn primary" type="submit">Create account</button></div>
+</form>
+<p style="margin-top:24px">Already have an account? <a href="/login{% if next %}?next={{ next | urlencode }}{% endif %}">Sign in</a></p>
+</div></div>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<p class="eyebrow">Features</p>
+<h1>Everything a show day needs</h1>
+<p class="lead">Every plan includes every feature. Plans differ only by how many laptops can connect.</p>
+
+<section style="padding-top:32px">
+<div class="grid2">
+  <div>
+    <h2>Show timers</h2>
+    <ul class="ticks">
+      <li>Room timers with GO, pause, next and previous, plus or minus a minute, blink and blackout</li>
+      <li>A cue list with times, notes, overtime rules, and import from Ontime</li>
+      <li>One-tap quick timers and messages to the stage</li>
+      <li>Views for stage, minimal, clock, backstage, speaker preview and a transparent overlay for OBS or vMix, plus your own uploaded views</li>
+      <li>The timer keeps running on the laptop if the network drops</li>
+    </ul>
+  </div>
+  <img class="shot" src="/static/img/shot-stage-timer.jpg" alt="Stage timer view" loading="lazy" width="1280" height="720">
+</div>
+</section>
+
+<section class="alt"><div class="grid2">
+  <img class="shot" src="/static/img/shot-workspace.jpg" alt="Tech workspace with chat and help" loading="lazy" width="1280" height="720">
+  <div>
+    <h2>Crew chat, help and handovers</h2>
+    <ul class="ticks">
+      <li>Chat for all crew and for each room, with files, emoji and priority messages</li>
+      <li>A Help button that rings the right people, then escalates if nobody answers</li>
+      <li>Handover notes so the next shift knows what happened</li>
+      <li>Tech passwords set by admins, with a forced change at first sign-in</li>
+      <li>An AI tech guide with show-day fixes, which can run privately on your own server</li>
+    </ul>
+  </div>
+</div></section>
+
+<section><div class="grid2">
+  <div>
+    <h2>Live captions, kept private</h2>
+    <ul class="ticks">
+      <li>Speech recognition runs on the tech's laptop, offline, from its microphone</li>
+      <li>A vocabulary list for names and jargon, plus live corrections</li>
+      <li>Audience caption screens, a subtitle bar, and a transparent overlay for streams</li>
+      <li>Transcripts are encrypted, exportable and deleted after 12 hours by default</li>
+    </ul>
+    <p class="small muted">Captions are automatic and can be wrong. For a deaf attendee who relies on them, book a professional captioner as well.</p>
+  </div>
+  <img class="shot" src="/static/img/shot-captions.jpg" alt="Caption subtitle bar on a screen" loading="lazy" width="1280" height="720">
+</div></section>
+
+<section class="alt"><div class="grid2">
+  <img class="shot" src="/static/img/shot-laptops.jpg" alt="The laptops list in the AT SUITE console" loading="lazy" width="1280" height="800">
+  <div>
+    <h2>Laptops, screens and the venue</h2>
+    <ul class="ticks">
+      <li>The Windows tech app: each tech's workspace, with layouts they can arrange</li>
+      <li>Laptop health and what each one is showing (off by default; never saved)</li>
+      <li>Screens paired by code, with test patterns: colour bars, gradients, LED tile map, sharpness and overscan</li>
+      <li>A venue dashboard, a pre-show health check, and PDF show reports</li>
+      <li>Presenter pages for slides, review notes and check-in, with no account needed</li>
+      <li>Bitfocus Companion module and a REST API for automation</li>
+      <li>Backups, room locks, roles for admins, managers and techs, and an audit log</li>
+    </ul>
+  </div>
+</div></section>
+<div class="actions" style="margin-top:32px"><a class="btn primary" href="/pricing">See pricing</a><a class="btn" href="/register?next=/account">Start a free trial</a></div>
+</div></div>
+{% endblock %}

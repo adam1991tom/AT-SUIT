@@ -1,0 +1,70 @@
+# What AT SUITE sells, and for how much. The website, checkout and licence keys all read this file,
+# so a price change is made here and nowhere else.
+#
+# After changing a price, run `python tools/paddle_setup.py` to create the matching prices in Paddle.
+# Customers already subscribed keep the price they signed up at (Paddle keeps their old price);
+# their keys keep coming because old prices stay mapped to their plan.
+#
+# Prices are whole pounds, before VAT. Paddle (the reseller) adds VAT at checkout where it applies.
+# `licence_plan` is the plan name in tools/licence.py; `laptops` must match that plan's node limit.
+
+currency = "GBP"
+vat_note = "Prices exclude VAT. VAT is added at checkout where it applies."
+# A subscription key runs to the end of the paid period plus this many days, so a renewal that
+# lands a little late never trips the expiry warnings (same as tools/licence.py SPARE_DAYS).
+spare_days = 7
+
+[plans.small]
+name = "Small"
+for = "Freelancers, AV hire and small venues"
+laptops = 10
+licence_plan = "small"
+monthly = 99
+yearly = 990
+order = 1
+
+[plans.venue]
+name = "Venue"
+for = "Conference centres, theatres and hotels"
+laptops = 30
+licence_plan = "venue"
+monthly = 229
+yearly = 2290
+order = 2
+featured = true
+
+[plans.large]
+name = "Large"
+for = "Big venues and production companies"
+laptops = 75
+licence_plan = "large"
+monthly = 429
+yearly = 4290
+order = 3
+
+# Enterprise is sold by quote (Contact sales); its keys are issued from Admin → Licences.
+[enterprise]
+name = "Enterprise"
+for = "More than 75 laptops, several sites or special terms"
+
+# Managed hosting: we run the AT SUITE server for the venue (one sealed server per venue,
+# nightly encrypted backups, updates outside show times). Added on top of any plan.
+[addons.hosting]
+name = "Managed hosting"
+monthly = 39
+yearly = 390
+
+# A one-off key for a single show or hire, no subscription.
+[passes.event]
+name = "Event pass"
+for = "One show or hire, up to 10 laptops for 7 days"
+laptops = 10
+days = 7
+licence_plan = "event"
+price = 149
+
+# Free trial, one per account, no card needed.
+[trial]
+days = 30
+laptops = 10
+licence_plan = "trial"

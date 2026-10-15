@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>Change plan</h1>
+{% include "account/_nav.html" %}
+<p>You're on <strong>{{ cat.plans[sub.plan].name if sub.plan in cat.plans else sub.plan }}</strong>, paid {{ 'yearly' if sub.cycle == 'year' else 'monthly' }}{% if sub.hosting %}, with managed hosting{% endif %}.</p>
+<p class="muted">A bigger plan, a switch to yearly, or adding hosting starts now: you pay the difference for the rest of this period. A smaller plan is credited on your next bill. Your new licence key arrives straight away.</p>
+<form class="stack" method="post" action="/account/plan" style="max-width:40rem">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <fieldset class="field" style="border:0;padding:0;margin:0"><legend style="font-weight:600;margin-bottom:6px">Plan</legend>
+  {% for p in cat.plan_list %}
+    <label class="check"><input type="radio" name="plan" value="{{ p.key }}" {% if p.key == sub.plan %}checked{% endif %}> {{ p.name }}: up to {{ p.laptops }} laptops, {{ money(p.yearly) }} a year or {{ money(p.monthly) }} a month</label>
+  {% endfor %}</fieldset>
+  <fieldset class="field" style="border:0;padding:0;margin:0"><legend style="font-weight:600;margin-bottom:6px">Pay</legend>
+    <label class="check"><input type="radio" name="cycle" value="year" {% if sub.cycle == 'year' %}checked{% endif %}> Yearly</label>
+    <label class="check"><input type="radio" name="cycle" value="month" {% if sub.cycle == 'month' %}checked{% endif %}> Monthly</label>
+  </fieldset>
+  {% if not sub.hosting %}
+  <fieldset class="card" style="display:grid;gap:14px"><legend class="brand-font">Add managed hosting</legend>
+    <label class="check"><input type="checkbox" name="add_hosting" value="1"> Yes, run my AT SUITE server for me (+{{ money(cat.hosting.yearly) }} a year or +{{ money(cat.hosting.monthly) }} a month)</label>
+    <div class="field"><label for="venue_slug">Venue address</label><input id="venue_slug" name="venue_slug" type="text" maxlength="32" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" autocapitalize="off" spellcheck="false" placeholder="grandhall">
+      <span class="hint">Your server will be at https://<em>address</em>.{{ hosting_domain or 'atsuite.app' }}</span></div>
+    <div class="field"><label for="venue_name">Venue name</label><input id="venue_name" name="venue_name" type="text" maxlength="80"></div>
+  </fieldset>
+  {% endif %}
+  <div><button class="btn primary" type="submit">Change plan</button></div>
+</form>
+<p class="small muted" style="margin-top:24px">To cancel, go to <a href="/account/billing">Billing</a>.</p>
+</div></div>
+{% endblock %}

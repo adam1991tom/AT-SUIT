@@ -1,0 +1,5 @@
+<nav class="subnav" aria-label="Account">
+{% for href, label in [('/account','Overview'),('/account/billing','Billing'),('/account/plan','Plan'),('/account/support','Messages'),('/account/details','Details'),('/downloads','Downloads')] %}
+<a href="{{ href }}"{% if path == href %} aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+<form class="inline-form" method="post" action="/logout" style="margin-left:auto"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small ghost" type="submit">Sign out</button></form>
+</nav>

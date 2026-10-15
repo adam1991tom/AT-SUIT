@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap" style="max-width:640px">
+<p class="eyebrow">Event pass</p>
+<h1>{{ cat.event.name }}: {{ money(cat.event.price) }}</h1>
+<p class="lead">{{ cat.event.for }}. One payment, no subscription.</p>
+{% if not billing_ready %}<div class="notice warn">Online checkout isn't switched on yet. <a href="/contact?kind=sales">Message us</a> and we'll set you up.</div>{% endif %}
+<form class="stack" method="post" action="/buy">
+  <input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="kind" value="event">
+  <div class="field"><label for="event_start">First day of the event</label>
+    <input id="event_start" name="event_start" type="date" required min="{{ today }}" max="{{ latest }}" value="{{ today }}" aria-describedby="start-hint">
+    <span class="hint" id="start-hint">The key runs for {{ cat.event.days }} days from this day.</span></div>
+  <div><button class="btn primary" type="submit" {% if not billing_ready %}disabled{% endif %}>Continue to payment</button></div>
+  <p class="small muted">{{ cat.vat_note }} Payment is taken by Paddle.com, our reseller.</p>
+</form>
+</div></div>
+{% endblock %}
