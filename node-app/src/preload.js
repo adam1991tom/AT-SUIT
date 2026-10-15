@@ -38,6 +38,19 @@ contextBridge.exposeInMainWorld("atsuitApp", {
   // { type: partial|final|level|state|error, ... }.
   // The room timer worked out on this laptop while the server can't be reached (offline-timer.js).
   timerLocal: (state) => ipcRenderer.send("timer:local", state),
+  // The laptop bubble: captions kept on this laptop and its own screen feed (bubble.js).
+  // bubble.configure({ room_id, private, options, vocabulary, keep_hours }); bubble.timer(state) for
+  // the screens; transcript() → { name, lines } | null; saveTranscript() asks where to save it.
+  bubble: {
+    configure: (c) => ipcRenderer.send("bubble:configure", c),
+    timer: (state) => ipcRenderer.send("bubble:timer", state),
+    clear: () => ipcRenderer.send("bubble:clear"),
+    transcript: () => ipcRenderer.invoke("bubble:transcript"),
+    saveTranscript: () => ipcRenderer.invoke("bubble:save-transcript"),
+  },
+  // screens() → { on, port, addresses }; setScreens(on) turns the feed on or off.
+  screens: () => ipcRenderer.invoke("screens:state"),
+  setScreens: (on) => ipcRenderer.invoke("screens:set", on),
   captions: {
     prepare: () => ipcRenderer.invoke("captions:prepare"),
     state: () => ipcRenderer.invoke("captions:state"),

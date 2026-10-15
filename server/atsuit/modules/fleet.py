@@ -436,6 +436,8 @@ def node_me(p: Principal = Depends(require_node)):
         return {"node": node_out(n, c), "room": dict(room) if room else None, "rooms": rooms,
                 "tech_passwords": bool(db.get_setting(c, "tech_passwords", True)),
                 "captions_on_laptops": bool(db.get_setting(c, "captions_on_laptops", True)),
+                "captions_private": bool(db.get_setting(c, "captions_private", False)),
+                "transcript_keep_hours": int(db.get_setting(c, "transcript_keep_hours", 12) or 12),
                 "day": work_day(c, n["site_id"]), "views": list_views(c, tests=True) + caption_views()}
 
 

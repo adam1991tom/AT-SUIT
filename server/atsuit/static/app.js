@@ -630,6 +630,8 @@
       <p class="small muted" style="margin:.1rem 0 .4rem">12 hours by default. Captions never leave your network; transcripts are stored encrypted.</p>
       <label><input type="checkbox" name="laptopcaps" ${s.captions_on_laptops ? "checked" : ""} style="width:auto"> Laptops make captions themselves</label>
       <p class="small muted" style="margin:.1rem 0 .4rem">On by default. The desktop app turns speech into text on the laptop and only sends the text here, so this server does far less. The app gets the speech model from this server once. Browsers and older apps still use this server.</p>
+      <label><input type="checkbox" name="capprivate" ${s.captions_private ? "checked" : ""} style="width:auto"> Caption text stays on the laptops</label>
+      <p class="small muted" style="margin:.1rem 0 .4rem">Off by default. When on, this server never hears the audio or sees the captions: the AT-SUIT app makes them on the laptop, the room's caption screens are fed from that laptop, and the transcript is kept on that laptop. Browsers can't send a mic, and nothing falls back to this server.</p>
       <label><input type="checkbox" name="snaps" ${s.laptop_snapshots ? "checked" : ""} style="width:auto"> Managers can see snapshots of laptop screens</label>
       <p class="small muted" style="margin:.1rem 0 .4rem">Off by default. Laptops only send them while a manager has that laptop's details open, the tech sees a note while it happens, and they are never saved.</p>
       <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form></div>`;
@@ -661,7 +663,7 @@
     mf.onsubmit = (e) => {
       e.preventDefault();
       const modules = Object.fromEntries(Object.keys(s.modules).map((m) => [m, mf[m].checked]));
-      guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value, help_escalate_minutes: +mf.escalate.value, tech_passwords: mf.techpw.checked, forgot_resets_at_once: mf.forgotnow.checked, transcript_keep_hours: +mf.keephours.value || 12, laptop_snapshots: mf.snaps.checked, captions_on_laptops: mf.laptopcaps.checked })).then(() => location.reload());
+      guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value, help_escalate_minutes: +mf.escalate.value, tech_passwords: mf.techpw.checked, forgot_resets_at_once: mf.forgotnow.checked, transcript_keep_hours: +mf.keephours.value || 12, laptop_snapshots: mf.snaps.checked, captions_on_laptops: mf.laptopcaps.checked, captions_private: mf.capprivate.checked })).then(() => location.reload());
     };
   }
 

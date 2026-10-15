@@ -14,6 +14,9 @@ class Config:
         self.max_upload = int(os.getenv("ATSUIT_MAX_UPLOAD", str(25 * 1024 * 1024)))
         self.session_hours = int(os.getenv("ATSUIT_SESSION_HOURS", "24"))
         self.asr_enabled = os.getenv("ATSUIT_ASR", "1") != "0"
+        # Laptops in the AT-SUIT app caption by themselves with a model they fetch from this server.
+        # A hosted server that never listens itself (ATSUIT_ASR=0) still hands them the model.
+        self.laptop_models = os.getenv("ATSUIT_LAPTOP_MODELS", "1" if self.asr_enabled else "0") != "0"
         self.asr_model = os.getenv(
             "ATSUIT_ASR_MODEL", "sherpa-onnx-streaming-zipformer-en-2023-06-21"
         )
