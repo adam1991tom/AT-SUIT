@@ -21,6 +21,15 @@ The first step to AT-SUIT 2: the laptops do more of the work and tell the server
 - When the server is back, everything the tech pressed goes to every screen, each press as of when it was made, so a timer started offline five minutes ago shows five minutes gone.
 - The latest change wins: if someone changed that room's timer at the server during the drop, presses made before that change are left out, and the tech is told.
 
+**The app opens the workspace even when the server is down**
+- The AT-SUIT app keeps a copy of the workspace on the laptop each time it opens. If the server can't be reached when the app starts (it's restarting, or the laptop is off the venue network), the workspace opens from that copy with the room's timer where it should be, instead of a "can't reach the server" page.
+- The timer works as above, and the presses reach the server when it's back. Chat waits for the server.
+- Only the workspace and what it needs to start are kept, never chat, help calls or captions. Re-enrolling the laptop forgets the copy.
+
+**A new look**
+- AT-SUIT has a cleaner, calmer look throughout: neater buttons, boxes and tabs, clearer text and a darker sidebar, in the dark and light themes.
+- A new **Match the laptop** theme follows Windows' light or dark setting.
+
 **The AI helper knows show-day tech**
 - The AI helper now has a built-in tech guide with over 70 show-day fixes: feedback, dead mics, radio mic dropouts, hum, laptop sound, no signal, flicker, PowerPoint on the wrong screen, clickers, hybrid-event echo, streams, lighting, power, safety, comms, calling cues, changeovers and AT-SUIT itself.
 - It's built into AT-SUIT, so it works offline and nothing leaves your network. Your venue notes and past fixes always come first; the guide fills in what they don't cover.

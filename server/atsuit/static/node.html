@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="/static/ui/desk.css">
 <script src="/static/theme.js"></script>
 <style>
+  /* the workspace is used mid-show, often by touch: bigger buttons and boxes */
+  :root { --ctl-h: 2.25rem; }
   .top { display: flex; gap: .8rem; align-items: center; padding: .7rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   .wrap { padding: 1rem; }
   #kiosk { position: fixed; inset: 0; border: 0; width: 100%; height: 100%; background: #000; }
@@ -15,8 +17,8 @@
     background: var(--panel, #1c2128); border: 1px solid var(--accent); color: var(--text, #e6edf3); pointer-events: none; }
   #ident { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12vw; font-weight: 800; background: var(--accent); color: #fff; z-index: 50; }
   .bigclock { font-size: clamp(3rem, 9vw, 6rem); line-height: 1; }
-  .helpbtn { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 700; font-size: 1.05rem; padding: .8rem 1.2rem; }
-  .top { position: sticky; top: 0; z-index: 900; border-bottom: 3px solid var(--accent); border-image: linear-gradient(90deg, var(--ember), var(--accent) 40%, var(--glow)) 1; }
+  .helpbtn, .helpbtn:hover { background: #da3633; border-color: #da3633; color: #fff; font-weight: 700; font-size: 1.05rem; padding: .8rem 1.2rem; }
+  .top { position: sticky; top: 0; z-index: 900; background: var(--side); box-shadow: inset 0 2px 0 var(--accent); }
   .top b[data-product] { font-family: var(--brand-font); font-weight: 800; letter-spacing: .02em; }
   .winbar { display: flex; gap: .3rem; flex-wrap: wrap; }
   .winbar button.on { border-color: var(--accent); color: var(--strong); background: color-mix(in srgb, var(--accent) 35%, var(--panel2)); }
@@ -542,7 +544,7 @@
     $("conn").textContent = up ? "live" : "reconnecting"; $("conn").className = "pill " + (up ? "good" : "bad");
     clearTimeout(downTimer);
     if (up) { if (wasDown) alerts.add("good", "Connected to AT-SUIT again"); wasDown = false; }
-    else downTimer = setTimeout(() => { wasDown = true; problem("Lost connection to AT-SUIT", "Chat, timer and captions stop updating until it's back."); }, 8000);
+    else downTimer = setTimeout(() => { wasDown = true; problem("Lost connection to AT-SUIT", APP ? "Chat stops until it's back. The timer and captions keep running on this laptop." : "Chat and captions stop until it's back. The timer keeps running here."); }, 8000);
   });
 
   // timer and cue list: the main thing on screen

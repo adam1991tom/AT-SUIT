@@ -22,6 +22,7 @@ const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, net, screen, sessi
 const config = require("./config");
 const health = require("./health");
 const captions = require("./captions");
+const offlineCopy = require("./offline-copy");
 
 if (process.env.ATSUIT_NODE_USERDATA) app.setPath("userData", process.env.ATSUIT_NODE_USERDATA);
 
@@ -93,6 +94,8 @@ function lockDownSession() {
     cb(permission === "media" && fromServer(details.requestingUrl || wc.getURL()));
   });
   ses.setPermissionCheckHandler((wc, permission, requestingOrigin) => permission === "media" && fromServer(requestingOrigin));
+  // The workspace opens from its copy on this laptop when the server can't be reached.
+  offlineCopy.start(ses, origin);
   // The overlay may show any page a tech chooses: it gets its own session
   // with no permissions at all (no mic, no notifications).
   const ov = session.fromPartition(OVERLAY_PARTITION);
@@ -526,6 +529,7 @@ function ipc() {
     // The server no longer knows this laptop (removed in Nodes): enrol again.
     config.setToken(conf, "");
     config.save(conf);
+    offlineCopy.clear();
     openSetup("This laptop was removed from AT-SUIT. Enter the enrolment code to add it again.");
     if (mainWin) { mainWin.destroy(); mainWin = null; }
     return true;

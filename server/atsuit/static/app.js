@@ -671,8 +671,9 @@
     const s = await api("/api/admin/settings"), saved = { ...s.branding.appearance };
     let cur = { ...saved };
     const THEMES = [
-      ["dark", "Dark", "The AT-SUIT look: dark and calm for the control room.", ["#0e1116", "#161b24", "#2a3342", "#e8ebf2"]],
-      ["light", "Light", "Bright and clear for the office or a sunny foyer.", ["#f3f5f9", "#ffffff", "#d6dce6", "#141a26"]],
+      ["dark", "Dark", "The AT-SUIT look: dark and calm for the control room.", ["#0d1117", "#151b23", "#3d444d", "#f0f6fc"]],
+      ["light", "Light", "Bright and clear for the office or a sunny foyer.", ["#f6f8fa", "#ffffff", "#d1d9e0", "#1f2328"]],
+      ["auto", "Match the laptop", "Light or dark, as each laptop's Windows or Mac is set.", ["#0d1117", "#ffffff", "#3d444d", "#59636e"]],
       ["modern", "Modern", "Soft, rounded and roomy, with gentle shadows.", ["#0f1115", "#181b22", "#20242d", "#eef0f5"]],
       ["futuristic", "Futuristic", "Glass panels, glowing edges and a mono font for the numbers.", ["#04070e", "#0a1222", "#16314f", "#dbeafe"]],
     ];
