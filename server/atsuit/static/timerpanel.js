@@ -20,24 +20,26 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
     if (styled) return;
     styled = true;
     const st = document.createElement("style");
+    // "body", not ".tp": the parts of the panel can sit in windows of their own, outside it
     st.textContent = `
       .tp { margin-top: .7rem; display: grid; gap: .7rem; }
-      .tp .tp-h { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin-bottom: .3rem; }
-      .tp .tp-h label { display: inline-flex; align-items: center; gap: .3rem; margin: 0; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: .8rem; }
-      .tp .tp-h input[type=checkbox] { width: auto; }
-      .tp .tp-q { display: grid; grid-template-columns: repeat(auto-fill, minmax(3.1rem, 1fr)); gap: .3rem; }
-      .tp .tp-q button { justify-content: center; padding: .45rem 0; font-weight: 700; font-variant-numeric: tabular-nums; }
-      .tp .tp-q button.cur { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-      .tp .tp-clock { grid-column: span 3; font-size: 1.05rem; letter-spacing: .03em; }
-      .tp .tp-clock:not(.lit) { border-color: var(--accent); color: var(--accent); }
-      .tp .tp-m { display: flex; flex-wrap: wrap; gap: .3rem; }
-      .tp .tp-m button { padding: .35rem .6rem; font-size: .88rem; }
-      .tp .tp-m button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
-      .tp .tp-row { display: flex; gap: .3rem; flex-wrap: wrap; align-items: center; }
-      .tp .tp-row input { flex: 1; min-width: 8rem; width: auto; }
-      .tp .tp-sec-now { font-variant-numeric: tabular-nums; font-weight: 700; flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .tp [data-sshow].on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-      .tp textarea { min-height: 9rem; font-size: .9rem; }`;
+      body .tp-h { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; font-weight: 600; margin-bottom: .3rem; }
+      body .tp-h label { display: inline-flex; align-items: center; gap: .3rem; margin: 0; text-transform: none; letter-spacing: 0; font-weight: 400; font-size: .8rem; }
+      body .tp-h input[type=checkbox] { width: auto; }
+      body .tp-q { display: grid; grid-template-columns: repeat(auto-fill, minmax(3.1rem, 1fr)); gap: .3rem; }
+      body .tp-q button { justify-content: center; padding: .45rem 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+      body .tp-q button.cur { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }
+      body .tp-q button.cur.live { background: var(--accent); color: var(--accent-ink); --glow: color-mix(in srgb, var(--accent) 70%, transparent); }
+      body .tp-clock { grid-column: span 3; font-size: 1.05rem; letter-spacing: .03em; }
+      body .tp-clock:not(.lit) { border-color: var(--accent); color: var(--accent); }
+      body .tp-m { display: flex; flex-wrap: wrap; gap: .3rem; }
+      body .tp-m button { padding: .35rem .6rem; font-size: .88rem; }
+      body .tp-m button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; --glow: color-mix(in srgb, var(--accent) 70%, transparent); }
+      body .tp-row { display: flex; gap: .3rem; flex-wrap: wrap; align-items: center; }
+      body .tp-row input { flex: 1; min-width: 8rem; width: auto; }
+      body .tp-sec-now { font-variant-numeric: tabular-nums; font-weight: 700; flex: 1; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      body [data-sshow].on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+      body textarea { min-height: 9rem; font-size: .9rem; }`;
     document.head.append(st);
   }
 
@@ -70,14 +72,20 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
 
     // quick timers
     $("[data-tstart]").onchange = (e) => { startOnTap = e.target.checked; store.set("start", startOnTap); };
-    el.querySelectorAll("[data-min]").forEach((b) => b.onclick = () =>
-      guard(() => post(`/api/timers/${roomId}/preset/${b.dataset.min}?start=${startOnTap}`)).then(shown, () => {}));
+    // Tapping the timer that is already loaded starts it; one already running is left alone.
+    el.querySelectorAll("[data-min]").forEach((b) => b.onclick = () => {
+      if (b.classList.contains("cur") && s) {
+        if (s.playback === "play") return toast(`The ${b.dataset.min} minute timer is already running`);
+        return guard(() => post(`/api/timers/${roomId}/start`)).then(shown, () => {});
+      }
+      guard(() => post(`/api/timers/${roomId}/preset/${b.dataset.min}?start=${startOnTap}`)).then(shown, () => {});
+    });
 
     // quick messages: tap to show, tap the one on stage to hide it
     $("[data-mblink]").onchange = (e) => { blinkMsg = e.target.checked; store.set("blink", blinkMsg); };
     const onStage = (t) => s && s.message_visible && s.message === t;
     function renderMsgs() {
-      $("[data-msgs]").innerHTML = msgs.map((m, i) => `<button data-mi="${i}" class="${onStage(m) ? "on" : ""}">${esc(m)}</button>`).join("") || '<span class="muted small">No quick messages.</span>';
+      $("[data-msgs]").innerHTML = msgs.map((m, i) => `<button data-mi="${i}" class="${onStage(m) ? "on live" : ""}" title="${onStage(m) ? "On stage: tap to clear it" : "Tap to show on stage"}">${esc(m)}</button>`).join("") || '<span class="muted small">No quick messages.</span>';
       $("[data-msgs]").querySelectorAll("[data-mi]").forEach((b) => b.onclick = () => {
         const t = msgs[+b.dataset.mi];
         guard(() => onStage(t) ? post(`/api/timers/${roomId}/message/hide`) : post(`/api/timers/${roomId}/message/show`, { text: t, blink: blinkMsg || undefined }) /* unticked leaves the Blink switch as it is */).then(shown, () => {});
@@ -132,7 +140,13 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
       sh.classList.toggle("on", sameText());
       $("[data-sctl]").classList.toggle("hidden", !(x.mode === "timer" && x.duration_ms));
       const cur = !s.cue && s.playback !== "stop" ? Math.round(s.duration_ms / 60000) : null;
-      el.querySelectorAll("[data-min]").forEach((b) => b.classList.toggle("cur", cur !== null && +b.dataset.min === cur && s.duration_ms % 60000 === 0));
+      AT.qa(el, "[data-min]").forEach((b) => {
+        const on = cur !== null && +b.dataset.min === cur && s.duration_ms % 60000 === 0, run = on && s.playback === "play";
+        b.classList.toggle("cur", on);
+        b.classList.toggle("live", run);
+        const t = run ? `${b.dataset.min} minute timer: running` : on ? `${b.dataset.min} minute timer: loaded, tap again to start it` : `${b.dataset.min} minute timer`;
+        if (b.title !== t) b.title = t;
+      });
     }
     setInterval(tick, 250);
 

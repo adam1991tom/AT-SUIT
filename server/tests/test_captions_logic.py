@@ -280,3 +280,44 @@ def test_sentence_case_keeps_vocabulary_acronyms_and_i():
     assert [w["text"] for w in words] == ["Welcome", "to", "Harrogate", "I'm", "on", "the", "BBC", "with", "my", "iPhone"]
     assert asr.tidy("THE N H S", [], {"join_acronyms": True, "sentence_case": True})[0] == "The NHS"
     assert asr.tidy("HELLO THERE", [], {})[0] == "HELLO THERE"  # off by default
+
+
+def test_transcripts_are_encrypted_and_deleted_after_12_hours(admin, client):
+    from datetime import datetime, timedelta, timezone
+
+    from atsuit import config
+    from atsuit.modules import captions
+
+    rid = _rid(admin)
+    tech = _tech(admin, client)
+    t = tech.post(f"/api/captions/{rid}/transcript/start").json()
+    tech.post(f"/api/captions/{rid}/test", json={"text": "the client's secret plan"})
+    tech.post(f"/api/captions/{rid}/transcript/stop")
+    raw = (config.cfg.transcripts / t["filename"]).read_text()
+    assert "secret" not in raw and raw.startswith("enc:")  # unreadable on disk or in a backup
+    assert "the client's secret plan" in tech.get(f"/api/captions/transcripts/{t['id']}").text
+    row = tech.get(f"/api/captions/transcripts?room_id={rid}").json()[0]
+    ended = datetime.fromisoformat(row["ended_at"])
+    assert datetime.fromisoformat(row["delete_at"]) == ended + timedelta(hours=12)
+
+    # older ones written before encryption still read back
+    (config.cfg.transcripts / "old.txt").write_text("[10:00:00] plain old line\n")
+    assert captions.read_transcript(config.cfg.transcripts / "old.txt") == "[10:00:00] plain old line\n"
+
+    assert captions.purge_transcripts(ended + timedelta(hours=11)) == 0
+    assert tech.get(f"/api/captions/transcripts/{t['id']}").status_code == 200
+    assert captions.purge_transcripts(ended + timedelta(hours=12, minutes=1)) == 1
+    assert tech.get(f"/api/captions/transcripts/{t['id']}").status_code == 404
+    assert not (config.cfg.transcripts / t["filename"]).exists()
+    assert not (config.cfg.transcripts / "old.txt").exists()  # a file nothing lists goes too
+
+    # one still recording is never deleted, however long it runs
+    live = tech.post(f"/api/captions/{rid}/transcript/start").json()
+    assert captions.purge_transcripts(datetime.now(timezone.utc) + timedelta(days=3)) == 0
+    tech.post(f"/api/captions/{rid}/transcript/stop")
+    assert tech.get(f"/api/captions/transcripts/{live['id']}").status_code == 200
+
+    # an admin can keep them longer, up to a week
+    assert admin.put("/api/admin/settings", json={"transcript_keep_hours": 200}).status_code == 422
+    admin.put("/api/admin/settings", json={"transcript_keep_hours": 48})
+    assert captions.purge_transcripts(datetime.now(timezone.utc) + timedelta(hours=47)) == 0

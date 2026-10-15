@@ -15,15 +15,15 @@ import json
 import re
 import time
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from .. import asr, config, db, dsp
 from ..hub import hub
-from ..security import Principal, require_admin, require_tech, require_user, ws_principal
+from ..security import Principal, decrypt, encrypt, require_admin, require_tech, require_user, ws_principal
 from . import cluster
 from .core import modules_enabled, require_module, room_or_404, site_ok
 
@@ -220,10 +220,62 @@ def _stop_transcript(st: RoomState, room_id: int) -> None:
 
 
 def _write_final(st: RoomState, text: str) -> None:
-    """Only finalised caption text reaches disk: never audio, never partials."""
+    """Only finalised caption text reaches disk: never audio, never partials.
+    Each line is encrypted with this server's key, so a copied file or backup
+    can't be read without it."""
     if st.transcript and text.strip():
-        st.transcript.write(f"[{datetime.now().strftime('%H:%M:%S')}] {text}\n")
+        st.transcript.write("enc:" + encrypt(f"[{datetime.now().strftime('%H:%M:%S')}] {text}") + "\n")
         st.transcript.flush()
+
+
+def read_transcript(path) -> str:
+    """A transcript as plain text (older ones were written unencrypted)."""
+    out = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        out.append(decrypt(line[4:]) if line.startswith("enc:") else line)
+    return "\n".join(out) + ("\n" if out else "")
+
+
+# Transcripts are deleted this long after they end, unless an admin changes it
+# (Settings → General). Clients take theirs away with Export before then.
+KEEP_HOURS = 12
+
+
+def keep_hours(c) -> int:
+    return max(1, min(168, int(db.get_setting(c, "transcript_keep_hours", KEEP_HOURS) or KEEP_HOURS)))
+
+
+def purge_transcripts(now: datetime | None = None) -> int:
+    """Delete transcripts that ended longer ago than the keep time, and any
+    transcript file the database no longer knows about. One still recording stays."""
+    now = now or datetime.now(timezone.utc)
+    recording = {st.transcript_id for st in rooms.values() if st.transcript_id}
+    with db.tx() as c:
+        cutoff = (now - timedelta(hours=keep_hours(c))).isoformat()
+        old = c.execute("SELECT id,path FROM transcripts WHERE ended_at IS NOT NULL AND ended_at < ?", (cutoff,)).fetchall()
+        # a transcript left open by a crash or restart counts from when it started
+        old += [r for r in c.execute("SELECT id,path FROM transcripts WHERE ended_at IS NULL AND started_at < ?", (cutoff,)).fetchall()
+                if r["id"] not in recording]
+        for r in old:
+            (config.cfg.transcripts / r["path"]).unlink(missing_ok=True)
+            c.execute("DELETE FROM transcripts WHERE id=?", (r["id"],))
+        if old:
+            db.audit(c, "system", "captions.transcripts_deleted", f"{len(old)} older than {keep_hours(c)} h")
+        known = {r["path"] for r in c.execute("SELECT path FROM transcripts")}
+    if config.cfg.transcripts.is_dir():
+        for f in config.cfg.transcripts.iterdir():
+            if f.is_file() and f.name not in known and f.stat().st_mtime < now.timestamp() - 3600:
+                f.unlink(missing_ok=True)
+    return len(old)
+
+
+async def retention_loop() -> None:
+    while True:
+        try:
+            await asyncio.to_thread(purge_transcripts)
+        except Exception as exc:  # keep going whatever happens
+            print("captions.retention:", exc)
+        await asyncio.sleep(300)
 
 
 def _parse_lines(text: str) -> list[tuple[str, str]]:
@@ -645,12 +697,14 @@ def transcripts(p: Principal = Depends(require_tech), room_id: int | None = None
         rows = db.rows(c.execute(
             "SELECT t.*, r.name AS room, r.site_id FROM transcripts t LEFT JOIN rooms r ON r.id=t.room_id "
             "WHERE (? IS NULL OR t.room_id=?) ORDER BY t.id DESC LIMIT 500", (room_id, room_id)))
+        hours = keep_hours(c)
     out = []
     for t in rows:
         if not site_ok(p, t.pop("site_id")):
             continue
         f = config.cfg.transcripts / t["path"]
         t["size"] = f.stat().st_size if f.is_file() else 0
+        t["delete_at"] = (datetime.fromisoformat(t["ended_at"]) + timedelta(hours=hours)).isoformat() if t["ended_at"] else None
         out.append(t)
     return out
 
@@ -670,7 +724,7 @@ def _transcript(tid: int, p: Principal):
 @router.get("/api/captions/transcripts/{tid}")
 def transcript_file(tid: int, p: Principal = Depends(require_tech)):
     t, path = _transcript(tid, p)
-    return FileResponse(path, media_type="text/plain", filename=t["path"])
+    return PlainTextResponse(read_transcript(path), headers={"Content-Disposition": f'attachment; filename="{t["path"]}"'})
 
 
 @router.get("/api/captions/transcripts/{tid}/export.{fmt}")
@@ -679,7 +733,7 @@ def transcript_export(tid: int, fmt: str, p: Principal = Depends(require_tech)):
     if fmt not in ("srt", "vtt"):
         raise HTTPException(404)
     t, path = _transcript(tid, p)
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = read_transcript(path)
     name = t["path"].rsplit(".", 1)[0] + "." + fmt
     body, media = (to_srt(text), "application/x-subrip") if fmt == "srt" else (to_vtt(text), "text/vtt")
     return PlainTextResponse(body, media_type=media, headers={"Content-Disposition": f'attachment; filename="{name}"'})

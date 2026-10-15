@@ -351,6 +351,7 @@ def node_me(p: Principal = Depends(require_node)):
         from .timers import list_views
 
         return {"node": node_out(n, c), "room": dict(room) if room else None, "rooms": rooms,
+                "tech_passwords": bool(db.get_setting(c, "tech_passwords", True)),
                 "day": work_day(c, n["site_id"]), "views": list_views(c, tests=True) + caption_views()}
 
 
@@ -445,7 +446,10 @@ async def node_pick_room(body: RoomPick, p: Principal = Depends(require_node)):
 
 
 class StartIn(BaseModel):
-    operator: str = Field(min_length=1, max_length=60)
+    operator: str = Field("", max_length=60)  # name-only sign-in (tech passwords turned off)
+    username: str = Field("", max_length=64)
+    password: str = Field("", max_length=256)
+    new_password: str | None = Field(None, max_length=256)
     room_id: int
     mode: str = Field(pattern="^(main|backup)$")
 
@@ -463,8 +467,26 @@ def _node_token(request: Request) -> str:
 async def node_start(body: StartIn, request: Request, response: Response, p: Principal = Depends(require_node)):
     """A tech starts the day on a tech laptop: their name, the room, and
     whether this is the main PC (no notifications) or the backup (silent
-    pop-ups). The laptop's own enrolment signs them in; no password."""
-    operator = " ".join(body.operator.split())
+    pop-ups). With tech passwords on (the default) they sign in with their own
+    account; otherwise they just type their name."""
+    from .core import check_login
+
+    operator, account_id = " ".join(body.operator.split()), None
+    try:
+        with db.tx() as c:
+            if db.get_setting(c, "tech_passwords", True):
+                if not body.username.strip() or not body.password:
+                    raise HTTPException(422, "Enter your username and password")
+                a = check_login(c, body.username, body.password, request, body.new_password)
+                n = c.execute("SELECT site_id FROM nodes WHERE id=?", (p.id,)).fetchone()
+                if a["role"] == "viewer" or (a["site_id"] is not None and n["site_id"] is not None and a["site_id"] != n["site_id"]):
+                    raise HTTPException(403, "This account can't run a tech laptop here")
+                operator, account_id = a["display_name"] or a["username"], a["id"]
+    except HTTPException as e:
+        if e.status_code == 401:
+            with db.tx() as c:
+                db.audit(c, body.username.strip()[:64] or "?", "auth.fail", request.client.host if request.client else "")
+        raise
     if not operator:
         raise HTTPException(422, "Enter your name")
     with db.tx() as c:
@@ -475,8 +497,8 @@ async def node_start(body: StartIn, request: Request, response: Response, p: Pri
         room = c.execute("SELECT * FROM rooms WHERE id=? AND enabled=1", (body.room_id,)).fetchone()
         if not room or (n["site_id"] and room["site_id"] != n["site_id"]):
             raise HTTPException(404, "Room not found")
-        c.execute("UPDATE nodes SET operator=?, mode=?, room_id=?, room_day=? WHERE id=?",
-                  (operator, body.mode, body.room_id, work_day(c, n["site_id"]), p.id))
+        c.execute("UPDATE nodes SET operator=?, operator_account_id=?, mode=?, room_id=?, room_day=? WHERE id=?",
+                  (operator, account_id, body.mode, body.room_id, work_day(c, n["site_id"]), p.id))
         db.audit(c, operator, "node.start", f"{n['name']}: {room['name']}, {body.mode}")
     response.set_cookie(NODE_COOKIE, _node_token(request), httponly=True, samesite="lax", max_age=400 * 86400)
     await hub.publish("fleet", "node.changed", {"id": p.id})
@@ -499,7 +521,7 @@ async def node_finish(response: Response, p: Principal = Depends(require_node)):
     """Signing out: the next tech enters their own name. The laptop stays in its
     room until the next working day, or until an admin moves it."""
     with db.tx() as c:
-        c.execute("UPDATE nodes SET operator='' WHERE id=? AND kind='tech'", (p.id,))
+        c.execute("UPDATE nodes SET operator='', operator_account_id=NULL WHERE id=? AND kind='tech'", (p.id,))
     response.delete_cookie(NODE_COOKIE)
     await hub.publish("fleet", "node.changed", {"id": p.id})
     return {"ok": True}

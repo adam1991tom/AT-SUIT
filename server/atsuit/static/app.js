@@ -26,7 +26,7 @@
     laptops: { title: "Laptops & screens", mod: "fleet", tabs: { list: ["All laptops & screens", fleet], setup: ["Add laptops", admFleet, "admin"], overlays: ["Overlay laptops", admOverlays, "admin"] } },
     people: { title: "People", role: "manager", tabs: { people: ["People", admAccounts] } },
     links: { title: "Links", role: "manager", mod: "dashboard", tabs: { links: ["Links", admLinks] } },
-    settings: { title: "Settings", role: "admin", tabs: { general: ["General", admGeneral], appearance: ["Look", admAppearance], chat: ["Chat", admChat], keys: ["API keys", admKeys], updates: ["Updates", admUpdates], info: ["About", admInfo] } },
+    settings: { title: "Settings", role: "admin", tabs: { general: ["General", admGeneral], appearance: ["Look", admAppearance], chat: ["Chat", admChat], ai: ["AI helper", admAi], keys: ["API keys", admKeys], updates: ["Updates", admUpdates], info: ["About", admInfo] } },
     licence: { title: "Licence", role: "admin", tabs: { licence: ["Licence", admLicence] } },
     servers: { title: "Servers", role: "admin", tabs: { servers: ["Servers", admServers] } },
     backups: { title: "Backups & import", role: "admin", tabs: { backups: ["Backups", admData] } },
@@ -54,21 +54,21 @@
     // Opened from a tech laptop: a short admin session that ends with the browser.
     const shared = new URLSearchParams(location.search).has("shared");
     if (shared) document.getElementById("loginErr").insertAdjacentHTML("beforebegin", '<p class="muted small">Admins only. On this laptop you are signed out after 30 minutes, or when the browser closes.</p>');
-    const f = document.getElementById("loginForm");
+    const f = document.getElementById("loginForm"), pw = AT.passwordForm(f, document.getElementById("loginErr"));
     f.onsubmit = async (e) => {
       e.preventDefault();
       try {
-        const r = await post("/api/auth/login", { username: f.username.value, password: f.password.value, shared });
+        const r = await post("/api/auth/login", { username: f.username.value, password: f.password.value, shared, ...pw.extra() });
         const me = await api("/api/auth/me").catch(() => null);
         if (me && !["admin", "manager"].includes(me.role)) { await post("/api/auth/logout"); throw new Error("The console is for admins and managers. Techs use the workspace on their laptop."); }
         location.reload();
-      } catch (ex) { document.getElementById("loginErr").textContent = ex.message; }
+      } catch (ex) { if (!pw.handle(ex)) document.getElementById("loginErr").textContent = ex.message; }
     };
   }
 
   function topics() {
     return [...boot.sites.map((s) => `site:${s.id}`), ...boot.rooms.map((r) => `room:${r.id}`), `dm:${boot.me.id}`, "fleet",
-      ...boot.rooms.map((r) => `timer:${r.id}`), ...boot.rooms.map((r) => `captions:${r.id}`), ...(boot.modules.presenter ? ["presenter"] : [])];
+      ...boot.rooms.map((r) => `timer:${r.id}`), ...boot.rooms.map((r) => `captions:${r.id}`), ...(boot.modules.presenter ? ["presenter"] : []), ...(isManager ? ["managers"] : [])];
   }
 
   function start() {
@@ -87,9 +87,14 @@
     if (!locked) {
       sock = AT.socket(topics(), onEvent);
       if (boot.modules.comms) { refreshHelpCount(); refreshUnread(); }
+      if (isManager) setResets(boot.reset_asks || []);
     }
     route();
   }
+
+  // People in the side bar shows how many are waiting for a password reset.
+  function setResets(asks) { const u = document.getElementById("resetCount"); u.textContent = asks.length; u.classList.toggle("hidden", !asks.length); }
+  function refreshResets() { if (isManager) api("/api/bootstrap").then((b) => { boot.reset_asks = b.reset_asks; setResets(b.reset_asks || []); }).catch(() => {}); }
 
   // The Chat badge in the side bar, on every page (the Chat page keeps it up to date while it's open).
   function setUnread(n) { const u = document.getElementById("unreadAll"); u.textContent = n > 99 ? "99+" : n; u.classList.toggle("hidden", !n); }
@@ -105,6 +110,12 @@
     if (evt.type === "help.escalated") { toast(`Still no answer: help in ${evt.data.room_name} (${Math.max(1, Math.round((evt.data.waited_s || 0) / 60))} min). ${evt.data.description || evt.data.category}`, "bad"); refreshHelpCount(); }
     if (evt.type === "help.updated") refreshHelpCount();
     if (evt.type === "rooms.changed") api("/api/bootstrap").then((b) => { boot = b; });
+    if (evt.type === "account.reset") {
+      const d = evt.data;
+      if (!d.done) toast(`${d.name} forgot their password. Reset it under People.`, "bad");
+      else if (d.by !== boot.me.name) toast(d.by ? `${d.by} reset ${d.name}'s password to ChangeMe` : `${d.name}'s password was reset to ChangeMe (they asked)`);
+      refreshResets();
+    }
     view && view.onEvent && view.onEvent(evt);
   }
 
@@ -494,7 +505,7 @@
         card.querySelector("[data-clear]").onclick = () => guard(() => post(`/api/captions/${id}/clear`));
       });
       const tx = await api("/api/captions/transcripts");
-      el.querySelector("#tx").innerHTML = tx.length ? `<table><tr><th>Room</th><th>Started</th><th>Ended</th><th></th></tr>${tx.map((t) => `<tr><td>${esc(t.room)}</td><td>${when(t.started_at)}</td><td>${when(t.ended_at)}</td><td><a href="/api/captions/transcripts/${t.id}">Download</a></td></tr>`).join("")}</table>` : '<p class="muted">None saved yet.</p>';
+      el.querySelector("#tx").innerHTML = tx.length ? `<table><tr><th>Room</th><th>Started</th><th>Ended</th><th>Deleted</th><th></th></tr>${tx.map((t) => `<tr><td>${esc(t.room)}</td><td>${when(t.started_at)}</td><td>${when(t.ended_at)}</td><td class="small muted">${when(t.delete_at)}</td><td><a href="/api/captions/transcripts/${t.id}">Text</a> · <a href="/api/captions/transcripts/${t.id}/export.srt">SRT</a> · <a href="/api/captions/transcripts/${t.id}/export.vtt">VTT</a></td></tr>`).join("")}</table>` : '<p class="muted">None saved yet.</p>';
     };
     view = { onEvent: (e) => { if (e.type === "status" || e.type === "captions.engine") render(); } };
     render();
@@ -562,14 +573,44 @@
       <label>Delete chat messages older than (days, 0 = keep)</label><input name="retention" type="number" min="0" value="${s.message_retention_days}">
       <label>Send a help call out again when nobody answers it in (minutes, 0 = never)</label><input name="escalate" type="number" min="0" max="60" step="0.5" value="${s.help_escalate_minutes}">
       <p class="small muted" style="margin-top:.2rem">It goes again to every laptop and console page on the site (never a Main PC), up to three times, until someone presses On my way.</p>
+      <h2 style="margin-top:1rem">Passwords</h2>
+      <label><input type="checkbox" name="techpw" ${s.tech_passwords ? "checked" : ""} style="width:auto"> Techs sign in to their laptop with their own account and password</label>
+      <p class="small muted" style="margin:.1rem 0 .4rem">Off: they just type their name. Add everyone under People before you turn this on.</p>
+      <label><input type="checkbox" name="forgotnow" ${s.forgot_resets_at_once ? "checked" : ""} style="width:auto"> Forgot password resets a tech's password to ChangeMe straight away</label>
+      <p class="small muted" style="margin:.1rem 0 .4rem">Off (safer): an admin or manager resets it with one press under People. Admin and manager passwords always wait for an admin.</p>
+      <h2 style="margin-top:1rem">Privacy</h2>
+      <label>Delete caption transcripts this many hours after they end (1 to 168)</label><input name="keephours" type="number" min="1" max="168" value="${s.transcript_keep_hours}">
+      <p class="small muted" style="margin:.1rem 0 .4rem">12 hours by default. Captions are made on this server and never leave your network; transcripts are stored encrypted.</p>
       <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form></div>`;
     const bf = a.querySelector("#brand");
     bf.onsubmit = (e) => { e.preventDefault(); guard(() => put("/api/admin/settings", { branding: Object.fromEntries(new FormData(bf)) })).then(() => location.reload()); };
+    // The weather in the tech workspace's top bar: each site picks its town.
+    const wxPanel = document.createElement("div");
+    wxPanel.className = "panel"; wxPanel.style.marginTop = "1rem";
+    a.append(wxPanel);
+    const drawWx = async () => {
+      const list = await api("/api/admin/weather");
+      wxPanel.innerHTML = `<h2>Venue weather</h2><p class="small muted" style="margin-top:0">Shows in the techs' top bar. Only the town's position is sent to the forecast service (Open-Meteo), and only once you pick a town.</p>` +
+        list.map((w) => `<div data-wsite="${w.site_id}" style="margin-bottom:.8rem"><b>${esc(w.site)}</b>: ${w.place ? esc(w.place.name) + ' <button class="small" data-woff>Turn off</button>' : '<span class="muted">off</span>'}
+          <div class="row" style="margin-top:.3rem"><input data-wq placeholder="Town or city, e.g. Harrogate" style="flex:1;width:auto"><button class="small" data-wfind>Find</button></div><div class="row" data-wres style="margin-top:.3rem;flex-wrap:wrap"></div></div>`).join("");
+      wxPanel.querySelectorAll("[data-wsite]").forEach((row) => {
+        const sid = row.dataset.wsite, res = row.querySelector("[data-wres]");
+        row.querySelector("[data-woff]")?.addEventListener("click", () => guard(() => del(`/api/admin/weather/${sid}`)).then(drawWx));
+        const find = () => guard(() => api(`/api/admin/weather/find?q=${encodeURIComponent(row.querySelector("[data-wq]").value)}`)).then((found) => {
+          if (!found) return;
+          res.innerHTML = found.length ? found.map((f, i) => `<button class="small" data-wi="${i}">${esc(f.name)}</button>`).join("") : '<span class="muted small">No places found.</span>';
+          res.querySelectorAll("[data-wi]").forEach((b) => b.onclick = () => guard(() => put(`/api/admin/weather/${sid}`, found[+b.dataset.wi])).then(() => { toast("Weather set", "good"); drawWx(); }));
+        });
+        row.querySelector("[data-wfind]").onclick = find;
+        row.querySelector("[data-wq]").onkeydown = (e) => { if (e.key === "Enter") find(); };
+      });
+    };
+    drawWx();
     const mf = a.querySelector("#mods");
     mf.onsubmit = (e) => {
       e.preventDefault();
       const modules = Object.fromEntries(Object.keys(s.modules).map((m) => [m, mf[m].checked]));
-      guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value, help_escalate_minutes: +mf.escalate.value })).then(() => location.reload());
+      guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value, help_escalate_minutes: +mf.escalate.value, tech_passwords: mf.techpw.checked, forgot_resets_at_once: mf.forgotnow.checked, transcript_keep_hours: +mf.keephours.value || 12 })).then(() => location.reload());
     };
   }
 
@@ -661,6 +702,35 @@
     };
   }
 
+  // The AI helper in the techs' Help menu: what it knows, where its answers come from, and what it has learned.
+  async function admAi(a) {
+    const d = await api("/api/admin/ai"), s = d.settings;
+    a.innerHTML = `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))"><form class="panel" id="aif"><h2>AI helper</h2>
+      <p class="small muted" style="margin-top:0">Techs ask it in the Help menu, and it answers each help call while the crew is on the way. It answers from your venue notes, from how past help calls were fixed (${d.help_fixes} so far), and from answers techs marked "This fixed it".</p>
+      <label><input type="checkbox" name="enabled" ${s.enabled ? "checked" : ""} style="width:auto"> Turn on the AI helper</label>
+      <label>Venue notes</label><textarea name="venue_notes" rows="10" placeholder="One topic per paragraph, its first line a heading. E.g.&#10;Hall A projector&#10;Use input HDMI 2. The remote is on the lectern shelf.">${esc(s.venue_notes)}</textarea>
+      <label><input type="checkbox" name="learn_help" ${s.learn_help ? "checked" : ""} style="width:auto"> Learn from how help calls were fixed</label>
+      <h2 style="margin-top:1rem">Private AI model (optional)</h2>
+      <p class="small muted" style="margin-top:0">With a model on your own network (<a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>), it writes a short answer from those notes. Without one it lists what worked before. Leave the address empty to use the one set in Presenters${d.presenter_ai_url ? ` (${esc(d.presenter_ai_url)})` : ""}.</p>
+      <label>Ollama address</label><input name="ai_url" placeholder="http://192.168.1.50:11434" value="${esc(s.ai_url)}">
+      <label>Model</label><input name="ai_model" value="${esc(s.ai_model)}">
+      <h2 style="margin-top:1rem">Web quick search</h2>
+      <label><input type="checkbox" name="web_search" ${s.web_search ? "checked" : ""} style="width:auto"> Look up questions on the web when the venue's notes don't cover them</label>
+      <p class="small muted" style="margin:.1rem 0 .4rem">Off by default. When on, only the question is sent (to DuckDuckGo), never your notes, chat, names or rooms. Leave it off for NDA work.</p>
+      <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form>
+      <div class="panel"><h2>Learned from techs</h2>${d.learned.length ? `<table><tr><th>Question</th><th>Answer</th><th>By</th><th></th></tr>${d.learned.map((k) => `<tr><td>${esc(k.question)}</td><td class="small" style="white-space:pre-wrap">${esc(k.answer)}</td><td class="small muted">${esc(k.added_by)}<br>${when(k.created_at)}</td><td><button class="small danger" data-forget="${k.id}">Forget</button></td></tr>`).join("")}</table>` : '<p class="muted">Nothing yet. When an answer fixes something, techs press "This fixed it".</p>'}</div></div>`;
+    const f = a.querySelector("#aif");
+    f.onsubmit = (e) => {
+      e.preventDefault();
+      guard(() => put("/api/admin/ai", { enabled: f.enabled.checked, venue_notes: f.venue_notes.value, learn_help: f.learn_help.checked, ai_url: f.ai_url.value.trim(), ai_model: f.ai_model.value.trim() || "llama3.1:8b", web_search: f.web_search.checked }))
+        .then((ok) => ok && toast("Saved", "good"));
+    };
+    a.querySelectorAll("[data-forget]").forEach((b) => b.onclick = () => confirm("Forget this answer?") && guard(() => del(`/api/admin/ai/learned/${b.dataset.forget}`)).then(() => admAi(a)));
+  }
+
+  // Where Report a bug sends people, for now.
+  const BUG_EMAIL = "adam.tomlinson@outlook.com";
+
   async function admInfo(a) {
     const i = await api("/api/admin/info"), sv = i.server, st = i.storage, n = i.nodes, c = i.counts;
     const kinds = { tech: "Tech laptops", screen: "Linux screens", caption: "Caption sources", kiosk: "Old kiosk agents" };
@@ -668,6 +738,11 @@
     const pill = (ok, yes, no) => `<span class="pill ${ok ? "good" : "warn"}">${ok ? yes : no}</span>`;
     a.innerHTML = `<div class="row" style="margin-bottom:1rem"><a class="btn primary" href="/api/admin/info?download=1">Download diagnostics</a><button id="copyInfo">Copy for a support ticket</button><button id="refresh">Refresh</button>
         <span class="muted small">No passwords, keys or tokens are included.</span></div>
+      <form class="panel" id="bug" style="margin-bottom:1rem"><h2>Report a bug</h2>
+        <p class="small muted" style="margin-top:0">Opens an email to the AT-SUIT team (${esc(BUG_EMAIL)}) in your email app, with this version and server filled in. Nothing is sent until you press Send there.</p>
+        <label>What went wrong?</label><input name="what" maxlength="120" required placeholder="e.g. The stage timer froze in Hall A">
+        <label>What were you doing, and what did you expect?</label><textarea name="steps" rows="4" maxlength="1500" placeholder="Steps, the room, the time it happened"></textarea>
+        <div class="row" style="margin-top:.6rem;justify-content:flex-end"><button class="primary">Write the email</button></div></form>
       <div class="grid">
       <div class="panel"><h2>This app</h2>${kv([["Product", esc(i.product)], ["Organisation", esc(i.organisation) || '<span class="muted">not set</span>'], ["Version", `<b>${esc(i.version)}</b>`],
         ["Build", esc(i.build.number)], ["Commit", `<code>${esc(i.build.commit)}</code>`], i.build.date && ["Built", esc(new Date(i.build.date).toLocaleString())], ["Database schema", i.schema],
@@ -692,6 +767,15 @@
         ["Your browser", `<span class="small">${esc(navigator.userAgent)}</span>`]])}</div>
       </div>`;
     a.querySelector("#refresh").onclick = () => admInfo(a);
+    const bug = a.querySelector("#bug");
+    bug.onsubmit = (e) => {
+      e.preventDefault();
+      // Short enough for every email app: the details people need, not the whole diagnostics file.
+      const body = `${bug.steps.value.trim() || "(no steps given)"}\n\n---\n${i.product} ${i.version} (build ${i.build.number}, ${i.build.commit}), schema ${i.schema}\n` +
+        `Organisation: ${i.organisation || "-"}. Licence: ${i.licence.licensee || "-"}\nServer: ${sv.hostname}, ${sv.in_docker ? "Docker" : "Python"}, ${sv.os}\n` +
+        `Nodes online: ${n.online ?? "-"} of ${n.total ?? "-"}. Captions: ${i.captions.state}\nBrowser: ${navigator.userAgent}\nReported by ${boot.me.name} at ${new Date().toString()}`;
+      location.href = `mailto:${BUG_EMAIL}?subject=${encodeURIComponent("AT-SUIT bug: " + bug.what.value.trim())}&body=${encodeURIComponent(body)}`;
+    };
     a.querySelector("#copyInfo").onclick = () => copyText(`${i.product} ${i.version} (build ${i.build.number}, ${i.build.commit}) on ${sv.hostname}\nOpened as ${location.origin}\n\n${JSON.stringify(i, null, 2)}`, "Copied, paste it into the ticket");
   }
 
@@ -749,18 +833,25 @@
 
   async function admAccounts(a) {
     const [accts, sites] = await Promise.all([api("/api/admin/accounts"), api("/api/admin/sites")]);
+    view = { onEvent: (e) => e.type === "account.reset" && admAccounts(a) };
     const mine = boot.me.site_id; // someone kept to one site can only add people to it
     const siteOpts = (sel) => (mine == null ? `<option value="">All sites</option>` : "") + sites.map((s) => `<option value="${s.id}" ${s.id === (sel ?? mine) ? "selected" : ""}>${esc(s.name)}</option>`).join("");
     // A manager looks after techs and viewers; admin and manager accounts are shown but only an admin changes them.
     const roles = isAdminRole ? ["admin", "manager", "tech", "viewer"] : ["tech", "viewer"];
     const canEdit = (u) => isAdminRole || u.id === boot.me.id || roles.includes(u.role);
     const roleOpts = (sel) => (roles.includes(sel) ? roles : [sel]).map((r) => `<option ${r === sel ? "selected" : ""}>${r}</option>`).join("");
-    a.innerHTML = `<div class="panel"><p class="muted small">Admins configure everything. Managers set up rooms, add techs, move laptops between rooms and read the audit log, but can't change site settings, the licence, branding or views, or add laptops. Techs chat, run timers, send captions and control nodes. Viewers can read.</p><table><tr><th>Username</th><th>Name</th><th>Role</th><th>Site</th><th>Active</th><th>New password</th><th></th></tr>
+    // Forgot password: one press puts it back to ChangeMe, which they change at their next sign-in.
+    const asking = accts.filter((u) => u.reset_asked_at && canEdit(u) && u.id !== boot.me.id);
+    const resetBtn = (u, label) => `<button class="small" data-reset="${u.id}" data-name="${esc(u.display_name)}">${label}</button>`;
+    a.innerHTML = (asking.length ? `<div class="panel" style="border-color:var(--warn)"><h2>Forgot their password</h2>
+      ${asking.map((u) => `<div class="row" style="justify-content:space-between"><span><b>${esc(u.display_name)}</b> <span class="muted small">(${esc(u.username)}) asked ${esc(AT.when(u.reset_asked_at))}</span></span>${resetBtn(u, "Reset to ChangeMe")}</div>`).join("")}
+      <p class="muted small" style="margin-bottom:0">Check it's really them first. They sign in with ChangeMe and choose a new password straight away.</p></div>` : "") +
+      `<div class="panel"><p class="muted small">New people sign in with the password you give them (or ChangeMe if you leave it blank) and choose their own at their first sign-in. A password you set for someone has to be changed the same way.</p><p class="muted small">Admins configure everything. Managers set up rooms, add techs, move laptops between rooms and read the audit log, but can't change site settings, the licence, branding or views, or add laptops. Techs chat, run timers, send captions and control nodes. Viewers can read.</p><table><tr><th>Username</th><th>Name</th><th>Role</th><th>Site</th><th>Active</th><th>New password</th><th></th></tr>
       ${accts.filter((u) => !canEdit(u)).map((u) => `<tr><td>${esc(u.username)}</td><td>${esc(u.display_name)}</td><td>${esc(u.role)}</td><td class="muted small" colspan="4">Only an admin can change this account.</td></tr>`).join("")}
       ${accts.filter(canEdit).map((u) => `<tr data-u="${u.id}"><td><input data-un value="${esc(u.username)}"></td><td><input data-dn value="${esc(u.display_name)}"></td><td><select data-role ${u.id === boot.me.id ? 'disabled title="You can\'t change your own role"' : ""}>${roleOpts(u.role)}</select></td>
-        <td><select data-site>${siteOpts(u.site_id)}</select></td><td><input type="checkbox" data-act ${u.active ? "checked" : ""} ${u.id === boot.me.id ? "disabled" : ""} style="width:auto"></td><td><input data-pw type="password" placeholder="unchanged"></td>
-        <td class="row"><button class="small" data-save>Save</button>${u.id === boot.me.id ? "" : '<button class="small danger" data-del>Delete</button>'}</td></tr>`).join("")}
-      <tr id="new"><td><input data-un placeholder="username"></td><td><input data-dn placeholder="Display name"></td><td><select data-role>${roleOpts("tech")}</select></td><td><select data-site>${siteOpts(null)}</select></td><td></td><td><input data-pw type="password" placeholder="password (8+)"></td><td><button class="small primary" data-add>Add</button></td></tr></table></div>`;
+        <td><select data-site>${siteOpts(u.site_id)}</select></td><td><input type="checkbox" data-act ${u.active ? "checked" : ""} ${u.id === boot.me.id ? "disabled" : ""} style="width:auto"></td><td><input data-pw type="password" placeholder="unchanged">${u.must_change ? '<div class="muted small">Chooses a new one at next sign-in</div>' : ""}</td>
+        <td class="row"><button class="small" data-save>Save</button>${u.id === boot.me.id ? "" : resetBtn(u, "Reset password") + '<button class="small danger" data-del>Delete</button>'}</td></tr>`).join("")}
+      <tr id="new"><td><input data-un placeholder="username"></td><td><input data-dn placeholder="Display name"></td><td><select data-role>${roleOpts("tech")}</select></td><td><select data-site>${siteOpts(null)}</select></td><td></td><td><input data-pw type="password" placeholder="blank = ChangeMe"></td><td><button class="small primary" data-add>Add</button></td></tr></table></div>`;
     const read = (row) => ({ username: row.querySelector("[data-un]").value, display_name: row.querySelector("[data-dn]").value, role: row.querySelector("[data-role]").value,
       site_id: row.querySelector("[data-site]").value ? +row.querySelector("[data-site]").value : null, active: row.querySelector("[data-act]") ? row.querySelector("[data-act]").checked : true, password: row.querySelector("[data-pw]").value || null });
     a.querySelectorAll("[data-u]").forEach((row) => {
@@ -768,6 +859,9 @@
       row.querySelector("[data-del]") && (row.querySelector("[data-del]").onclick = () => confirm("Delete this account?") && guard(() => del(`/api/admin/accounts/${row.dataset.u}`)).then(() => admAccounts(a)));
     });
     a.querySelector("[data-add]").onclick = () => guard(() => post("/api/admin/accounts", read(a.querySelector("#new")))).then(() => admAccounts(a));
+    a.querySelectorAll("[data-reset]").forEach((b) => b.onclick = () =>
+      confirm(`Reset ${b.dataset.name}'s password to ChangeMe? They're signed out, and choose a new one when they sign in.`) &&
+      guard(() => post(`/api/admin/accounts/${b.dataset.reset}/reset`)).then((r) => { if (r) { toast(`${b.dataset.name} can sign in with ChangeMe now`, "good"); refreshResets(); admAccounts(a); } }));
   }
 
   async function admLinks(a) {

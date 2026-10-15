@@ -83,25 +83,34 @@ test("a new laptop enrols once from the IT preset, then restarts into the worksp
   fs.rmSync(preset);
 });
 
-async function start(page, { name, room, mode }) {
+// Techs sign in with their own account. A password someone else set is changed first (newPassword).
+async function start(page, { user, password, newPassword, room, mode }) {
   await expect(page.locator("#start")).toBeVisible();
-  if (name !== undefined) await page.fill("#startForm [name=operator]", name);
+  if (user !== undefined) await page.fill("#startForm [name=username]", user);
+  if (password !== undefined) await page.fill("#startForm [name=password]", password);
   if (room) await page.click(`#startRooms [data-room] >> text=${room}`);
   if (mode) await page.check(`#startForm [name=mode][value=${mode}]`);
   await page.click("#startForm button.primary");
+  if (newPassword) {
+    await expect(page.locator("#startForm .pw-new")).toBeVisible();
+    await page.fill("#startForm [name=new_password]", newPassword);
+    await page.fill("#startForm [name=new_password2]", newPassword);
+    await page.click("#startForm button.primary");
+  }
   await expect(page.locator("#ws")).toBeVisible();
 }
 
 const conf = () => JSON.parse(fs.readFileSync(path.join(userData, "node.json"), "utf8"));
 
-test("after enrolment the tech gives their name, the room and Main or Backup; no password", async () => {
+test("after enrolment the tech signs in with their account, picks the room and Main or Backup, and sets their own password", async () => {
   app = await launch();
   const page = await mainPage(app);
   expect(app.windows().some((w) => w.url().includes("setup.html"))).toBeFalsy();
   await expect(page.locator("#start h1")).toHaveText("Start on TESTLAP1");
   await expect(page.locator("#login")).toBeHidden();
   if (process.env.ATSUIT_SHOTS) await page.screenshot({ path: path.join(process.env.ATSUIT_SHOTS, "start.png") });
-  await start(page, { name: "Amy", room: "HD", mode: "main" });
+  await expect(page.locator("#startForm [name=operator]")).toBeHidden(); // no name-only sign-in on a new site
+  await start(page, { user: "amy", password: "amy-password-1", newPassword: "amy-own-pass-1", room: "HD", mode: "main" });
   await expect(page.locator("#room option:checked")).toHaveText("HD");
   await expect(page.locator("#who")).toHaveText("Amy on TESTLAP1");
   await expect(page.locator("#modePill")).toHaveText("Main PC");
@@ -232,12 +241,12 @@ test("the next day the tech starts again, without enrolling again", async () => 
   const db = path.join(env.data, "atsuit.db");
   const python = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
   execFileSync(python, ["-c", "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute(\"UPDATE nodes SET room_day='2000-01-01'\"); c.commit()", db]);
-  // The next heartbeat notices and shows the start screen, remembering the name and Main/Backup.
+  // The next heartbeat notices and shows the start screen, remembering Main/Backup; the next tech signs in.
   await expect(page.locator("#start")).toBeVisible({ timeout: 20000 });
   expect(app.windows().some((w) => w.url().includes("setup.html"))).toBeFalsy();
-  await expect(page.locator("#startForm [name=operator]")).toHaveValue("Amy");
+  await expect(page.locator("#startForm [name=username]")).toBeVisible();
   await expect(page.locator("#startForm [name=mode][value=backup]")).toBeChecked();
-  await start(page, { name: "Ben", room: "CC" });
+  await start(page, { user: "ben", password: "ben-password-1", room: "CC" });
   await expect(page.locator("#room option:checked")).toHaveText("CC");
   await expect(page.locator("#who")).toHaveText("Ben on TESTLAP1");
   // Sign out at the end of the day: back to the start screen, and nothing pops up.

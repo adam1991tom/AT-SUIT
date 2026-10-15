@@ -32,16 +32,41 @@ def client(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
 
     from atsuit.main import create_app
+    from atsuit.modules import core
+
+    core._forgot_asks.clear()  # every test starts with no recent "forgot" requests
 
     with TestClient(create_app()) as c:
         yield c
 
 
-@pytest.fixture()
-def admin(client):
+def _setup(client):
     r = client.post("/api/setup", json={
         "organisation": "Test Org", "site_name": "Main Venue", "admin_username": "admin",
         "admin_password": "correct-horse", "rooms": ["CC", "HD", "RH"], "licence_key": licence_key(),
     })
     assert r.status_code == 200, r.text
     return client
+
+
+@pytest.fixture()
+def admin(client):
+    """A site as it was before tech passwords: techs type their name on a tech laptop,
+    and accounts the tests add don't have to choose a new password at their first
+    sign-in (a test-only trigger clears the flag)."""
+    from atsuit import db
+
+    _setup(client)
+    with db.tx() as c:
+        db.set_setting(c, "tech_passwords", False)
+        c.execute("CREATE TRIGGER IF NOT EXISTS test_no_first_change AFTER UPDATE OF must_change ON accounts "
+                  "WHEN NEW.must_change=1 BEGIN UPDATE accounts SET must_change=0 WHERE id=NEW.id; END")
+        c.execute("CREATE TRIGGER IF NOT EXISTS test_no_first_change_new AFTER INSERT ON accounts "
+                  "WHEN NEW.must_change=1 BEGIN UPDATE accounts SET must_change=0 WHERE id=NEW.id; END")
+    return client
+
+
+@pytest.fixture()
+def strict(client):
+    """A new site as sold: tech passwords on, first sign-in changes the password."""
+    return _setup(client)

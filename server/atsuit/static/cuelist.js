@@ -129,22 +129,24 @@ const CueList = (() => {
       if (!x || x.room_id !== roomId || !("remaining_ms" in x)) return x;
       if (s && x.server_time < s.server_time) return x;
       const was = s?.cue?.id;
-      x._rx = Date.now(); s = x; panel?.update(s); draw();
+      AT.stamp(x, s); s = x; panel?.update(s); draw();
       if (was !== s.cue?.id) renderList();
       return x;
     }
     document.addEventListener("atsuit:timer", (e) => apply(e.detail));
 
-    setInterval(() => draw(), 100);
+    AT.ticker(() => s, draw);
     function draw() {
       if (!s) return;
       const d = timerDisplay(s), c = $("[data-clock]");
       $("[data-flash]").checked = !!s.flash_danger;
       for (const [k, on] of [["blink", s.message_blink], ["clock", s.show_clock], ["blackout", s.blackout]]) $(`[data-sw="${k}"]`).classList.toggle("lit", !!on);
-      c.textContent = d.text;
-      c.className = "clock bigclock " + d.cls;
-      $("[data-now]").textContent = (s.cue ? `${s.cue.cue ? s.cue.cue + " · " : ""}` : "") + (s.title || "") + (s.playback === "pause" ? "  (paused)" : "");
-      $("[data-next]").textContent = (s.next ? `Next: ${s.next.title} (${dur(s.next.duration_ms)})` : "") + (s.message_visible ? `  ·  On stage: ${s.message}` : "");
+      // Only touch the page when something changed: ten rewrites a second make the desk stutter.
+      const put = (n, t) => { if (n.textContent !== t) n.textContent = t; };
+      put(c, d.text);
+      if (c.className !== "clock bigclock " + d.cls) c.className = "clock bigclock " + d.cls;
+      put($("[data-now]"), (s.cue ? `${s.cue.cue ? s.cue.cue + " · " : ""}` : "") + (s.title || "") + (s.playback === "pause" ? "  (paused)" : ""));
+      put($("[data-next]"), (s.next ? `Next: ${s.next.title} (${dur(s.next.duration_ms)})` : "") + (s.message_visible ? `  ·  On stage: ${s.message}` : ""));
     }
 
     (async () => {

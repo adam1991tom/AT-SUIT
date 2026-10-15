@@ -41,7 +41,7 @@
       <div class="it" data-k="elapsed"><b>Elapsed</b><span></span></div><div class="it" data-k="end"><b>Expected end</b><span></span></div></div>`;
     const set = (k, v, cls) => { const it = root.querySelector(`[data-k="${k}"]`); it.lastChild.textContent = v; if (cls !== undefined) it.classList.toggle("over", cls === "over"); };
     let s = null;
-    const load = async () => { try { const x = await (await fetch(`/api/timers/${room}`)).json(); x._rx = Date.now(); s = x; } catch (_) {} };
+    const load = async () => { try { const x = await (await fetch(`/api/timers/${room}`)).json(); AT.stamp(x, s); s = x; } catch (_) {} };
     const hm = (ms, secs) => {
       const t = Math.floor(((ms % 86400000) + 86400000) % 86400000 / 1000), h = Math.floor(t / 3600), mi = Math.floor(t % 3600 / 60);
       const tail = secs ? `:${pad(t % 60)}` : "";

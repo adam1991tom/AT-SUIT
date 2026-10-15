@@ -177,7 +177,7 @@
   const $ = (id) => document.getElementById(id), esc = AT.esc;
   const pad = (n) => String(n).padStart(2, "0");
   let s = await AT.api(`/api/timers/${roomId}`), cues = [], board = { calls: [], open_elsewhere: 0 };
-  const got = (x) => { x._rx = Date.now(); s = x; };
+  const got = (x) => { AT.stamp(x, s && s._rx ? s : null); s = x; };
   // Re-read the venue clock every few minutes, so a screen left up overnight keeps time across a clock change.
   setInterval(() => AT.api(`/api/timers/${roomId}`).then(got).catch(() => {}), 300000);
   got(s);
@@ -335,12 +335,12 @@
   if (preview) {
     loadPreview();
     setInterval(loadPreview, 30000); // keeps "3 min ago" and the edge flash up to date, and catches anything missed
-    setInterval(drawClock, 100);
+    AT.ticker(() => s, drawClock);
     drawClock();
   } else {
     cues = await AT.api(`/api/timers/${roomId}/cues`).catch(() => []);
     drawCues(); loadBoard();
-    setInterval(() => { drawClock(); drawStage(); }, 100);
+    AT.ticker(() => s, () => { drawClock(); drawStage(); });
     setInterval(drawHelp, 15000); // keeps "3 min ago" and the edge flash up to date
     drawClock(); drawStage();
   }

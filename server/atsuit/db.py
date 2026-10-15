@@ -177,6 +177,22 @@ MIGRATIONS: list[str] = [
         room_name TEXT NOT NULL, day TEXT NOT NULL, path TEXT NOT NULL, created_at TEXT NOT NULL);
     CREATE UNIQUE INDEX show_reports_day ON show_reports(room_id, day);
     """,
+    # 12: tech passwords. A password someone else set must be changed at the next
+    # sign-in; "forgot" asks the admins and managers for a reset. Sites set up before
+    # this keep name-only sign-in on tech laptops until an admin turns passwords on.
+    # And what the AI helper learns from.
+    """
+    ALTER TABLE accounts ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE accounts ADD COLUMN reset_asked_at TEXT;
+    ALTER TABLE nodes ADD COLUMN operator_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL;
+    INSERT OR IGNORE INTO settings(key, value) SELECT 'tech_passwords', 'false'
+        WHERE EXISTS (SELECT 1 FROM settings WHERE key='setup_complete');
+    -- the AI helper learns from how help calls were fixed, and from answers techs said worked
+    ALTER TABLE help_requests ADD COLUMN resolution TEXT NOT NULL DEFAULT '';
+    CREATE TABLE ai_knowledge(id INTEGER PRIMARY KEY AUTOINCREMENT, site_id INTEGER REFERENCES sites(id) ON DELETE CASCADE,
+        question TEXT NOT NULL, answer TEXT NOT NULL, added_by TEXT NOT NULL, created_at TEXT NOT NULL,
+        helped INTEGER NOT NULL DEFAULT 1);
+    """,
 ]
 
 

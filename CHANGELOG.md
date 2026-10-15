@@ -5,6 +5,36 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.0.10
+
+**Passwords**
+- Techs sign in to their laptop with their own account. The start screen asks for a username and password instead of a name (still with the room and Main PC / Backup PC). Admins and managers add people under People, with a password or left blank for ChangeMe.
+- A password someone else set has to be changed at the next sign-in, on the laptop, the workspace and the console alike. ChangeMe, the username and the old password aren't accepted.
+- **Forgot password?** on every sign-in screen. The admins and managers get a pop-up in the console and a count on People, where one press resets it to ChangeMe (and signs that person out everywhere). The screen gives the same answer for any username, so it can't be used to find out who has an account, and it's slowed down after five tries. Settings → General can make Forgot reset a tech's password straight away; an admin's or manager's always waits for an admin.
+- Sites already set up keep name-only sign-in until an admin ticks **Techs sign in with their own account and password** in Settings → General. New sites have it on.
+
+**AI helper**
+- An **AI helper** in the techs' Help menu. Ask it anything ("the lectern mic is dead"), and when you send a help call it answers straight away while the crew is on the way.
+- It answers from what your venue knows: the admins' **venue notes** (Settings → AI helper), how past help calls were fixed (pressing Resolved now asks "How was it fixed?"), and answers techs marked **This fixed it**. Admins can see and forget what it has learned.
+- With a private AI model on your own network (Ollama, the same one Presenters can use) it writes a short step-by-step answer from those notes. Without one it lists what worked before.
+- **Web quick search** is there but off by default. When an admin turns it on, only the question goes to DuckDuckGo, never your notes, chat, names or rooms.
+
+**Captions privacy (NDA and GDPR)**
+- Caption transcripts are stored encrypted with the server's own key, so a copied file or backup can't be read without it. Text, SRT and VTT exports work as before.
+- Transcripts are deleted automatically 12 hours after they end (1 to 168 hours in Settings → General). The transcript lists show when each one goes. One still recording is never cut short, and stray transcript files nothing lists are cleared too.
+- The captions panel says plainly that speech becomes text on your own server and nothing leaves your network. The speech model was already offline; nothing in AT-SUIT sends audio or caption text anywhere else.
+- New [docs/PRIVACY.md](docs/PRIVACY.md) for venues and their clients: every outside connection the server makes, what each sends, and how long everything is kept.
+
+**Little extras**
+- **Venue weather** in the techs' top bar: the temperature and the sky now, and today's high, low, chance of rain, wind, sunrise and sunset when you click it. An admin picks the venue's town per site in Settings → General. Nothing is fetched until then, and only the town's position goes to the forecast service (Open-Meteo, no account needed). With no internet at the venue it keeps the last forecast, or stays hidden.
+- **Report a bug** on Settings → About: say what went wrong and what you were doing, and it writes the email to the AT-SUIT team with the version, server and browser filled in. Nothing is sent until you press Send in your email app.
+
+**Timer**
+- Quick timer and message buttons show what's live. The loaded quick timer is outlined in the brand colour; once it's running it fills and gently pulses. A message on stage fills and pulses too, as do Clock, Blink and Blackout while they're on. Turning off animations in the appearance settings (or in Windows) swaps the pulse for a steady outline.
+- Tap a loaded quick timer again to start it. Tapping one that's already running leaves it running and says so, instead of resetting it. Tapping the message that's on stage still takes it off.
+- The quick timer and message panels keep their styling when they're docked in windows of their own. They had lost it, so the active buttons never showed.
+- Smoother timers. Every page used to restart its count from the moment each update arrived, so small network delays nudged the seconds back and forth, and the 10-times-a-second redraw flipped each second up to a tenth late. Pages now keep a steady link to the server's clock and redraw exactly when a second changes: the stage screen, the desk timer, the backstage clock and the top bar all tick at an even second.
+
 ## 1.0.9
 
 **Show reports**

@@ -81,6 +81,7 @@
   /* narrower screens drop the detail first, then captions, the session and what's on stage */
   @media (max-width: 1750px) { .lb .lb-sub { max-width: 8rem; } .lb .lb-s, .lb-cap { display: none; } }
   @media (max-width: 1500px) { .lb-sess { display: none; } }
+  @media (max-width: 1400px) { .lb-wx { display: none; } }
   @media (max-width: 1300px) { .lb .lb-sub, .lb .lb-flag { display: none; } .top { gap: .5rem; } }
   @media (max-width: 700px) { .livebar { order: 10; flex-basis: 100%; justify-content: flex-start; } }
   /* handover notes (static/notes-panel.js) */
@@ -124,7 +125,9 @@
     <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
     <h1>Start on <span id="startNode"></span></h1>
     <p class="muted small" style="margin-top:0">This resets each morning, so the next tech starts fresh.</p>
-    <label>Your name</label><input name="operator" required maxlength="60" placeholder="e.g. Adam">
+    <div id="startName"><label>Your name</label><input name="operator" maxlength="60" placeholder="e.g. Adam"></div>
+    <div id="startAcct" class="hidden"><label>Username</label><input name="username" autocomplete="username" maxlength="64">
+      <label>Password</label><input name="password" type="password" autocomplete="current-password"></div>
     <label>Room</label><div class="tiles" id="startRooms"></div>
     <label>This PC is the</label>
     <div class="opts">
@@ -153,6 +156,11 @@
           <input id="helpText" class="grow" placeholder="What's wrong?"></div>
         <div class="row" style="margin-top:.4rem;justify-content:flex-end"><button class="helpbtn" id="helpBtn">Send</button></div>
         <div style="margin-top:.6rem"><b class="small">Open requests</b><div id="helpList" class="small" style="margin-top:.3rem"></div></div>
+        <div id="aiBox" class="hidden" style="margin-top:.7rem;border-top:1px solid var(--line);padding-top:.6rem">
+          <b>🤖 AI helper</b> <span class="muted small" id="aiWhere"></span>
+          <div class="row" style="margin-top:.4rem"><input id="aiQ" class="grow" placeholder="Ask anything, e.g. the lectern mic is dead"><button id="aiAsk">Ask</button></div>
+          <div id="aiA" class="small" style="margin-top:.4rem;max-height:40vh;overflow:auto"></div>
+        </div>
       </div></div>
     <button id="laptopBtn" class="hidden">This laptop</button>
     <a class="btn hidden" id="consoleBtn" href="/#/dashboard" target="_blank">Console</a>
@@ -335,8 +343,13 @@
     if (!roomId || !node.node.operator || !node.node.mode || !signedIn) {
       $("start").classList.remove("hidden");
       $("startNode").textContent = node.node.name;
-      const f = $("startForm");
-      f.operator.value = node.node.operator || "";
+      const f = $("startForm"), withPw = node.tech_passwords !== false;
+      // With tech passwords on, each tech signs in with their own account; otherwise they type their name.
+      $("startName").classList.toggle("hidden", withPw);
+      $("startAcct").classList.toggle("hidden", !withPw);
+      f.operator.required = !withPw; f.username.required = withPw; f.password.required = withPw;
+      const pw = withPw ? AT.passwordForm(f, $("startErr")) : null;
+      if (!withPw) f.operator.value = node.node.operator || "";
       if (node.node.mode) f.querySelector(`[name=mode][value=${node.node.mode}]`).checked = true;
       // Once a laptop has its room for the day it keeps it, whoever signs in; only an admin moves it.
       const locked = roomId;
@@ -354,12 +367,14 @@
         const mode = f.querySelector("[name=mode]:checked")?.value;
         try {
           await post("/api/auth/logout").catch(() => {}); // this laptop, not someone's account
-          await api("/api/nodes/me/start", { method: "POST", headers: nodeHdr(), body: { operator: f.operator.value, room_id: pick, mode } });
+          const who = withPw ? { username: f.username.value, password: f.password.value, ...pw.extra() } : { operator: f.operator.value };
+          await api("/api/nodes/me/start", { method: "POST", headers: nodeHdr(), body: { ...who, room_id: pick, mode } });
           if (APP) await APP.setSettings({ popups: mode === "backup" });
           location.reload();
-        } catch (ex) { $("startErr").textContent = ex.message; }
+        } catch (ex) { if (!pw?.handle(ex)) $("startErr").textContent = ex.message; }
       };
-      if (!f.operator.value) f.operator.focus();
+      if (withPw) f.username.focus();
+      else if (!f.operator.value) f.operator.focus();
       return;
     }
   }
@@ -367,11 +382,11 @@
   if (!boot) {
     $("login").classList.remove("hidden");
     $("nodeName").textContent = node ? node.node.name : "Tech workspace";
-    const f = $("loginForm");
+    const f = $("loginForm"), pw = AT.passwordForm(f, $("loginErr"));
     f.onsubmit = async (e) => {
       e.preventDefault();
-      try { await post("/api/auth/login", { username: f.username.value, password: f.password.value }); location.reload(); }
-      catch (ex) { $("loginErr").textContent = ex.message; }
+      try { await post("/api/auth/login", { username: f.username.value, password: f.password.value, ...pw.extra() }); location.reload(); }
+      catch (ex) { if (!pw.handle(ex)) $("loginErr").textContent = ex.message; }
     };
     return;
   }
@@ -788,8 +803,36 @@
     $("helpCount").textContent = open; $("helpCount").classList.toggle("hidden", !open); $("helpTop").classList.toggle("help-alarm", !!open);
     $("helpList").innerHTML = rows.map((h) => `<div class="row" style="margin:.25rem 0"><span class="pill ${h.status === "open" ? "bad" : "warn"}">${esc(h.status)}</span>${h.status === "open" && h.escalations ? ' <span class="pill bad">no answer</span>' : ""} <b>${esc(h.room_name)}</b> ${esc(h.category)}: ${esc(h.description)} <span class="muted">${esc(h.assigned_to)}</span>` +
       `${h.status === "open" ? `<button class="small" data-h="${h.id}" data-s="acknowledged">On my way</button>` : ""}<button class="small" data-h="${h.id}" data-s="resolved">Resolved</button></div>`).join("") || '<span class="muted">No open requests.</span>';
-    $("helpList").querySelectorAll("[data-h]").forEach((b) => b.onclick = () => guard(() => AT.put(`/api/comms/help/${b.dataset.h}`, { status: b.dataset.s })));
+    $("helpList").querySelectorAll("[data-h]").forEach((b) => b.onclick = () => {
+      // How it was fixed is optional; the AI helper offers it the next time someone asks.
+      const fix = b.dataset.s === "resolved" && ai.on ? prompt("How was it fixed? (optional: the AI helper learns from it)", "") : null;
+      if (fix === null && b.dataset.s === "resolved" && ai.on && !confirm("Mark it resolved without saying how?")) return;
+      guard(() => AT.put(`/api/comms/help/${b.dataset.h}`, { status: b.dataset.s, ...(fix ? { resolution: fix } : {}) }));
+    });
   }
+
+  // The AI helper, in the Help menu: answers from the venue's notes and past fixes (and a local AI model if
+  // the admins set one up). "This fixed it" teaches it for next time.
+  const ai = { on: false };
+  async function askAi(question, lead = "") {
+    if (!ai.on || !question.trim()) return;
+    $("aiA").innerHTML = '<span class="muted">Thinking…</span>';
+    try {
+      const r = await post("/api/ai/ask", { question, room_id: roomId });
+      const src = r.sources.length ? `<div class="muted" style="margin-top:.3rem">From: ${r.sources.map((s) => s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : `${esc(s.kind)}: ${esc(s.title)}`).join(" · ")}</div>` : "";
+      $("aiA").innerHTML = (lead ? `<div class="muted">${esc(lead)}</div>` : "") + `<div style="white-space:pre-wrap">${esc(r.answer)}</div>${src}` +
+        '<div class="row" style="margin-top:.4rem;justify-content:flex-end"><button class="small" id="aiFixed">This fixed it</button></div>';
+      $("aiFixed").onclick = () => guard(() => post("/api/ai/learn", { question, answer: r.answer, room_id: roomId }))
+        .then((ok) => { if (ok) { $("aiFixed").disabled = true; $("aiFixed").textContent = "Thanks, noted"; } });
+    } catch (ex) { $("aiA").innerHTML = `<span class="muted">${esc(ex.message)}</span>`; }
+  }
+  if (boot.modules.comms) api("/api/ai").then((s) => {
+    ai.on = s.enabled;
+    $("aiBox").classList.toggle("hidden", !s.enabled);
+    $("aiWhere").textContent = s.model ? "· private AI on your network" : "· from this venue's notes and past fixes";
+  }).catch(() => {});
+  $("aiAsk").onclick = () => askAi($("aiQ").value);
+  $("aiQ").onkeydown = (e) => { if (e.key === "Enter") askAi($("aiQ").value); };
   $("helpTop").onclick = (e) => {
     e.stopPropagation();
     const box = $("helpBox"), opening = box.classList.contains("hidden");
@@ -807,7 +850,11 @@
       if (sending) return;
       sending = true; $("helpBtn").disabled = true; $("helpBtn").textContent = "Sending…";
       guard(() => post("/api/comms/help", { room_id: roomId, category: $("helpCat").value, description: $("helpText").value, priority: "urgent" }))
-        .then(() => { $("helpText").value = ""; toast("Help call sent. You'll see here when someone is on the way.", "good"); renderHelp(); }, () => {})
+        .then(() => {
+          const what = $("helpText").value;
+          $("helpText").value = ""; toast("Help call sent. You'll see here when someone is on the way.", "good"); renderHelp();
+          if (what.trim()) { $("aiQ").value = what; askAi(what, "While the crew is on the way:"); }
+        }, () => {})
         .finally(() => setTimeout(() => { sending = false; $("helpBtn").disabled = false; $("helpBtn").textContent = "Send"; }, 1500));
     };
     $("helpBtn").onclick = send;
