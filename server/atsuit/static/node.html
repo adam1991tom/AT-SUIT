@@ -8,13 +8,17 @@
 <link rel="stylesheet" href="/static/ui/desk.css">
 <script src="/static/theme.js"></script>
 <style>
+  /* the workspace is used mid-show, often by touch: bigger buttons and boxes */
+  :root { --ctl-h: 2.25rem; }
   .top { display: flex; gap: .8rem; align-items: center; padding: .7rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   .wrap { padding: 1rem; }
   #kiosk { position: fixed; inset: 0; border: 0; width: 100%; height: 100%; background: #000; }
+  #watched { position: fixed; left: 50%; bottom: .6rem; transform: translateX(-50%); z-index: 45; padding: .25rem .7rem; border-radius: 999px; font-size: .8rem;
+    background: var(--panel, #1c2128); border: 1px solid var(--accent); color: var(--text, #e6edf3); pointer-events: none; }
   #ident { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12vw; font-weight: 800; background: var(--accent); color: #fff; z-index: 50; }
   .bigclock { font-size: clamp(3rem, 9vw, 6rem); line-height: 1; }
-  .helpbtn { background: var(--bad); border-color: var(--bad); color: #fff; font-weight: 700; font-size: 1.05rem; padding: .8rem 1.2rem; }
-  .top { position: sticky; top: 0; z-index: 900; border-bottom: 3px solid var(--accent); border-image: linear-gradient(90deg, var(--ember), var(--accent) 40%, var(--glow)) 1; }
+  .helpbtn, .helpbtn:hover { background: #da3633; border-color: #da3633; color: #fff; font-weight: 700; font-size: 1.05rem; padding: .8rem 1.2rem; }
+  .top { position: sticky; top: 0; z-index: 900; background: var(--side); box-shadow: inset 0 2px 0 var(--accent); }
   .top b[data-product] { font-family: var(--brand-font); font-weight: 800; letter-spacing: .02em; }
   .winbar { display: flex; gap: .3rem; flex-wrap: wrap; }
   .winbar button.on { border-color: var(--accent); color: var(--strong); background: color-mix(in srgb, var(--accent) 35%, var(--panel2)); }
@@ -232,12 +236,13 @@
 </div>
 <iframe id="kiosk" class="hidden" allow="autoplay; fullscreen"></iframe>
 <div id="ident" class="hidden"></div>
+<div id="watched" class="hidden">📷 A manager can see this laptop's screens</div>
 
 <script src="/static/common.js"></script>
 <script src="/static/chat.js"></script>
 <script src="/static/previews.js"></script>
 <script src="/static/ui/desk.js"></script>
-<script src="/static/timerpanel.js"></script>
+<script src="/static/offline-timer.js"></script><script src="/static/timerpanel.js"></script>
 <script src="/static/cuelist.js"></script>
 <script src="/static/desk.js"></script>
 <script src="/static/livebar.js"></script><script src="/static/notes-panel.js"></script>
@@ -268,11 +273,32 @@
       return null;
     }
   }
+  // Snapshots: only while the venue has them on and a manager has this laptop open on
+  // the console. The tech always sees a note while it's happening.
+  let snapOn = false, snapBusy = false;
+  async function sendSnapshot() {
+    if (!snapOn || snapBusy || !APP?.snapshot) return;
+    snapBusy = true;
+    try {
+      const shots = await APP.snapshot();
+      const r = await api("/api/nodes/me/snapshot", { method: "POST", headers: nodeHdr(), body: { shots } });
+      setSnap(!!r.snapshot);
+    } catch (_) { setSnap(false); }
+    finally { snapBusy = false; }
+  }
+  function setSnap(on) {
+    snapOn = on && !!APP?.snapshot;
+    $("watched").classList.toggle("hidden", !snapOn);
+  }
   async function heartbeat() {
     if (!nodeToken) return;
     try {
+      const system = APP?.system ? await APP.system().catch(() => null) : null;
       const r = await api("/api/nodes/heartbeat", { method: "POST", headers: nodeHdr(), body: { version: VERSION, current_url: $("kiosk").src || location.href,
-        info: { user_agent: navigator.userAgent, screen: `${screen.width}x${screen.height}`, signed_in: boot?.me?.name || "", room_id: roomId } } });
+        info: { user_agent: navigator.userAgent, screen: `${screen.width}x${screen.height}`, signed_in: boot?.me?.name || "", room_id: roomId, ...(system ? { system } : {}) } } });
+      const was = snapOn;
+      setSnap(!!r.snapshot);
+      if (snapOn && !was) sendSnapshot();
       // A new working day (or an admin moving this laptop) changes the room: start over.
       if (techLaptop() && !$("ws").classList.contains("hidden") && (r.room_id || null) !== roomId) location.reload();
     } catch (_) {}
@@ -322,7 +348,7 @@
     return;
   }
   if (node) {
-    heartbeat(); setInterval(heartbeat, 10000); setInterval(pollCommands, 3000); pollCommands();
+    heartbeat(); setInterval(heartbeat, 10000); setInterval(pollCommands, 3000); pollCommands(); setInterval(sendSnapshot, 5000);
     if (node.node.kind === "kiosk") {
       let url = node.node.current_url; try { url = localStorage.getItem("atsuit_kiosk_url") || url; } catch (_) {}
       if (url) showKiosk(url);
@@ -518,7 +544,7 @@
     $("conn").textContent = up ? "live" : "reconnecting"; $("conn").className = "pill " + (up ? "good" : "bad");
     clearTimeout(downTimer);
     if (up) { if (wasDown) alerts.add("good", "Connected to AT-SUIT again"); wasDown = false; }
-    else downTimer = setTimeout(() => { wasDown = true; problem("Lost connection to AT-SUIT", "Chat, timer and captions stop updating until it's back."); }, 8000);
+    else downTimer = setTimeout(() => { wasDown = true; problem("Lost connection to AT-SUIT", APP ? "Chat stops until it's back. The timer and captions keep running on this laptop." : "Chat and captions stop until it's back. The timer keeps running here."); }, 8000);
   });
 
   // timer and cue list: the main thing on screen
@@ -573,6 +599,8 @@
   let tstate = null, tphase = "", trun = "";
   if (boot.modules.timers) {
     api(`/api/timers/${roomId}`).then((s) => { tstate = s; liveBar.timer(s); }).catch(() => {});
+    // Presses worked out on this laptop while the server is out of reach (offline-timer.js).
+    document.addEventListener("atsuit:timer", (e) => { if (e.detail?._local && e.detail.room_id === roomId) { tstate = e.detail; liveBar.timer(tstate); } });
     setInterval(() => {
       if (!tstate || tstate.playback !== "play") return;
       const run = `${tstate.cue?.id || ""}:${tstate.started_at || tstate.first_started_at || ""}:${tstate.duration_ms}`;
@@ -940,8 +968,33 @@
       try { const m = localStorage.getItem("atsuit_mic"); if (m) sel.value = m; } catch (_) {}
     }
     await listMics();
-    let ctx = null, stream = null, ws = null;
-    async function startMic() {
+    let ctx = null, stream = null, ws = null, local = false, started = false, held = [], retry = null;
+    // Captions made on this laptop (the AT-SUIT app): only the text goes to the server.
+    // Anything in the way (an older app, no model yet) and the server listens instead.
+    const LOCAL = APP?.captions && node?.captions_on_laptops;
+    if (LOCAL) APP.captions.onEvent((m) => {
+      if (!local || !ws) return;
+      if (m.type === "partial" || m.type === "final" || m.type === "level") {
+        if (ws.readyState === 1) ws.send(JSON.stringify(m));
+        else if (m.type === "final" && held.length < 500) held.push(m); // no server: keep what was said, send it when it's back
+      }
+      else if (m.type === "error") { problem("Captions on this laptop stopped", `${m.detail || ""} The server is listening instead.`); restart(false); }
+    });
+    // The model is big, so the app fetches it in the background; until then the server listens.
+    if (LOCAL) APP.captions.prepare().catch(() => {});
+    async function localReady() {
+      if (!LOCAL) return false;
+      const s = await APP.captions.state().catch(() => ({}));
+      if (s.state === "downloading" || s.state === "loading") return false;
+      const r = await APP.captions.prepare().catch(() => ({ ok: false }));
+      return r.ok;
+    }
+    function restart(useLocal) {
+      stopMic();
+      startMic(useLocal).catch((e) => { problem("The mic didn't start", e.message); stopMic(); });
+    }
+    async function startMic(tryLocal = true) {
+      local = tryLocal && await localReady();
       stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: sel.value ? { exact: sel.value } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
       try { localStorage.setItem("atsuit_mic", sel.value); } catch (_) {}
       await listMics();
@@ -952,17 +1005,46 @@
       await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([worklet], { type: "application/javascript" })));
       const src = ctx.createMediaStreamSource(stream), proc = new AudioWorkletNode(ctx, "p");
       src.connect(proc);
-      const q = nodeToken ? `?node_token=${encodeURIComponent(nodeToken)}` : "";
-      ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/audio/${roomId}${q}`);
-      ws.binaryType = "arraybuffer";
-      ws.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === "error") { problem("Captions mic stopped", m.message); stopMic(); } if (m.type === "replaced") { alerts.add("chat", `${m.by} took over the captions mic`); stopMic(); } };
-      ws.onclose = () => stopMic();
-      proc.port.onmessage = (e) => ws.readyState === 1 && ws.send(e.data);
+      connect();
+      proc.port.onmessage = (e) => {
+        if (local) APP.captions.feed(e.data);
+        else if (ws && ws.readyState === 1) ws.send(e.data);
+      };
       btn.textContent = "Stop my mic"; btn.classList.remove("primary"); btn.classList.add("danger");
-      note.textContent = "Your microphone is captioning this room.";
+      note.textContent = local ? "Your microphone is captioning this room. Speech becomes text on this laptop." : "Your microphone is captioning this room.";
+    }
+    // The link to the server for this mic. Captions made on this laptop keep going when it drops:
+    // what is said meanwhile is held here and sent when the server is back.
+    function connect() {
+      const q = new URLSearchParams(nodeToken ? { node_token: nodeToken } : {});
+      if (local) q.set("mode", "local");
+      const sock = ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/audio/${roomId}${q.size ? "?" + q : ""}`);
+      ws.binaryType = "arraybuffer";
+      ws.onmessage = (e) => {
+        const m = JSON.parse(e.data);
+        if (m.type === "ready" && local) {
+          if (started) APP.captions.audio(m.audio); else { APP.captions.start(m.audio); started = true; }
+          if (held.length) { held.splice(0).forEach((x) => sock.send(JSON.stringify(x))); note.textContent = "Back online: the captions said meanwhile are on the server now."; }
+          else note.textContent = "Your microphone is captioning this room. Speech becomes text on this laptop.";
+        }
+        if (m.type === "audio" && local) { APP.captions.audio(m.audio); if (m.vocabulary) APP.captions.prepare(); }
+        if (m.type === "error") { problem("Captions mic stopped", m.message); stopMic(); }
+        if (m.type === "replaced") { alerts.add("chat", `${m.by} took over the captions mic`); stopMic(); }
+      };
+      ws.onclose = () => {
+        if (ws !== sock) return;
+        if (!local || !started) return stopMic();
+        note.textContent = "No connection to the server: captions keep running on this laptop and catch up when it's back.";
+        retry = setTimeout(() => { retry = null; if (ws === sock && local) connect(); }, 2000);
+      };
     }
     function stopMic() {
-      if (ws && ws.readyState <= 1) ws.close();
+      if (local) APP.captions.stop();
+      local = started = false; held = [];
+      clearTimeout(retry); retry = null;
+      const w = ws;
+      ws = null;
+      if (w && w.readyState <= 1) w.close();
       stream && stream.getTracks().forEach((t) => t.stop());
       ctx && ctx.close().catch(() => {});
       ws = stream = ctx = null;

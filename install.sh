@@ -9,12 +9,18 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# The automatic updater: every 10 minutes systemd runs ./update.sh --auto, which installs a new
-# release only when Settings → Updates says so and no show is on.
+# The automatic updater: systemd runs ./update.sh --auto, which installs a new release only when
+# Settings → Updates says so and no show is on. It runs at once when an admin presses Install now
+# (the server drops an update-now file in its data folder, which a systemd path unit watches),
+# and every 10 minutes in case that was missed.
 updater() {
   if [ "$(id -u)" != 0 ] || ! command -v systemctl >/dev/null || [ ! -d /run/systemd/system ]; then
     echo "  For automatic updates, run sudo ./install.sh --updater once (it adds a systemd timer)."; return 0
   fi
+  # Where the server's /data is on this machine (the docker volume), for the Install now file.
+  local DATA FLAG=""
+  DATA="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' atsuit 2>/dev/null || true)"
+  [ -n "$DATA" ] && [ -d "$DATA" ] && FLAG="$DATA/update-now"
   cat > /etc/systemd/system/atsuit-update.service <<UNIT
 [Unit]
 Description=AT-SUIT automatic update (Settings → Updates decides)
@@ -24,8 +30,22 @@ Wants=docker.service
 [Service]
 Type=oneshot
 WorkingDirectory=$PWD
+Environment=ATSUIT_UPDATE_FLAG=$FLAG
 ExecStart=/usr/bin/env bash $PWD/update.sh --auto
 UNIT
+  if [ -n "$FLAG" ]; then
+    cat > /etc/systemd/system/atsuit-update.path <<UNIT
+[Unit]
+Description=Update AT-SUIT as soon as an admin presses Install now
+
+[Path]
+PathExists=$FLAG
+Unit=atsuit-update.service
+
+[Install]
+WantedBy=paths.target
+UNIT
+  fi
   cat > /etc/systemd/system/atsuit-update.timer <<UNIT
 [Unit]
 Description=Ask AT-SUIT every 10 minutes whether to install an update
@@ -40,7 +60,12 @@ WantedBy=timers.target
 UNIT
   systemctl daemon-reload
   systemctl enable --now atsuit-update.timer >/dev/null
-  echo "  Automatic updates: set up (Settings → Updates decides when)."
+  if [ -n "$FLAG" ]; then
+    systemctl enable --now atsuit-update.path >/dev/null
+    echo "  Automatic updates: set up (Settings → Updates decides when; Install now starts at once)."
+  else
+    echo "  Automatic updates: set up (Settings → Updates decides when; Install now starts within 10 minutes)."
+  fi
 }
 if [ "${1:-}" = "--updater" ]; then updater; exit 0; fi
 

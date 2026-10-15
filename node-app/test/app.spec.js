@@ -2,6 +2,7 @@
 const { _electron: electron, test, expect } = require("@playwright/test");
 const { execFileSync } = require("child_process");
 const fs = require("fs");
+const net = require("net");
 const os = require("os");
 const path = require("path");
 
@@ -12,8 +13,8 @@ const userData = fs.mkdtempSync(path.join(os.tmpdir(), "atsuit-node-"));
 const preset = path.join(userData, "preset.json");
 let app;
 
-async function launch() {
-  const args = [path.join(__dirname, "..")];
+async function launch(extra = []) {
+  const args = [path.join(__dirname, ".."), ...extra];
   if (process.platform === "linux") args.push("--no-sandbox");
   return electron.launch({
     args,
@@ -27,6 +28,35 @@ async function mainPage(a) {
     await new Promise((r) => setTimeout(r, 200));
   }
   throw new Error("main window never opened /node");
+}
+
+// A copy of this laptop that reaches the server through a link the test can cut and restore,
+// like the venue network going down. Returns { start() to launch the app, cut(), restore() }.
+async function laptopOnLink() {
+  const target = new URL(env.base);
+  const conns = new Set();
+  const link = net.createServer((c) => {
+    const up = net.connect(Number(target.port), target.hostname);
+    conns.add(c); conns.add(up);
+    c.pipe(up).pipe(c);
+    const end = () => { c.destroy(); up.destroy(); conns.delete(c); conns.delete(up); };
+    c.on("error", end); up.on("error", end); c.on("close", end); up.on("close", end);
+  });
+  await new Promise((r) => link.listen(0, "127.0.0.1", r));
+  const port = link.address().port;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "atsuit-node-link-"));
+  fs.cpSync(userData, dir, { recursive: true });
+  const conf = JSON.parse(fs.readFileSync(path.join(dir, "node.json"), "utf8"));
+  fs.writeFileSync(path.join(dir, "node.json"), JSON.stringify({ ...conf, server: `http://127.0.0.1:${port}`, overlay: null }));
+  return {
+    cut: () => new Promise((r) => { if (!link.listening) return r(); link.close(() => r()); for (const c of conns) c.destroy(); }),
+    restore: () => new Promise((r) => link.listen(port, "127.0.0.1", r)),
+    start: () => {
+      const args = [path.join(__dirname, "..")];
+      if (process.platform === "linux") args.push("--no-sandbox");
+      return electron.launch({ args, env: { ...process.env, ATSUIT_NODE_USERDATA: dir, ATSUIT_NODE_PRESET: path.join(dir, "none.json"), ATSUIT_NODE_NO_UPDATES: "1" } });
+    },
+  };
 }
 
 async function popupWindows(a) {
@@ -162,6 +192,173 @@ test("a workspace window pops out into a window of its own, stays on top if aske
   await pop.click("[data-back]");
   await expect(page.locator(".dk-pane #chat")).toBeVisible();
   await expect.poll(popped).toEqual([]);
+});
+
+test("the laptop reports its health, and shows its screens only while a manager looks", async () => {
+  const login = await fetch(`${env.base}/api/auth/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "admin", password: "correct-horse" }),
+  });
+  const Cookie = login.headers.get("set-cookie").split(";")[0];
+  const as = (method, url, body) => fetch(`${env.base}${url}`, { method, headers: { "Content-Type": "application/json", Cookie }, body: body && JSON.stringify(body) }).then((r) => r.json());
+  await as("PUT", "/api/admin/settings", { laptop_snapshots: true });
+  try {
+    app = await launch();
+    const page = await mainPage(app);
+    await expect(page.locator("#ws")).toBeVisible();
+    const me = async () => (await as("GET", "/api/fleet/nodes")).find((n) => n.kind === "tech" && n.info?.system);
+    await expect.poll(me, { timeout: 15000 }).toBeTruthy();
+    const sys = (await me()).info.system;
+    expect(sys.mem_total).toBeGreaterThan(0);
+    expect(sys.cores).toBeGreaterThan(0);
+    expect(sys.displays.length).toBeGreaterThan(0);
+    await expect(page.locator("#watched")).toBeHidden(); // nobody looking yet
+
+    // A manager opens the laptop on the console: within a heartbeat it sends its screens, and says so.
+    const id = (await me()).id;
+    const health = () => as("GET", `/api/fleet/nodes/${id}/health`);
+    await expect.poll(async () => (await health()).snapshot?.shots?.length || 0, { timeout: 25000, intervals: [2000] }).toBeGreaterThan(0);
+    const shot = (await health()).snapshot.shots[0];
+    expect(shot.image).toMatch(/^data:image\/jpeg;base64,/);
+    await expect(page.locator("#watched")).toBeVisible();
+  } finally {
+    await as("PUT", "/api/admin/settings", { laptop_snapshots: false });
+  }
+});
+
+test("the timer keeps working on the laptop while the server is out of reach, and every screen agrees after", async () => {
+  const login = await fetch(`${env.base}/api/auth/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "admin", password: "correct-horse" }),
+  });
+  const Cookie = login.headers.get("set-cookie").split(";")[0];
+  const as = (method, url, body) => fetch(`${env.base}${url}`, { method, headers: { "Content-Type": "application/json", Cookie }, body: body && JSON.stringify(body) }).then((r) => r.json());
+  const hd = (await as("GET", "/api/bootstrap")).rooms.find((r) => r.name === "HD").id;
+  await as("POST", `/api/timers/${hd}/stop`);
+  const { cut, restore, start } = await laptopOnLink();
+  app = await start();
+  const page = await mainPage(app);
+  await expect(page.locator("#ws")).toBeVisible();
+  const clock = page.locator("[data-clock]").first();
+  await expect(clock).toHaveText("--:--");
+
+  // The server can't be reached: the presses still work here.
+  await cut();
+  await page.locator('[data-min="10"]').first().click();
+  await expect(page.locator("#timerOffline")).toBeVisible();
+  await expect(page.locator("#timerOffline")).toContainText("1 change");
+  await expect(clock).toHaveText(/^(10:00|09:5\d)$/);
+  await page.locator('[data-add="60000"]').first().click();
+  await expect(clock).toHaveText(/^(11:00|10:5\d)$/);
+  await expect(page.locator("#timerOffline")).toContainText("2 changes");
+  expect((await as("GET", `/api/timers/${hd}`)).playback).toBe("stop"); // nothing reached the server
+
+  // It's back: the presses go to the server as of when they were made, and the screen stays as it was.
+  await restore();
+  await expect(page.locator("#timerOffline")).toBeHidden({ timeout: 10000 });
+  const s = await as("GET", `/api/timers/${hd}`);
+  expect(s.running).toBe(true);
+  expect(s.duration_ms).toBe(600000);
+  expect(s.added_ms).toBe(60000);
+  expect(s.remaining_ms).toBeGreaterThan(600000);
+  await expect(clock).toHaveText(/^(11:00|10:[45]\d)$/);
+  await app.close(); app = null;
+  await cut();
+  await as("POST", `/api/timers/${hd}/stop`);
+});
+
+test("the workspace opens from the laptop's copy when the server is down, and runs the timer", async () => {
+  const login = await fetch(`${env.base}/api/auth/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "admin", password: "correct-horse" }),
+  });
+  const Cookie = login.headers.get("set-cookie").split(";")[0];
+  const as = (method, url, body) => fetch(`${env.base}${url}`, { method, headers: { "Content-Type": "application/json", Cookie }, body: body && JSON.stringify(body) }).then((r) => r.json());
+  const hd = (await as("GET", "/api/bootstrap")).rooms.find((r) => r.name === "HD").id;
+  await as("POST", `/api/timers/${hd}/preset/10`);
+
+  // This laptop reaches the server through a link we can cut (the venue network).
+  const { cut, restore, start } = await laptopOnLink();
+
+  // A normal day: the workspace opens from the server, and the laptop keeps a copy.
+  app = await start();
+  let page = await mainPage(app);
+  await expect(page.locator("#ws")).toBeVisible();
+  await expect(page.locator("[data-clock]").first()).toHaveText(/^(10:00|09:\d\d)$/);
+  await page.waitForTimeout(1500);
+  await app.close();
+
+  // The server is down when the app starts: the workspace still opens, with the timer where it should be.
+  await cut();
+  app = await start();
+  page = await mainPage(app);
+  await expect(page.locator("#ws")).toBeVisible({ timeout: 20000 });
+  const clock = page.locator("[data-clock]").first();
+  await expect(clock).toHaveText(/^09:\d\d$/);
+  await page.locator('[data-add="60000"]').first().click();
+  await expect(page.locator("#timerOffline")).toBeVisible();
+  await expect(clock).toHaveText(/^10:\d\d$/);
+  expect((await as("GET", `/api/timers/${hd}`)).added_ms).toBe(0);
+
+  // The server is back: the press reaches it.
+  await restore();
+  await expect(page.locator("#timerOffline")).toBeHidden({ timeout: 15000 });
+  expect((await as("GET", `/api/timers/${hd}`)).added_ms).toBe(60000);
+  await app.close(); app = null;
+  await cut();
+  await as("POST", `/api/timers/${hd}/stop`);
+});
+
+test("captions are made on the laptop, and carry on through a network drop", async () => {
+  const models = process.env.ATSUIT_TEST_MODELS;
+  test.skip(!models, "set ATSUIT_TEST_MODELS to a folder holding the speech model");
+  test.setTimeout(240000);
+  const sample = models && fs.readdirSync(models).map((d) => path.join(models, d, "test_wavs", "0.wav")).find((f) => fs.existsSync(f));
+  test.skip(!sample, "the model folder has no test_wavs/0.wav");
+  // The test recording and two seconds of quiet, so each time round ends a caption line.
+  const pcm = Buffer.concat([fs.readFileSync(sample).subarray(44), Buffer.alloc(16000 * 2 * 2)]);
+  const head = Buffer.from(fs.readFileSync(sample).subarray(0, 44));
+  head.writeUInt32LE(36 + pcm.length, 4); head.writeUInt32LE(pcm.length, 40);
+  const wav = path.join(userData, "mic.wav");
+  fs.writeFileSync(wav, Buffer.concat([head, pcm]));
+  const login = await fetch(`${env.base}/api/auth/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "admin", password: "correct-horse" }),
+  });
+  const Cookie = login.headers.get("set-cookie").split(";")[0];
+  const as = (method, url, body) => fetch(`${env.base}${url}`, { method, headers: { "Content-Type": "application/json", Cookie }, body: body && JSON.stringify(body) }).then((r) => r.json());
+  const hd = (await as("GET", "/api/bootstrap")).rooms.find((r) => r.name === "HD").id;
+  await as("PUT", `/api/captions/${hd}/settings`, { vocabulary: "Yellow Lambs" });
+  // The test recording, over and over, as the laptop's microphone.
+  app = await launch(["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-audio-capture=${wav}`]);
+  const page = await mainPage(app);
+  await expect(page.locator("#ws")).toBeVisible();
+  // The app fetches the model from the server in the background.
+  await expect.poll(() => page.evaluate(() => window.atsuitApp.captions.state().then((s) => s.state)), { timeout: 120000, intervals: [1000] }).toBe("ready");
+
+  // The test holds the line to the server, so it can cut it.
+  let socket = null, cut = false;
+  await page.routeWebSocket(/\/ws\/audio\//, (ws) => {
+    if (cut) return ws.close();
+    socket = ws;
+    ws.connectToServer();
+  });
+  await page.reload(); // the route only reaches pages loaded after it
+  await expect(page.locator("#ws")).toBeVisible();
+  await expect(page.locator("#mic option").first()).toBeAttached(); // the mic list is ready
+  await page.evaluate(() => document.getElementById("micBtn").click());
+  await expect(page.locator("#micNote")).toContainText("on this laptop", { timeout: 15000 });
+  const since = async (t) => ((await as("GET", `/api/captions/${hd}/recent`)).finals_at || []).filter((x) => x > t).length;
+  const heard = async () => ((await as("GET", `/api/captions/${hd}/recent`)).finals || []).join(" ").toUpperCase();
+  await expect.poll(heard, { timeout: 60000, intervals: [1000] }).toContain("YELLOW LAMBS"); // the venue's vocabulary, on the laptop
+
+  // The network drops for 20 seconds: the laptop keeps listening, and catches up when it's back.
+  cut = true;
+  socket.close();
+  const t0 = (await as("GET", `/api/captions/${hd}/recent`)).now;
+  await expect(page.locator("#micNote")).toContainText("No connection to the server");
+  await new Promise((r) => setTimeout(r, 20000));
+  expect(await since(t0)).toBe(0); // nothing reaches the server meanwhile
+  cut = false;
+  await expect(page.locator("#micNote")).toContainText("Back online", { timeout: 20000 });
+  expect(await since(t0)).toBeGreaterThan(1); // what was said during the drop, all at once
+  await page.evaluate(() => document.getElementById("micBtn").click());
 });
 
 test("the backup PC: pop-ups are silent, on top and never take focus", async () => {

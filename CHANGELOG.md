@@ -5,6 +5,51 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.8.0
+
+The first step to AT-SUIT 2: the laptops do more of the work and tell the server how they are.
+
+**Captions are made on the laptop**
+- In the AT-SUIT app, a tech's mic is now turned into text on their own laptop, by the same offline speech model and with the same vocabulary, EQ and gain. Only the text goes to the server, so one server can caption many more rooms and audio never leaves the laptop.
+- The app gets the speech model from your server once (about 200 MB, in the background), never from the internet. Until it has it, or if anything goes wrong, the server listens instead as before, without the tech doing anything.
+- Vocabulary and EQ changes reach the laptop straight away, mid-show.
+- If the network drops, the laptop keeps listening. What is said meanwhile is sent as soon as the server is back, so the transcript has no gap.
+- On by default. Settings → General → Privacy → **Laptops make captions themselves** turns it off. Browsers and older apps still send audio to the server.
+
+**The timer keeps working when the network drops**
+- If a tech's laptop can't reach the server, the timer buttons still work: quick timers, start and pause, more or less time, GO, next and previous cue, stop, messages, blink, clock, blackout and the second line. The workspace and the AT Overlay on that laptop show the result at once, and a bar at the bottom says the timer is running on this laptop.
+- When the server is back, everything the tech pressed goes to every screen, each press as of when it was made, so a timer started offline five minutes ago shows five minutes gone.
+- The latest change wins: if someone changed that room's timer at the server during the drop, presses made before that change are left out, and the tech is told.
+
+**The app opens the workspace even when the server is down**
+- The AT-SUIT app keeps a copy of the workspace on the laptop each time it opens. If the server can't be reached when the app starts (it's restarting, or the laptop is off the venue network), the workspace opens from that copy with the room's timer where it should be, instead of a "can't reach the server" page.
+- The timer works as above, and the presses reach the server when it's back. Chat waits for the server.
+- Only the workspace and what it needs to start are kept, never chat, help calls or captions. Re-enrolling the laptop forgets the copy.
+
+**A new look**
+- AT-SUIT has a cleaner, calmer look throughout: neater buttons, boxes and tabs, clearer text and a darker sidebar, in the dark and light themes.
+- A new **Match the laptop** theme follows Windows' light or dark setting.
+
+**The AI helper knows show-day tech**
+- The AI helper now has a built-in tech guide with over 70 show-day fixes: feedback, dead mics, radio mic dropouts, hum, laptop sound, no signal, flicker, PowerPoint on the wrong screen, clickers, hybrid-event echo, streams, lighting, power, safety, comms, calling cues, changeovers and AT-SUIT itself.
+- It's built into AT-SUIT, so it works offline and nothing leaves your network. Your venue notes and past fixes always come first; the guide fills in what they don't cover.
+- With a private AI model it uses both to write the answer. Admins can turn the guide off in Settings → AI helper.
+
+**Laptop health, like a task manager**
+- Every laptop running the AT-SUIT app now reports its CPU, memory (and how much AT-SUIT itself uses), disk space, network addresses, screens, mains or battery, popped-out windows and the overlay with each heartbeat.
+- **Laptops & screens** shows a CPU and memory bar for each laptop, going amber at 75% and red at 90%. **Details** opens that laptop's task manager, with the last 15 minutes of CPU and memory as graphs, refreshed every 5 seconds.
+- The numbers are kept in the server's memory only, for 15 minutes, and forgotten when a laptop is removed.
+
+**Install now is instant**
+- Pressing **Install now** in Settings → Updates starts the update straight away, instead of at the server's next 10-minute check. It also asks GitHub first, so a release published a minute ago is found without pressing Check now.
+- **Install by itself** also starts as soon as the server sees a new version. As always, nothing installs while a show is on.
+- Servers already set up get this by themselves on their next automatic update. It works from the update after 1.8.0 is installed.
+
+**Screen snapshots (off by default)**
+- An admin can let managers see small snapshots of a laptop's screens (Settings → General → Privacy). They show under the laptop's Details, one per screen.
+- A laptop only takes them while a manager has its Details open, and stops within 30 seconds of them closing it. The tech sees a note at the bottom of their workspace the whole time.
+- Snapshots go straight to your own server and are held in memory only: never saved to disk or the database, never in backups, and gone when you turn snapshots off.
+
 ## 1.0.10
 
 **Passwords**

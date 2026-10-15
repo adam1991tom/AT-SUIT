@@ -29,6 +29,13 @@ report() { docker exec atsuit python -m atsuit.updates report "$@" >/dev/null 2>
 AUTO=0 WANT="" TOKEN=""
 if [ "${1:-}" = "--auto" ]; then
   AUTO=1
+  # Install now's file (see install.sh) has done its job: remove it first, so it can't start us again.
+  [ -n "${ATSUIT_UPDATE_FLAG:-}" ] && rm -f "$ATSUIT_UPDATE_FLAG"
+  # Updaters set up before Install now started at once get that part now.
+  if [ "$(id -u)" = 0 ] && [ ! -f /etc/systemd/system/atsuit-update.path ] && [ -f /etc/systemd/system/atsuit-update.service ] \
+     && ! grep -q '^Environment=ATSUIT_UPDATE_FLAG=' /etc/systemd/system/atsuit-update.service; then
+    bash ./install.sh --updater >/dev/null 2>&1 || true
+  fi
   docker ps --format '{{.Names}}' | grep -qx atsuit || exit 0  # not running: nothing to ask
   PLAN="$(docker exec atsuit python -m atsuit.updates plan 2>/dev/null)" || exit 0
   plan() { printf '%s\n' "$PLAN" | sed -n "s/^$1=//p" | head -1; }

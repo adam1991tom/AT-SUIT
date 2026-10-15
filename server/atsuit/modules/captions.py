@@ -11,19 +11,22 @@ live to the screens."""
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
+import shutil
+import threading
 import time
 from collections import deque
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from .. import asr, config, db, dsp
 from ..hub import hub
-from ..security import Principal, decrypt, encrypt, require_admin, require_tech, require_user, ws_principal
+from ..security import Principal, decrypt, encrypt, require_admin, require_node, require_tech, require_user, ws_principal
 from . import cluster
 from .core import modules_enabled, require_module, room_or_404, site_ok
 
@@ -75,6 +78,7 @@ class RoomState:
         self.transcript_id: int | None = None
         self.auto_transcript = False  # started by the room's "record" switch, ends with the mic
         self.eq = dsp.GraphicEQ()
+        self.local = False  # the laptop recognises speech itself and sends text, not audio
         self.options: dict = {"music_label": True, "join_acronyms": True, "sentence_case": False}
 
 
@@ -357,36 +361,44 @@ async def audio_in(ws: WebSocket, room_id: int):
         await ws.close(code=4000)
         return
     st = apply_room_config(room_id, cfg)
-    active = sum(1 for r in rooms.values() if r.ws)
-    if not st.ws and active >= cluster.capacity():
-        await ws.send_json({"type": "error", "message": "The server is captioning as many rooms as it can"})
-        await ws.close(code=4001)
-        return
-    try:
-        session = await cluster.start_session(room_id, st.options)
-    except RuntimeError as exc:
-        await ws.send_json({"type": "error", "message": str(exc)})
-        await ws.close(code=4002)
-        return
+    local = ws.query_params.get("mode") == "local"
+    session = None
+    if not local:
+        active = sum(1 for r in rooms.values() if r.ws and not r.local)
+        if not (st.ws and not st.local) and active >= cluster.capacity():
+            await ws.send_json({"type": "error", "message": "The server is captioning as many rooms as it can"})
+            await ws.close(code=4001)
+            return
+        try:
+            session = await cluster.start_session(room_id, st.options)
+        except RuntimeError as exc:
+            await ws.send_json({"type": "error", "message": str(exc)})
+            await ws.close(code=4002)
+            return
     if st.ws:  # newest source wins, so a tech can take over from another laptop
         try:
             await st.ws.send_json({"type": "replaced", "by": p.name})
             await st.ws.close(code=4010)
         except Exception:
             pass
-    st.ws, st.source, st.started, st.session = ws, p.name, time.time(), session
+    st.ws, st.source, st.started, st.session, st.local = ws, p.name, time.time(), session, local
     if settings.get("record") and not st.transcript:
         _start_transcript(st, room_id)
         st.auto_transcript = True
-    await ws.send_json({"type": "ready", "sample_rate": asr.SAMPLE_RATE})
+    await ws.send_json({"type": "ready", "sample_rate": asr.SAMPLE_RATE, "mode": "local" if local else "server",
+                        **({"audio": audio_for_laptop(cfg)} if local else {})})
     room_event(room_id, "captions_on", p.name)
-    await hub.publish(f"captions:{room_id}", "status", {"live": True, "source": p.name})
+    await hub.publish(f"captions:{room_id}", "status", {"live": True, "source": p.name, "local": local})
     last_level = 0.0
+    keep = asr.case_words(all_vocabulary()) if local else None
     try:
         while True:
             msg = await ws.receive()
             if msg.get("type") == "websocket.disconnect":
                 break
+            if local:
+                await laptop_message(room_id, st, msg.get("text"), keep)
+                continue
             data = msg.get("bytes")
             if not data:
                 continue
@@ -407,13 +419,132 @@ async def audio_in(ws: WebSocket, room_id: int):
     except WebSocketDisconnect:
         pass
     finally:
-        await session.close()
+        if session is not None:
+            await session.close()
         if st.ws is ws:
-            st.ws, st.source, st.partial, st.session = None, "", "", None
+            st.ws, st.source, st.partial, st.session, st.local = None, "", "", None, False
             if st.auto_transcript:  # one started by hand keeps going until Stop
                 _stop_transcript(st, room_id)
             room_event(room_id, "captions_off")
             await hub.publish(f"captions:{room_id}", "status", {"live": False, "source": ""})
+
+
+async def laptop_message(room_id: int, st: RoomState, raw: str | None, keep: dict | None) -> None:
+    """One message from a laptop that captions by itself: what it heard (the recogniser's raw
+    result, tidied here exactly as the server's own are) or its mic level."""
+    try:
+        m = json.loads(raw or "")
+    except ValueError:
+        return
+    if not isinstance(m, dict):
+        return
+    kind = m.get("type")
+    if kind == "level":
+        rta = [float(x) for x in (m.get("rta") or [])][:dsp.RTA_NUM_BANDS] if isinstance(m.get("rta"), list) else []
+        st.level = max(-100.0, min(0.0, float(m.get("db") or -100)))
+        await hub.publish(f"captions:{room_id}", "level", {"db": st.level, "rta": rta})
+    elif kind in ("partial", "final"):
+        text = str(m.get("text") or "")[:2000].strip()
+        tokens = [str(t) for t in (m.get("tokens") or [])][:1000]
+        probs = [float(x) for x in (m.get("ys_probs") or [])][:1000]
+        words = asr.words_from_tokens(tokens, probs) if text else []
+        text, words = asr.tidy(text, words, st.options, keep) if text else ("", [])
+        if kind == "final":
+            if not text:
+                return
+            if st.options.get("music_label", True) and asr.is_filler_spam(text):
+                text, words = asr.MUSIC_LABEL, []
+        elif not text or text == st.partial:
+            return
+        await caption_event(room_id, st, kind, text, words)
+
+
+def audio_for_laptop(cfg: dict) -> dict:
+    return {"gain_db": cfg["gain_db"], "eq_band_gains_db": cfg["eq_band_gains_db"], "eq_bands_hz": dsp.EQ_BANDS_HZ,
+            "band_q": dsp.BAND_Q}
+
+
+# The speech model for laptops that caption by themselves. They fetch it from this server once
+# (nothing from the internet), with this venue's vocabulary as a hotwords file.
+LAPTOP_DIR = "laptop"
+_prep = {"state": "idle", "detail": "", "progress": 0.0, "key": ""}
+_prep_lock = threading.Lock()
+
+
+def laptops_caption(c) -> bool:
+    return bool(db.get_setting(c, "captions_on_laptops", True))
+
+
+def _laptop_files() -> dict[str, "asr.Path"] | None:
+    model_dir = config.cfg.models / config.cfg.asr_model
+    files = asr.model_files(model_dir)
+    if not files:
+        return None
+    out = config.cfg.models / LAPTOP_DIR
+    hot = out / "hotwords.txt"
+    tokens = out / "tokens.txt"
+    return {"encoder.onnx": files["encoder"], "decoder.onnx": files["decoder"], "joiner.onnx": files["joiner"],
+            "tokens.txt": tokens if tokens.is_file() else files["tokens"], "hotwords.txt": hot}
+
+
+def _prepare_laptop_model(vocab: list[str], score: float) -> None:
+    """Blocking: download the model if this server hasn't got it, then build the hotwords."""
+    with _prep_lock:
+        try:
+            model_dir = config.cfg.models / config.cfg.asr_model
+            if not asr.model_files(model_dir):
+                _prep.update(state="downloading", detail="The server is downloading the speech model (once)", progress=0.0)
+                asr.download_model(config.cfg.asr_model, config.cfg.models, lambda p: _prep.update(progress=p))
+            files = asr.model_files(model_dir)
+            out = config.cfg.models / LAPTOP_DIR
+            out.mkdir(parents=True, exist_ok=True)
+            asr.build_hotwords(vocab, files["tokens"], out / "hotwords.txt")
+            if (out / "hotwords.txt").stat().st_size:
+                asr.hotword_tokens(files["tokens"], out / "tokens.txt")
+            else:
+                shutil.copyfile(files["tokens"], out / "tokens.txt")
+            _prep.update(state="ready", detail="", progress=100.0, key=_laptop_key(vocab, score))
+        except Exception as exc:  # network, disk
+            _prep.update(state="error", detail=f"The server couldn't get the speech model: {exc}"[:300])
+
+
+def _laptop_key(vocab: list[str], score: float) -> str:
+    return hashlib.sha256(json.dumps([config.cfg.asr_model, vocab, score]).encode()).hexdigest()[:16]
+
+
+@router.get("/api/nodes/captions/model")
+async def laptop_model(p: Principal = Depends(require_node)):
+    """What a laptop needs to caption by itself: the model's files and this venue's vocabulary.
+    `key` changes when the vocabulary does, so the laptop knows to fetch the small files again."""
+    with db.ro() as c:
+        on = laptops_caption(c)
+        score = hotwords_score(c)
+    if not on:
+        return {"state": "off", "detail": "Captions are made on the server (Settings → General)"}
+    vocab = all_vocabulary()
+    key = _laptop_key(vocab, score)
+    if _prep["state"] != "downloading" and (_prep["key"] != key or not _laptop_files()):
+        if asr.model_files(config.cfg.models / config.cfg.asr_model):
+            await asyncio.to_thread(_prepare_laptop_model, vocab, score)
+        elif not config.cfg.asr_enabled:  # captions are switched off on this server: nothing to fetch
+            return {"state": "off", "detail": "This server has no speech model"}
+        elif not _prep_lock.locked():
+            _prep.update(state="downloading", detail="The server is downloading the speech model (once)", progress=0.0)
+            threading.Thread(target=_prepare_laptop_model, args=(vocab, score), daemon=True).start()
+    if _prep["state"] != "ready" or _prep["key"] != key:
+        return {"state": _prep["state"] if _prep["state"] != "ready" else "downloading", "detail": _prep["detail"],
+                "progress": round(_prep["progress"], 1)}
+    files = _laptop_files() or {}
+    return {"state": "ready", "model": config.cfg.asr_model, "key": key, "hotwords_score": score,
+            "files": [{"name": n, "size": f.stat().st_size, "small": n in ("tokens.txt", "hotwords.txt")} for n, f in files.items()]}
+
+
+@router.get("/api/nodes/captions/model/{name}")
+def laptop_model_file(name: str, p: Principal = Depends(require_node)):
+    f = (_laptop_files() or {}).get(name)
+    if not f or not f.is_file():
+        raise HTTPException(404, "No such model file")
+    return FileResponse(f, media_type="application/octet-stream")
 
 
 async def caption_event(room_id: int, st: RoomState, kind: str, text: str, words: list[dict] | None = None) -> None:
@@ -544,7 +675,12 @@ async def save_settings(room_id: int, body: SettingsIn, p: Principal) -> dict:
         db.audit(c, p.name, "captions.settings", f"room {room_id}")
         cfg = room_config(c, room_id)
         out = _settings_out(c, room_id)
-    apply_room_config(room_id, cfg)
+    st = apply_room_config(room_id, cfg)
+    if st.ws and st.local:  # the laptop does the EQ and the listening: tell it
+        try:
+            await st.ws.send_json({"type": "audio", "audio": audio_for_laptop(cfg), "vocabulary": reload_engine})
+        except Exception:
+            pass
     if appearance_changed:
         await hub.publish(f"captions:{room_id}", "appearance", cfg["appearance"])
     if reload_engine and (asr.engine.state in ("ready", "error") or cluster.links):

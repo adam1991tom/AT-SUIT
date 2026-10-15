@@ -20,6 +20,9 @@ const path = require("path");
 const os = require("os");
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, net, screen, session, shell } = require("electron");
 const config = require("./config");
+const health = require("./health");
+const captions = require("./captions");
+const offlineCopy = require("./offline-copy");
 
 if (process.env.ATSUIT_NODE_USERDATA) app.setPath("userData", process.env.ATSUIT_NODE_USERDATA);
 
@@ -78,7 +81,7 @@ function boot() {
   });
 
   app.on("window-all-closed", (e) => e.preventDefault());
-  app.on("before-quit", () => { quitting = true; });
+  app.on("before-quit", () => { quitting = true; captions.quit(); });
 }
 
 // ------------------------------------------------------------- windows --
@@ -91,6 +94,8 @@ function lockDownSession() {
     cb(permission === "media" && fromServer(details.requestingUrl || wc.getURL()));
   });
   ses.setPermissionCheckHandler((wc, permission, requestingOrigin) => permission === "media" && fromServer(requestingOrigin));
+  // The workspace opens from its copy on this laptop when the server can't be reached.
+  offlineCopy.start(ses, origin);
   // The overlay may show any page a tech chooses: it gets its own session
   // with no permissions at all (no mic, no notifications).
   const ov = session.fromPartition(OVERLAY_PARTITION);
@@ -491,6 +496,28 @@ function ipc() {
   ipcMain.handle("app:notify", (e, n) => (fromMain(e) ? showPopup(n || {}) : false));
   ipcMain.handle("app:overlay", (e, cfg) => (fromMain(e) ? applyOverlay(cfg && typeof cfg === "object" ? cfg : {}) : { ok: false }));
   ipcMain.handle("app:overlay-state", (e) => (fromMain(e) ? overlayState() : {}));
+  ipcMain.handle("app:system", (e) => (fromMain(e) ? health.system({
+    windows: [...pops.values()].filter((w) => !w.isDestroyed()).length,
+    overlay: !!(overlayWin && !overlayWin.isDestroyed() && overlayWin.isVisible()),
+  }) : null));
+  ipcMain.handle("app:snapshot", (e) => (fromMain(e) ? health.snapshot() : []));
+  // Captions made on this laptop: the page sends the mic, the engine sends back what it heard.
+  captions.setListener((m) => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send("captions:event", m); });
+  ipcMain.handle("captions:prepare", (e) => (fromMain(e) ? captions.prepare(conf.server, config.getToken(conf)) : { ok: false }));
+  ipcMain.handle("captions:state", (e) => (fromMain(e) ? captions.state() : {}));
+  ipcMain.on("captions:start", (e, audio) => { if (fromMain(e)) captions.start(audio); });
+  ipcMain.on("captions:audio", (e, audio) => { if (fromMain(e)) captions.audio(audio); });
+  ipcMain.on("captions:feed", (e, pcm) => { if (fromMain(e)) captions.feed(pcm); });
+  // The timer as the workspace worked it out offline (offline-timer.js): the overlay shows it too.
+  ipcMain.on("timer:local", (e, state) => {
+    if (!fromMain(e) || !state || !overlayWin || overlayWin.isDestroyed()) return;
+    let room = "";
+    try { room = new URL(overlayWin.webContents.getURL()).pathname.split("/")[2] || ""; } catch (_) {}
+    if (room !== String(state.room_id)) return;
+    const detail = JSON.stringify(state).replace(/</g, "\\u003c");
+    overlayWin.webContents.executeJavaScript(`document.dispatchEvent(new CustomEvent("atsuit:timer", { detail: ${detail} }))`).catch(() => {});
+  });
+  ipcMain.on("captions:stop", (e) => { if (fromMain(e)) captions.stop(); });
   ipcMain.handle("app:popout-top", (e, name, on) => {
     const w = fromMain(e) && pops.get(String(name));
     if (!w || w.isDestroyed()) return false;
@@ -502,6 +529,7 @@ function ipc() {
     // The server no longer knows this laptop (removed in Nodes): enrol again.
     config.setToken(conf, "");
     config.save(conf);
+    offlineCopy.clear();
     openSetup("This laptop was removed from AT-SUIT. Enter the enrolment code to add it again.");
     if (mainWin) { mainWin.destroy(); mainWin = null; }
     return true;

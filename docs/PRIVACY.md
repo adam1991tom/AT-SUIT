@@ -26,10 +26,14 @@ all of them without breaking a show:
 
 ## Captions
 
-- Speech is turned into text **on the venue's server** by an offline speech
-  model (sherpa-onnx). Audio never leaves the venue's network, and neither does
-  the text. If the venue adds helper servers to share the work, audio goes to
-  those, on the same network.
+- Speech is turned into text by an offline speech model (sherpa-onnx), **on the
+  tech's laptop** when it runs the AT-SUIT app, so only the text goes to the
+  venue's server and the audio never leaves the laptop. The app gets the model
+  from the venue's own server, not the internet. Browsers, older apps, or a venue
+  that turns this off (Settings → General) send the audio to the venue's server
+  instead, which does the same work there.
+- Audio never leaves the venue's network, and neither does the text. If the venue
+  adds helper servers to share the work, audio goes to those, on the same network.
 - Audio is never stored. Only the finished caption lines are kept, and only while
   a transcript is being recorded.
 - Transcripts are **stored encrypted** with the server's own key, so a copied file
@@ -37,6 +41,13 @@ all of them without breaking a show:
 - Transcripts are **deleted automatically 12 hours after they end** (an admin can
   set 1 to 168 hours in Settings → General). Export them for the client as text,
   SRT or VTT before then. A transcript still recording is never cut short.
+
+## Laptop screen snapshots
+
+Off unless an admin turns them on. A laptop only sends small pictures of its
+screens while a manager has that laptop open on the console, the tech sees a
+note on their screen the whole time, and the pictures are only ever held in the
+server's memory.
 
 ## People and passwords
 
@@ -55,6 +66,8 @@ all of them without breaking a show:
 | Crew chat and help requests | Until deleted, or the number of days set in Settings → General |
 | Handover notes (encrypted) | Until ticked off, then 30 days |
 | Show reports | As long as the venue keeps them |
+| Laptop health (CPU, memory, disk, network) | In the server's memory for 15 minutes; never saved |
+| Laptop screen snapshots (off by default) | In the server's memory while a manager is looking; never saved |
 | Presenter details (name, email, phone) | Until the session is deleted |
 | Audit log | On the server, for the venue's own records |
 

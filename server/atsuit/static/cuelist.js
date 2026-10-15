@@ -13,6 +13,8 @@ const CueList = (() => {
 
   function mount(el, roomId) {
     let s = null, cues = [], editing = null;
+    // Timer presses go through TimerLink (offline-timer.js), so the timer keeps working on this laptop without the server.
+    const link = (path, body) => window.TimerLink ? TimerLink.post(roomId, path, body) : post(`/api/timers/${roomId}/${path}`, body);
     el.innerHTML = `
       <div class="row" style="justify-content:space-between"><h3>Room timer</h3>
         <span class="small"><select data-views title="Open a timer view in a new window" style="width:auto;padding:.15rem .3rem;font-size:.85rem"><option value="">Timer views ↗</option></select></span></div>
@@ -54,6 +56,7 @@ const CueList = (() => {
     const panel = window.TimerPanel ? TimerPanel.mount($("[data-tp]"), roomId) : null;
 
     function renderList() {
+      window.TimerLink?.cues(cues);
       $("[data-count]").textContent = cues.length ? `${cues.length} cue${cues.length === 1 ? "" : "s"}` : "";
       $("[data-list]").innerHTML = cues.map((q, i) => `
         <div class="cue ${q.id === s?.cue?.id ? "now" : ""} ${q.skip ? "skip" : ""}" data-q="${q.id}" style="border-left-color:${esc(q.colour || "transparent")}">
@@ -64,7 +67,7 @@ const CueList = (() => {
             <button class="small danger" data-del title="Delete">✕</button></span></div>`).join("") || '<p class="muted small">No cues yet. Add the running order below, or bring in an Ontime file.</p>';
       $("[data-list]").querySelectorAll("[data-q]").forEach((row) => {
         const id = +row.dataset.q, i = cues.findIndex((q) => q.id === id);
-        row.querySelector("[data-load]").onclick = () => guard(() => post(`/api/timers/${roomId}/load`, { cue_id: id }));
+        row.querySelector("[data-load]").onclick = () => act("load", { cue_id: id });
         row.querySelector("[data-edit]").onclick = () => startEdit(cues[i]);
         row.querySelector("[data-del]").onclick = () => confirm(`Delete cue ${cues[i].cue || ""} ${cues[i].title}${s && s.cue && s.cue.id === id ? " (it's on the timer now)" : ""}?`) && guard(() => del(`/api/timers/${roomId}/cues/${id}`));
         const move = (d) => { const ids = cues.map((q) => q.id); ids.splice(i + d, 0, ids.splice(i, 1)[0]); guard(() => post(`/api/timers/${roomId}/cues/reorder`, { ids })); };
@@ -102,7 +105,7 @@ const CueList = (() => {
       e.target.value = "";
     };
     // Every timer button shows its result straight away from the reply, without waiting for the live feed.
-    const act = (path, body) => guard(() => post(`/api/timers/${roomId}/${path}`, body)).then(apply, () => {});
+    const act = (path, body) => guard(() => link(path, body)).then(apply, () => {});
     el.querySelectorAll("[data-a]").forEach((b) => b.onclick = () => act(b.dataset.a));
     el.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => act("add", { delta_ms: +b.dataset.add }));
     $("[data-show]").onclick = () => {
@@ -127,9 +130,12 @@ const CueList = (() => {
     // The newest state wins, whether it came back from a button or over the live feed.
     function apply(x) {
       if (!x || x.room_id !== roomId || !("remaining_ms" in x)) return x;
-      if (s && x.server_time < s.server_time) return x;
+      // While presses made offline wait to be sent, this laptop's own timer is the one to show.
+      if (window.TimerLink?.pending() && !x._local) return x;
+      if (s && x.server_time < s.server_time && !(s._local && !x._local)) return x;
       const was = s?.cue?.id;
-      AT.stamp(x, s); s = x; panel?.update(s); draw();
+      if (!x._local) AT.stamp(x, s);
+      s = x; window.TimerLink?.seen(s); panel?.update(s); draw();
       if (was !== s.cue?.id) renderList();
       return x;
     }

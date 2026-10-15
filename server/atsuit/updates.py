@@ -38,6 +38,7 @@ REPO_DEFAULT = "adam1991tom/AT-SUIT-releases"
 REPO_SOURCE = "adam1991tom/AT-SUIT"
 MODES = ("auto", "notify", "off")
 CHECK_EVERY_S = 30 * 60  # a new release shows within half an hour; GitHub allows 60 calls an hour without a token
+FLAG = "update-now"  # in the data folder: the host's atsuit-update.path starts update.sh as soon as it appears
 HOST_SEEN_S = 30 * 60  # the host updater runs every few minutes; older than this, it isn't set up
 REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 TAG_RE = re.compile(r"^[A-Za-z0-9_.-]{1,40}$")
@@ -150,6 +151,14 @@ def fetch_latest(repo: str, token: str) -> dict:
     }
 
 
+def poke(version: str) -> None:
+    """Start the host updater now instead of at its next 10-minute run."""
+    try:
+        (config.cfg.data / FLAG).write_text(version + "\n")
+    except OSError as exc:
+        print("updates: can't start the host updater now:", exc)
+
+
 def check() -> dict:
     """Ask GitHub for the newest release and remember it; then make sure the laptops' app matches."""
     with db.ro() as c:
@@ -166,6 +175,10 @@ def check() -> dict:
             latest = fetch_latest(REPO_SOURCE, cf["token"])
         with db.tx() as c:
             save_state(c, latest=latest, checked_at=db.now_iso(), error="")
+            st = status(c)
+        # Install by itself: don't wait for the host's next run either (it still won't install mid-show).
+        if cf["mode"] == "auto" and st["available"] and not st["live"] and latest["version"] not in st["failed"]:
+            poke(latest["version"])
     except Exception as exc:
         with db.tx() as c:
             save_state(c, checked_at=db.now_iso(), error=str(exc)[:300] or exc.__class__.__name__)
@@ -265,15 +278,19 @@ async def check_updates(p: Principal = Depends(require_admin)):
 
 @router.post("/api/admin/updates/install")
 def install_now(p: Principal = Depends(require_admin)):
-    """Ask the host updater to install the newest release on its next run (within a few minutes),
-    whatever the mode, but still not while a show is on."""
+    """Install the newest release now, whatever the mode, but still not while a show is on.
+    It asks GitHub first, so a release published a minute ago counts."""
+    check()
     with db.tx() as c:
         st = status(c)
         if not st["available"]:
-            raise HTTPException(400, "There is no newer version to install. Check for updates first.")
+            raise HTTPException(400, f"There is no newer version to install. This server is on {VERSION}"
+                                + (f" and the newest release is {st['latest']['version']}." if st["latest"] else "."))
         save_state(c, requested=st["latest"]["version"])
         db.audit(c, p.name, "updates.install_now", st["latest"]["version"])
-        return status(c)
+        out = status(c)
+    poke(out["requested"])
+    return out
 
 
 @router.delete("/api/admin/updates/install")
