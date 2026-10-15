@@ -5,7 +5,7 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
-## 1.8.1
+## 1.8.2
 
 **Ready for the new name, AT SUITE**
 - Updates look for releases under the new GitHub names (`AT-SUITE-releases`, then `AT-SUITE`) and fall back to the old `AT-SUIT` names until the repositories are renamed. Servers and laptops keep updating before, during and after the rename.
