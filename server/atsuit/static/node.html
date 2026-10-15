@@ -66,6 +66,32 @@
   .pv-big { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.75); display: grid; place-items: center; }
   .pv-bigbox { width: min(92vw, 1200px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .8rem; }
   .pv-bigframe { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; } .pv-bigframe iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  /* the live strip in the top bar (static/livebar.js): the time, the timer, screens, captions, the session, notes */
+  .livebar { flex: 1 1 0; min-width: 0; display: flex; gap: .4rem; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .lb { padding: .2rem .5rem; font-size: .85rem; gap: .35rem; white-space: nowrap; max-width: 100%; }
+  .lb .lb-k { color: var(--muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; }
+  .lb .lb-s { color: var(--muted); font-size: .8rem; }
+  .lb .lb-sub { max-width: 13rem; overflow: hidden; text-overflow: ellipsis; }
+  .lb .clock { font-size: 1.05rem; }
+  .lb-clock { background: transparent; border-color: transparent; cursor: default; padding-inline: .2rem; } .lb-clock .clock { font-size: 1.25rem; }
+  .lb-clock:hover { border-color: transparent; }
+  .lb.warn { border-color: var(--warn); } .lb.bad { border-color: var(--bad); } .lb.good { border-color: var(--good); }
+  .lb.lit .lb-k, .lb.lit .lb-s { color: inherit; } .lb .lb-new { background: var(--panel); color: var(--text); border-color: transparent; }
+  .lb .lb-flag { font-size: .72rem; }
+  /* narrower screens drop the detail first, then captions, the session and what's on stage */
+  @media (max-width: 1750px) { .lb .lb-sub { max-width: 8rem; } .lb .lb-s, .lb-cap { display: none; } }
+  @media (max-width: 1500px) { .lb-sess { display: none; } }
+  @media (max-width: 1300px) { .lb .lb-sub, .lb .lb-flag { display: none; } .top { gap: .5rem; } }
+  @media (max-width: 700px) { .livebar { order: 10; flex-basis: 100%; justify-content: flex-start; } }
+  /* handover notes (static/notes-panel.js) */
+  .hn-pane { min-height: 200px; }
+  .hn-add textarea, .hn textarea { width: 100%; resize: vertical; }
+  .hn-pin { display: flex; gap: .35rem; align-items: center; margin: 0; } .hn-pin input { width: auto; margin: 0; }
+  .hn { margin-top: .5rem; padding: .5rem .6rem; background: var(--panel2); border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: 0 8px 8px 0; }
+  .hn.pin { border-left-color: var(--accent); } .hn.new { border-left-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset; }
+  .hn.off { opacity: .65; } .hn.off .hn-body { text-decoration: line-through; }
+  .hn-body { white-space: normal; overflow-wrap: anywhere; } .hn-foot { margin-top: .35rem; gap: .3rem; }
+  .hn-done { margin-top: .8rem; } .hn-done summary { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -116,7 +142,7 @@
     <button class="small ver hidden" id="topVer" title="This app's version. Click for updates."></button>
     <span class="muted" id="who"></span><span class="pill hidden" id="modePill"></span>
     <select id="room" style="width:auto"></select>
-    <span class="grow"></span>
+    <div class="livebar" id="liveBar"></div>
     <span class="pill" id="conn">connecting</span>
     <div class="drop"><button id="bellBtn" title="Notifications" aria-label="Notifications">🔔<span class="unread hidden" id="bellCount"></span></button>
       <div class="dropdown hidden" id="bellBox"></div></div>
@@ -193,6 +219,8 @@
   <section data-win="links" data-title="Links" hidden><input id="linkFind" placeholder="Find a link" style="margin-bottom:.5rem"><div id="links" style="max-height:60vh;overflow:auto"></div></section>
 
   <section class="chat-pane" id="chatPane" hidden><div class="chat-mount" id="chat"></div></section>
+
+  <section class="hn-pane" id="notesPane" hidden><div id="notesBox"></div></section>
 </div>
 <iframe id="kiosk" class="hidden" allow="autoplay; fullscreen"></iframe>
 <div id="ident" class="hidden"></div>
@@ -204,6 +232,7 @@
 <script src="/static/timerpanel.js"></script>
 <script src="/static/cuelist.js"></script>
 <script src="/static/desk.js"></script>
+<script src="/static/livebar.js"></script><script src="/static/notes-panel.js"></script>
 <script src="/static/pairing.js"></script><script src="/static/captions-panel.js"></script><!-- screens2: Add a screen + caption settings -->
 <script>
 (async () => {
@@ -212,7 +241,7 @@
   // Inside the AT-SUIT Node Windows app the app owns enrolment and pop-ups.
   const APP = window.atsuitApp || null;
   const VERSION = APP ? `app-${await APP.version()}` : "web-0.1.0";
-  let nodeToken = null, node = null, boot = null, roomId = null, sock = null, chat = null;
+  let nodeToken = null, node = null, boot = null, roomId = null, sock = null, chat = null, notes = null;
   if (APP) nodeToken = await APP.nodeToken();
   else try { nodeToken = localStorage.getItem("atsuit_node_token"); } catch (_) {}
   const nodeHdr = () => (nodeToken ? { Authorization: `Node ${nodeToken}` } : {});
@@ -382,6 +411,9 @@
   if (techLaptop()) { $("consoleBtn").textContent = "Admin"; $("consoleBtn").href = "/?shared=1#/dashboard"; $("consoleBtn").title = "For admins: sign in to the console"; $("consoleBtn").classList.remove("hidden"); }
   else if (["admin", "manager"].includes(boot.me.role)) $("consoleBtn").classList.remove("hidden");
 
+  // The live strip in the top bar: each part opens the window it comes from.
+  const liveBar = ATLiveBar.mount($("liveBar"), { modules: boot.modules, open: (id) => ATDesk.open(id) });
+
   // This laptop: main or backup PC, and silent pop-ups (Windows app only).
   if (APP && techLaptop()) {
     await APP.setSettings({ popups: mode === "backup" }); // the app follows what the tech picked
@@ -498,6 +530,7 @@
     ATDesk.add("capmini", $("capMini"), "Captions");
     ATDesk.add("pair", $("pairMini"), "Add a screen");
     ATDesk.add("sessmini", $("sessMini"), "Now and next");
+    ATDesk.add("notes", $("notesPane"), "Handover notes");
     document.querySelectorAll("[data-win]").forEach((w) => ATDesk.add(w.dataset.win, w, w.dataset.title));
     ATDesk.title("captions", "Captions controls");
     ["sessmini", "sessions", "overlays", "screens"].forEach((id) => ATDesk.available(id, false)); // until there is something to show
@@ -512,7 +545,7 @@
     F = T.dock(F, "quick", gid(F, "timer"), "right");
     F = T.dock(F, ["messages", "second"], gid(F, "quick"), "center");
     F = T.dock(F, "capmini", gid(F, "chat"), "bottom");
-    F = T.dock(F, ["pair", "sessmini"], gid(F, "capmini"), "center");
+    F = T.dock(F, ["pair", "sessmini", "notes"], gid(F, "capmini"), "center");
     F = T.activate(F, "quick"); F = T.activate(F, "capmini");
     F = T.resize(F, [], [0.68, 0.32]); F = T.resize(F, [0], [0.58, 0.42]); F = T.resize(F, [0, 0], [0.62, 0.38]); F = T.resize(F, [1], [0.6, 0.4]);
     F.closed.push(...WINS);
@@ -524,7 +557,7 @@
   // The timer reaching its warning, danger and overtime is worth a note.
   let tstate = null, tphase = "", trun = "";
   if (boot.modules.timers) {
-    api(`/api/timers/${roomId}`).then((s) => { tstate = s; }).catch(() => {});
+    api(`/api/timers/${roomId}`).then((s) => { tstate = s; liveBar.timer(s); }).catch(() => {});
     setInterval(() => {
       if (!tstate || tstate.playback !== "play") return;
       const run = `${tstate.cue?.id || ""}:${tstate.started_at || tstate.first_started_at || ""}:${tstate.duration_ms}`;
@@ -636,6 +669,7 @@
     if (!views.length) try { views = await api("/api/timers-views?screens=1"); } catch (_) {}
     const screens = all.filter((n) => n.kind === "kiosk" && n.room_id === roomId)
       .map((n) => ({ ...n, screen_view: n.screen_view === "stage" ? "hcc" : n.screen_view })); // the old Stage view is Standard now
+    liveBar.screens(screens);
     // Redraw only when something changed, so a tech typing in the list isn't interrupted by the refresh.
     const sig = JSON.stringify(screens.map((n) => [n.id, n.name, n.online, n.screen_view]));
     if (quiet && sig === screensSig) return;
@@ -702,6 +736,7 @@
     const todays = sessions.filter((s) => sDay(s.starts_at) === today);
     const now = todays.find(live), next = todays.find((s) => sTime(s.starts_at) > nowHm);
     ATDesk.available("sessmini", !!(now || next));
+    liveBar.session(now, next);
     $("sessMini").innerHTML = `<div class="row" style="justify-content:space-between"><h3>Sessions</h3><button class="small" data-openwin="sessions">Open</button></div>` +
       [["Now", now], ["Next", next]].filter(([, s]) => s).map(([k, s]) => `<div class="small" style="margin-top:.3rem"><span class="muted">${k} ${esc(sTime(s.starts_at))}</span> <b>${esc(s.title)}</b><div class="muted">${esc(s.presenters.map((p) => p.full_name + (p.checked_in_at ? " ✓" : "")).join(", "))}</div></div>`).join("");
     $("sessMini").querySelector("[data-openwin]").onclick = () => ATDesk.open("sessions");
@@ -713,6 +748,12 @@
     renderSessions();
     setInterval(renderSessions, 60000); // keeps "now" moving
   }
+
+  // handover notes: what one tech leaves for the next in this room, until someone ticks it off.
+  // Unread ones are a count on the window and in the top bar; nothing pops up.
+  notes = ATNotes.mount($("notesBox"), { roomId, me: boot.me.name,
+    onCount: (unseen, total) => { ATDesk.badge("notes", unseen); liveBar.notes(unseen, total); } });
+  setInterval(() => { if (ATDesk.isOpen("notes") && !document.hidden) notes.seen(); }, 1500);
 
   // chat: a window like the rest; its taskbar button counts what came in while it was out of sight
   let chatUnread = 0;
@@ -784,6 +825,7 @@
   function capStatus(live, source) {
     if (capLive && !live) problem(`Captions stopped in ${roomName}`, "Nothing is being captioned. Check the mic in Captions.");
     capLive = live;
+    liveBar.captions(live, source);
     $("capState").textContent = live ? (source ? `live · ${source}` : "live") : "off"; $("capState").className = "pill " + (live ? "good" : "");
   }
   if (boot.modules.captions) {
@@ -819,7 +861,8 @@
       if (h.room_id === roomId && h.status === "acknowledged" && h.assigned_to !== boot.me.name) alerts.add("good", `${h.assigned_to || "Someone"} is on the way`, what(h));
     }
     cuelist && cuelist.onEvent(evt);
-    if (evt.topic === `timer:${roomId}` && evt.type === "timer") tstate = evt.data;
+    if (evt.topic === `timer:${roomId}` && evt.type === "timer") { tstate = evt.data; liveBar.timer(tstate); }
+    notes && notes.onEvent(evt);
     if ((evt.type === "overlay.changed" || evt.type === "node.changed") && evt.topic === `room:${roomId}`) { clearTimeout(atOvTimer); atOvTimer = setTimeout(renderAtOverlay, 400); }
     if (evt.type === "presenter.changed" && evt.topic === `room:${roomId}` && boot.modules.presenter) { clearTimeout(sessTimer); sessTimer = setTimeout(renderSessions, 300); }
     if (evt.topic === `captions:${roomId}`) {
