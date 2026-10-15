@@ -1,4 +1,4 @@
-// The live strip in the middle of the tech workspace's top bar: the time at the venue, this room's
+// The live strip in the middle of the tech workspace's top bar: the time and weather at the venue, this room's
 // timer, its screens, captions, the session on now (or next) and the handover notes. Each one is a
 // button that opens the window it comes from. It only shows things: nothing here pops up or makes a sound.
 const ATLiveBar = (() => {
@@ -8,7 +8,7 @@ const ATLiveBar = (() => {
 
   function mount(el, { open, modules = {} }) {
     const chip = (key, title, base = "") => `<button type="button" class="lb ${base} hidden" data-lb="${key}" data-base="${base}" title="${esc(title)}"></button>`;
-    el.innerHTML = chip("clock", "The time at the venue", "lb-clock") + chip("timer", "This room's timer. Click to open it.") +
+    el.innerHTML = chip("clock", "The time at the venue", "lb-clock") + chip("weather", "The weather at the venue", "lb-wx") + chip("timer", "This room's timer. Click to open it.") +
       chip("session", "This room's sessions. Click to open them.", "lb-sess") + chip("screens", "The screens in this room. Click to open them.") +
       chip("captions", "Captions for this room. Click to open the controls.", "lb-cap") + chip("notes", "Handover notes for this room. Click to read them.");
     const $ = (k) => el.querySelector(`[data-lb="${k}"]`);
@@ -51,6 +51,20 @@ const ATLiveBar = (() => {
     }
     tick();
     setInterval(tick, 250);
+
+    // The weather at the venue, once an admin has set its town (Settings → General). Click for today's details.
+    let wx = null;
+    const deg = (t) => (t == null ? "–" : `${Math.round(t)}°`);
+    const wxDetail = () => wx && `${wx.place}: ${wx.text}, ${deg(wx.temp)}C (feels ${deg(wx.feels)}). Today ${deg(wx.low)} to ${deg(wx.high)}` +
+      `${wx.rain_chance != null ? `, ${wx.rain_chance}% chance of rain` : ""}, wind ${Math.round(wx.wind_mph ?? 0)} mph. Sunrise ${wx.sunrise}, sunset ${wx.sunset}.${wx.stale ? " (Last known: can't reach the forecast now.)" : ""}`;
+    $("weather").onclick = () => wx && AT.toast(wxDetail());
+    const loadWx = () => AT.api("/api/weather").then((w) => {
+      if (!w.place || !w.ok) { wx = null; $("weather").classList.add("hidden"); return; }
+      wx = w;
+      show("weather", `<span>${w.icon}</span><b>${deg(w.temp)}</b><span class="lb-s">${AT.esc(w.text)}</span>`, "", wxDetail());
+    }).catch(() => {});
+    loadWx();
+    setInterval(loadWx, 15 * 60000);
 
     return {
       timer(s) {

@@ -515,6 +515,28 @@
       <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form></div>`;
     const bf = a.querySelector("#brand");
     bf.onsubmit = (e) => { e.preventDefault(); guard(() => put("/api/admin/settings", { branding: Object.fromEntries(new FormData(bf)) })).then(() => location.reload()); };
+    // The weather in the tech workspace's top bar: each site picks its town.
+    const wxPanel = document.createElement("div");
+    wxPanel.className = "panel"; wxPanel.style.marginTop = "1rem";
+    a.append(wxPanel);
+    const drawWx = async () => {
+      const list = await api("/api/admin/weather");
+      wxPanel.innerHTML = `<h2>Venue weather</h2><p class="small muted" style="margin-top:0">Shows in the techs' top bar. Only the town's position is sent to the forecast service (Open-Meteo), and only once you pick a town.</p>` +
+        list.map((w) => `<div data-wsite="${w.site_id}" style="margin-bottom:.8rem"><b>${esc(w.site)}</b>: ${w.place ? esc(w.place.name) + ' <button class="small" data-woff>Turn off</button>' : '<span class="muted">off</span>'}
+          <div class="row" style="margin-top:.3rem"><input data-wq placeholder="Town or city, e.g. Harrogate" style="flex:1;width:auto"><button class="small" data-wfind>Find</button></div><div class="row" data-wres style="margin-top:.3rem;flex-wrap:wrap"></div></div>`).join("");
+      wxPanel.querySelectorAll("[data-wsite]").forEach((row) => {
+        const sid = row.dataset.wsite, res = row.querySelector("[data-wres]");
+        row.querySelector("[data-woff]")?.addEventListener("click", () => guard(() => del(`/api/admin/weather/${sid}`)).then(drawWx));
+        const find = () => guard(() => api(`/api/admin/weather/find?q=${encodeURIComponent(row.querySelector("[data-wq]").value)}`)).then((found) => {
+          if (!found) return;
+          res.innerHTML = found.length ? found.map((f, i) => `<button class="small" data-wi="${i}">${esc(f.name)}</button>`).join("") : '<span class="muted small">No places found.</span>';
+          res.querySelectorAll("[data-wi]").forEach((b) => b.onclick = () => guard(() => put(`/api/admin/weather/${sid}`, found[+b.dataset.wi])).then(() => { toast("Weather set", "good"); drawWx(); }));
+        });
+        row.querySelector("[data-wfind]").onclick = find;
+        row.querySelector("[data-wq]").onkeydown = (e) => { if (e.key === "Enter") find(); };
+      });
+    };
+    drawWx();
     const mf = a.querySelector("#mods");
     mf.onsubmit = (e) => {
       e.preventDefault();
@@ -611,6 +633,9 @@
     };
   }
 
+  // Where Report a bug sends people, for now.
+  const BUG_EMAIL = "adam.tomlinson@outlook.com";
+
   async function admInfo(a) {
     const i = await api("/api/admin/info"), sv = i.server, st = i.storage, n = i.nodes, c = i.counts;
     const kinds = { tech: "Tech laptops", screen: "Linux screens", caption: "Caption sources", kiosk: "Old kiosk agents" };
@@ -618,6 +643,11 @@
     const pill = (ok, yes, no) => `<span class="pill ${ok ? "good" : "warn"}">${ok ? yes : no}</span>`;
     a.innerHTML = `<div class="row" style="margin-bottom:1rem"><a class="btn primary" href="/api/admin/info?download=1">Download diagnostics</a><button id="copyInfo">Copy for a support ticket</button><button id="refresh">Refresh</button>
         <span class="muted small">No passwords, keys or tokens are included.</span></div>
+      <form class="panel" id="bug" style="margin-bottom:1rem"><h2>Report a bug</h2>
+        <p class="small muted" style="margin-top:0">Opens an email to the AT-SUIT team (${esc(BUG_EMAIL)}) in your email app, with this version and server filled in. Nothing is sent until you press Send there.</p>
+        <label>What went wrong?</label><input name="what" maxlength="120" required placeholder="e.g. The stage timer froze in Hall A">
+        <label>What were you doing, and what did you expect?</label><textarea name="steps" rows="4" maxlength="1500" placeholder="Steps, the room, the time it happened"></textarea>
+        <div class="row" style="margin-top:.6rem;justify-content:flex-end"><button class="primary">Write the email</button></div></form>
       <div class="grid">
       <div class="panel"><h2>This app</h2>${kv([["Product", esc(i.product)], ["Organisation", esc(i.organisation) || '<span class="muted">not set</span>'], ["Version", `<b>${esc(i.version)}</b>`],
         ["Build", esc(i.build.number)], ["Commit", `<code>${esc(i.build.commit)}</code>`], i.build.date && ["Built", esc(new Date(i.build.date).toLocaleString())], ["Database schema", i.schema],
@@ -642,6 +672,15 @@
         ["Your browser", `<span class="small">${esc(navigator.userAgent)}</span>`]])}</div>
       </div>`;
     a.querySelector("#refresh").onclick = () => admInfo(a);
+    const bug = a.querySelector("#bug");
+    bug.onsubmit = (e) => {
+      e.preventDefault();
+      // Short enough for every email app: the details people need, not the whole diagnostics file.
+      const body = `${bug.steps.value.trim() || "(no steps given)"}\n\n---\n${i.product} ${i.version} (build ${i.build.number}, ${i.build.commit}), schema ${i.schema}\n` +
+        `Organisation: ${i.organisation || "-"}. Licence: ${i.licence.licensee || "-"}\nServer: ${sv.hostname}, ${sv.in_docker ? "Docker" : "Python"}, ${sv.os}\n` +
+        `Nodes online: ${n.online ?? "-"} of ${n.total ?? "-"}. Captions: ${i.captions.state}\nBrowser: ${navigator.userAgent}\nReported by ${boot.me.name} at ${new Date().toString()}`;
+      location.href = `mailto:${BUG_EMAIL}?subject=${encodeURIComponent("AT-SUIT bug: " + bug.what.value.trim())}&body=${encodeURIComponent(body)}`;
+    };
     a.querySelector("#copyInfo").onclick = () => copyText(`${i.product} ${i.version} (build ${i.build.number}, ${i.build.commit}) on ${sv.hostname}\nOpened as ${location.origin}\n\n${JSON.stringify(i, null, 2)}`, "Copied, paste it into the ticket");
   }
 

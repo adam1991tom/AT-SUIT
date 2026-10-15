@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import VERSION, asr, config, db, licence, updates
 from .hub import can_subscribe, hub
-from .modules import captions, cluster, comms, core, dashboard, fleet, imports, notes, overlays, pairing, presenter, timers
+from .modules import captions, cluster, comms, core, dashboard, fleet, imports, notes, overlays, pairing, presenter, timers, weather
 from .security import ws_principal
 
 STATIC = Path(__file__).parent / "static"
@@ -92,7 +92,7 @@ def create_app() -> FastAPI:
         from .helper import create_helper_app
         return create_helper_app()
     app = FastAPI(title="AT-SUIT", version=VERSION, lifespan=lifespan, docs_url="/api/docs", redoc_url=None)
-    for module in (core, comms, timers, fleet, pairing, captions, cluster, overlays, dashboard, presenter, imports, notes):
+    for module in (core, comms, timers, fleet, pairing, captions, cluster, overlays, dashboard, presenter, imports, notes, weather):
         app.include_router(module.router)
     app.include_router(fleet.legacy)
     app.include_router(updates.router)

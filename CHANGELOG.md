@@ -13,6 +13,10 @@ the GitHub release.
 - **Forgot password?** on every sign-in screen. The admins and managers get a pop-up in the console and a count on People, where one press resets it to ChangeMe (and signs that person out everywhere). The screen gives the same answer for any username, so it can't be used to find out who has an account, and it's slowed down after five tries. Settings → General can make Forgot reset a tech's password straight away; an admin's or manager's always waits for an admin.
 - Sites already set up keep name-only sign-in until an admin ticks **Techs sign in with their own account and password** in Settings → General. New sites have it on.
 
+**Little extras**
+- **Venue weather** in the techs' top bar: the temperature and the sky now, and today's high, low, chance of rain, wind, sunrise and sunset when you click it. An admin picks the venue's town per site in Settings → General. Nothing is fetched until then, and only the town's position goes to the forecast service (Open-Meteo, no account needed). With no internet at the venue it keeps the last forecast, or stays hidden.
+- **Report a bug** on Settings → About: say what went wrong and what you were doing, and it writes the email to the AT-SUIT team with the version, server and browser filled in. Nothing is sent until you press Send in your email app.
+
 **Timer**
 - Quick timer and message buttons show what's live. The loaded quick timer is outlined in the brand colour; once it's running it fills and gently pulses. A message on stage fills and pulses too, as do Clock, Blink and Blackout while they're on. Turning off animations in the appearance settings (or in Windows) swaps the pulse for a steady outline.
 - Tap a loaded quick timer again to start it. Tapping one that's already running leaves it running and says so, instead of resetting it. Tapping the message that's on stage still takes it off.
