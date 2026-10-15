@@ -13,6 +13,12 @@ the GitHub release.
 - **Forgot password?** on every sign-in screen. The admins and managers get a pop-up in the console and a count on People, where one press resets it to ChangeMe (and signs that person out everywhere). The screen gives the same answer for any username, so it can't be used to find out who has an account, and it's slowed down after five tries. Settings → General can make Forgot reset a tech's password straight away; an admin's or manager's always waits for an admin.
 - Sites already set up keep name-only sign-in until an admin ticks **Techs sign in with their own account and password** in Settings → General. New sites have it on.
 
+**Captions privacy (NDA and GDPR)**
+- Caption transcripts are stored encrypted with the server's own key, so a copied file or backup can't be read without it. Text, SRT and VTT exports work as before.
+- Transcripts are deleted automatically 12 hours after they end (1 to 168 hours in Settings → General). The transcript lists show when each one goes. One still recording is never cut short, and stray transcript files nothing lists are cleared too.
+- The captions panel says plainly that speech becomes text on your own server and nothing leaves your network. The speech model was already offline; nothing in AT-SUIT sends audio or caption text anywhere else.
+- New [docs/PRIVACY.md](docs/PRIVACY.md) for venues and their clients: every outside connection the server makes, what each sends, and how long everything is kept.
+
 **Little extras**
 - **Venue weather** in the techs' top bar: the temperature and the sky now, and today's high, low, chance of rain, wind, sunrise and sunset when you click it. An admin picks the venue's town per site in Settings → General. Nothing is fetched until then, and only the town's position goes to the forecast service (Open-Meteo, no account needed). With no internet at the venue it keeps the last forecast, or stays hidden.
 - **Report a bug** on Settings → About: say what went wrong and what you were doing, and it writes the email to the AT-SUIT team with the version, server and browser filled in. Nothing is sent until you press Send in your email app.

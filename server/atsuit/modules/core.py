@@ -446,6 +446,7 @@ def get_settings(p: Principal = Depends(require_admin)):
             "message_retention_days": db.get_setting(c, "message_retention_days", 0),
             "tech_passwords": db.get_setting(c, "tech_passwords", True),
             "forgot_resets_at_once": db.get_setting(c, "forgot_resets_at_once", False),
+            "transcript_keep_hours": db.get_setting(c, "transcript_keep_hours", 12),
             "licence": lic.public(),
         }
 
@@ -458,6 +459,7 @@ class SettingsIn(BaseModel):
     message_retention_days: int | None = None
     tech_passwords: bool | None = None
     forgot_resets_at_once: bool | None = None
+    transcript_keep_hours: int | None = Field(None, ge=1, le=168)
 
 
 @router.put("/api/admin/settings")
@@ -478,7 +480,7 @@ def put_settings(body: SettingsIn, p: Principal = Depends(require_admin)):
             db.set_setting(c, "legacy_fleet_api", body.legacy_fleet_api)
         if body.message_retention_days is not None:
             db.set_setting(c, "message_retention_days", max(0, body.message_retention_days))
-        for key in ("tech_passwords", "forgot_resets_at_once"):
+        for key in ("tech_passwords", "forgot_resets_at_once", "transcript_keep_hours"):
             if getattr(body, key) is not None:
                 db.set_setting(c, key, getattr(body, key))
         db.audit(c, p.name, "settings.update", ",".join(k for k, v in body.model_dump().items() if v is not None))

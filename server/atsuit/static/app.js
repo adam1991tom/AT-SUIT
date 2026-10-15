@@ -441,7 +441,7 @@
         card.querySelector("[data-clear]").onclick = () => guard(() => post(`/api/captions/${id}/clear`));
       });
       const tx = await api("/api/captions/transcripts");
-      el.querySelector("#tx").innerHTML = tx.length ? `<table><tr><th>Room</th><th>Started</th><th>Ended</th><th></th></tr>${tx.map((t) => `<tr><td>${esc(t.room)}</td><td>${when(t.started_at)}</td><td>${when(t.ended_at)}</td><td><a href="/api/captions/transcripts/${t.id}">Download</a></td></tr>`).join("")}</table>` : '<p class="muted">None saved yet.</p>';
+      el.querySelector("#tx").innerHTML = tx.length ? `<table><tr><th>Room</th><th>Started</th><th>Ended</th><th>Deleted</th><th></th></tr>${tx.map((t) => `<tr><td>${esc(t.room)}</td><td>${when(t.started_at)}</td><td>${when(t.ended_at)}</td><td class="small muted">${when(t.delete_at)}</td><td><a href="/api/captions/transcripts/${t.id}">Text</a> · <a href="/api/captions/transcripts/${t.id}/export.srt">SRT</a> · <a href="/api/captions/transcripts/${t.id}/export.vtt">VTT</a></td></tr>`).join("")}</table>` : '<p class="muted">None saved yet.</p>';
     };
     view = { onEvent: (e) => { if (e.type === "status" || e.type === "captions.engine") render(); } };
     render();
@@ -512,6 +512,9 @@
       <p class="small muted" style="margin:.1rem 0 .4rem">Off: they just type their name. Add everyone under People before you turn this on.</p>
       <label><input type="checkbox" name="forgotnow" ${s.forgot_resets_at_once ? "checked" : ""} style="width:auto"> Forgot password resets a tech's password to ChangeMe straight away</label>
       <p class="small muted" style="margin:.1rem 0 .4rem">Off (safer): an admin or manager resets it with one press under People. Admin and manager passwords always wait for an admin.</p>
+      <h2 style="margin-top:1rem">Privacy</h2>
+      <label>Delete caption transcripts this many hours after they end (1 to 168)</label><input name="keephours" type="number" min="1" max="168" value="${s.transcript_keep_hours}">
+      <p class="small muted" style="margin:.1rem 0 .4rem">12 hours by default. Captions are made on this server and never leave your network; transcripts are stored encrypted.</p>
       <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form></div>`;
     const bf = a.querySelector("#brand");
     bf.onsubmit = (e) => { e.preventDefault(); guard(() => put("/api/admin/settings", { branding: Object.fromEntries(new FormData(bf)) })).then(() => location.reload()); };
@@ -541,7 +544,7 @@
     mf.onsubmit = (e) => {
       e.preventDefault();
       const modules = Object.fromEntries(Object.keys(s.modules).map((m) => [m, mf[m].checked]));
-      guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value, tech_passwords: mf.techpw.checked, forgot_resets_at_once: mf.forgotnow.checked })).then(() => location.reload());
+      guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value, tech_passwords: mf.techpw.checked, forgot_resets_at_once: mf.forgotnow.checked, transcript_keep_hours: +mf.keephours.value || 12 })).then(() => location.reload());
     };
   }
 

@@ -81,7 +81,7 @@ async def lifespan(app: FastAPI):
     pairing.reset()
     tasks = [asyncio.create_task(housekeeping()), asyncio.create_task(captions.load_engine()),
              asyncio.create_task(timers.end_actions()), asyncio.create_task(updates.loop()),
-             asyncio.create_task(licence.watch())]
+             asyncio.create_task(licence.watch()), asyncio.create_task(captions.retention_loop())]
     yield
     for t in tasks:
         t.cancel()
