@@ -1,4 +1,23 @@
 // Shared helpers for every AT-SUIT page.
+
+// Passwords, tokens, keys and codes never sit in the address bar: a form is only
+// ever sent by script (never by the browser itself, which would put what's typed
+// in the address), and any such value that arrives in an address is wiped from it.
+(() => {
+  if (window.__atNoSecretsInUrl) return;
+  window.__atNoSecretsInUrl = true;
+  document.addEventListener("submit", (e) => e.preventDefault(), true);
+  const SECRET = /^(password|new_password2?|pass|passwd|pw|pin|username|operator|token|node_token|access_token|ticket|secret|key|api_key|apikey|code|enrol_code|sync_code|setup_code|licence_key|admin_password)$/i;
+  try {
+    const q = new URLSearchParams(location.search);
+    const hits = [...q.keys()].filter((k) => SECRET.test(k));
+    if (hits.length) {
+      hits.forEach((k) => q.delete(k));
+      history.replaceState(history.state, "", location.pathname + (q.size ? "?" + q : "") + location.hash);
+    }
+  } catch (_) {}
+})();
+
 const AT = (() => {
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 

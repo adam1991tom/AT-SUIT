@@ -773,7 +773,9 @@ def new_sync_code(room_id: int, p: Principal = Depends(require_admin)):
 
 # -------------------------------------------------------------- room sync --
 def _sync_room(c, request: Request, code: str | None):
-    """A room by its sync code, or the calling node's room."""
+    """A room by its sync code (the X-Sync-Code header; the old tool put it in the
+    address), or the calling node's room."""
+    code = code or request.headers.get("x-sync-code", "")
     if code:
         room = c.execute("SELECT * FROM rooms WHERE sync_code=? AND enabled=1", (code.strip().upper(),)).fetchone()
         if not room or not code.strip():
@@ -836,7 +838,8 @@ def sync_file_by_code(code: str, kind: str, item_id: int, request: Request):
 
 
 @router.get("/api/presenter/sync-node/{kind}/{item_id}")
-def sync_file_by_node(kind: str, item_id: int, request: Request, p: Principal = Depends(require_node)):
+def sync_file_by_node(kind: str, item_id: int, request: Request):
+    """A file for a node's room, or for the room in the X-Sync-Code header."""
     return _sync_file(request, None, kind, item_id)
 
 

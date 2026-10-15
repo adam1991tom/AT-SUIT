@@ -36,7 +36,7 @@
 <div id="corner" title="Tap 5 times to change what this screen shows"></div>
 
 <div id="enrol" class="center hidden" style="position:fixed;inset:0;background:var(--bg);z-index:8;cursor:default">
-  <form class="panel card" id="enrolForm">
+  <form class="panel card" id="enrolForm" method="post">
     <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
     <h1>Add this screen to AT-SUIT</h1>
     <p class="muted">You only do this once. An admin finds the enrolment code in Laptops & screens → Add laptops.</p>
@@ -120,12 +120,14 @@
     const tick = async () => {
       try {
         if (!secret) await fresh();
-        const r = await api(`/api/screens/pair/status?secret=${encodeURIComponent(secret)}`);
+        const r = await api("/api/screens/pair/status", { method: "POST", body: { secret } });
         gone = 0;
         if (r.state === "paired") {
-          try { localStorage.setItem("atsuit_screen_token", r.token); } catch (_) {}
+          let kept = false;
+          try { localStorage.setItem("atsuit_screen_token", r.token); kept = localStorage.getItem("atsuit_screen_token") === r.token; } catch (_) {}
           $("pairCode").textContent = "✓";
-          return location.replace(`/screen?paired=${Date.now()}#token=${encodeURIComponent(r.token)}`);
+          // The token stays out of the address unless this browser can't keep it (the page then wipes it at once).
+          return location.replace(`/screen?paired=${Date.now()}${kept ? "" : "#token=" + encodeURIComponent(r.token)}`);
         }
         $("pair").classList.remove("waiting");
         $("pairCode").textContent = r.display; expires = r.expires_in; meta();

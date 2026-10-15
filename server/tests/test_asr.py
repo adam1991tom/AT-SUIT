@@ -42,7 +42,7 @@ def test_node_audio_becomes_captions(tmp_path, monkeypatch):
         texts = []
         with c.websocket_connect(f"/ws?topics=captions:{rid}") as viewer:
             assert viewer.receive_json()["type"] == "hello"
-            with c.websocket_connect(f"/ws/audio/{rid}?node_token={tok}") as mic:
+            with c.websocket_connect(f"/ws/audio/{rid}", headers={"Authorization": f"Node {tok}"}) as mic:
                 assert mic.receive_json()["type"] == "ready"
                 data = pcm + silence
                 for i in range(0, len(data), 3200):

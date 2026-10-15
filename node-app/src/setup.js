@@ -1,9 +1,10 @@
-const q = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
-$("server").value = q.get("server") || "";
-$("code").value = q.get("code") || "";
-$("name").value = q.get("name") || "";
-$("msg").textContent = q.get("message") || "";
+window.setup.prefill().then((q) => {
+  $("server").value = q.server || "";
+  $("code").value = q.code || "";
+  $("name").value = q.name || "";
+  $("msg").textContent = q.message || "";
+});
 $("f").onsubmit = async (e) => {
   e.preventDefault();
   $("go").disabled = true;

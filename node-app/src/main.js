@@ -199,6 +199,7 @@ function keepToServer(win) {
   });
 }
 
+let setupPrefill = {};
 function openSetup(message = "") {
   if (setupWin && !setupWin.isDestroyed()) { setupWin.show(); setupWin.focus(); return; }
   setupWin = new BrowserWindow({
@@ -213,9 +214,9 @@ function openSetup(message = "") {
   silence(setupWin);
   setupWin.on("closed", () => { setupWin = null; });
   const pre = config.preset();
-  setupWin.loadFile(path.join(__dirname, "setup.html"), {
-    query: { server: conf.server || pre.server, code: pre.enrol_code, name: conf.name || pre.name || os.hostname(), message },
-  });
+  // Handed over by IPC, not in the page address: the enrolment code is a key.
+  setupPrefill = { server: conf.server || pre.server, code: pre.enrol_code, name: conf.name || pre.name || os.hostname(), message };
+  setupWin.loadFile(path.join(__dirname, "setup.html"));
 }
 
 // -------------------------------------------------------------- pop-ups --
@@ -540,6 +541,7 @@ function ipc() {
     openMain();
   });
   ipcMain.on("popup:dismiss", (e) => closePopup(BrowserWindow.fromWebContents(e.sender)));
+  ipcMain.handle("setup:prefill", (e) => (setupWin && e.sender === setupWin.webContents ? setupPrefill : {}));
   ipcMain.handle("setup:enrol", (e, form) => (setupWin && e.sender === setupWin.webContents ? enrol(form || {}) : { ok: false }));
 }
 

@@ -302,20 +302,28 @@ def test_tech_starts_with_name_room_and_main_or_backup(admin, client):
     assert (n["operator"], n["mode"], n["room_id"]) == ("Amy Smith", "main", rid)
     assert client.put("/api/nodes/me/mode", json={"mode": "backup"}).status_code == 200
     assert client.get("/api/nodes/me").json()["node"]["mode"] == "backup"
-    # The room is locked for the day: the tech can't move the laptop to another room.
+    # Picking the room is the tech's job: signed in on the laptop, Amy moves it to another room and back.
     other = admin.get("/api/nodes/me", headers=h).json()["rooms"][0]["id"]
-    assert client.put("/api/nodes/me/room", json={"room_id": other}).status_code == 403
+    assert client.put("/api/nodes/me/room", json={"room_id": other}).status_code == 200
+    assert client.get("/api/nodes/me").json()["room"]["id"] == other
+    assert client.put("/api/nodes/me/room", json={"room_id": 99999}).status_code == 404
+    assert client.put("/api/nodes/me/room", json={"room_id": rid}).status_code == 200
     # Signing out clears the name; the room stays for the day.
     client.post("/api/nodes/me/finish")
     assert client.get("/api/bootstrap").status_code == 401
     me = admin.get("/api/nodes/me", headers=h).json()
     assert me["room"]["id"] == rid and me["node"]["operator"] == "" and me["node"]["mode"] == "backup"
-    assert client.post("/api/nodes/me/start", headers=h, json={"operator": "Bob", "room_id": other, "mode": "main"}).status_code == 403
+    # With nobody signed in the laptop can't drift to another room by itself...
+    assert client.put("/api/nodes/me/room", headers=h, json={"room_id": other}).status_code == 403
+    # ...but the next tech picks the room they're in as they start.
+    assert client.post("/api/nodes/me/start", headers=h, json={"operator": "Bob", "room_id": other, "mode": "main"}).status_code == 200
+    assert admin.get("/api/nodes/me", headers=h).json()["room"]["id"] == other
     assert client.post("/api/nodes/me/start", headers=h, json={"operator": "Bob", "room_id": rid, "mode": "main"}).status_code == 200
-    # Only an admin moves it, from the console.
+    # Managers and admins can still move it, from the console; a tech can't use that.
     assert client.put("/api/fleet/nodes/1", json={"room_id": other}).status_code in (401, 403)
     client.cookies.clear()
     assert client.post("/api/auth/login", json={"username": "admin", "password": "correct-horse"}).status_code == 200
+    assert any(e["action"] == "node.start" and "moved from" in e["detail"] for e in admin.get("/api/admin/audit").json())
     nid = next(n for n in admin.get("/api/fleet/nodes").json() if n["name"] == "HD-MAIN")["id"]
     assert admin.put(f"/api/fleet/nodes/{nid}", json={"room_id": other}).status_code == 200
     assert admin.get("/api/nodes/me", headers=h).json()["room"]["id"] == other

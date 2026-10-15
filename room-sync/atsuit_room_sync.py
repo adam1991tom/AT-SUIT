@@ -30,7 +30,6 @@ import ssl
 import sys
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -86,10 +85,13 @@ class Sync:
     def __init__(self, cfg: dict):
         self.cfg, self.root = cfg, Path(cfg["dir"]).resolve()
         self.ctx = ssl.create_default_context(cafile=cfg["cafile"]) if cfg["cafile"] else None
-        self.base = f"{cfg['server']}/api/presenter/sync/{urllib.parse.quote(cfg['code'])}"
+        # The room code goes in a header, never the address, so it stays out of server and proxy logs.
+        self.base = f"{cfg['server']}/api/presenter/sync"
+        self.files = f"{cfg['server']}/api/presenter/sync-node"
+        self.headers = {"User-Agent": "atsuit-room-sync", "X-Sync-Code": cfg["code"]}
 
     def get(self, url: str, timeout: int = 20):
-        req = urllib.request.Request(url, headers={"User-Agent": "atsuit-room-sync"})
+        req = urllib.request.Request(url, headers=self.headers)
         return urllib.request.urlopen(req, timeout=timeout, context=self.ctx)
 
     def manifest(self) -> dict:
@@ -120,13 +122,13 @@ class Sync:
             state = {}
         want = {}
         for f in m["files"]:
-            want[f"file:{f['session_id']}:{f['file_id']}"] = (f"{folder(f)}/{safe(f['original_name'])}", f["sha256"], f"{self.base}/files/{f['file_id']}")
+            want[f"file:{f['session_id']}:{f['file_id']}"] = (f"{folder(f)}/{safe(f['original_name'])}", f["sha256"], f"{self.files}/files/{f['file_id']}")
         for f in m["show_files"]:
             name = f"{int(f['position']) + 1:02d} {safe(f['label'])}"
             ext = Path(f["original_name"]).suffix
             if ext and not name.lower().endswith(ext.lower()):
                 name += safe(ext)
-            want[f"show:{f['show_id']}"] = (f"{folder(f)}/show/{name}", f["sha256"], f"{self.base}/show/{f['show_id']}")
+            want[f"show:{f['show_id']}"] = (f"{folder(f)}/show/{name}", f["sha256"], f"{self.files}/show/{f['show_id']}")
         changed = 0
         for key in list(state):  # gone, moved or replaced
             if key in want and want[key][0] == state[key]["path"] and want[key][1] == state[key]["sha256"]:
@@ -158,7 +160,7 @@ class Sync:
 def main(argv=None) -> None:
     cfg = settings(argv)
     s = Sync(cfg)
-    print(f"AT-SUIT room sync: {cfg['server']}, code {cfg['code']}, folder {s.root}, every {cfg['every']} s")
+    print(f"AT-SUIT room sync: {cfg['server']}, code {cfg['code'][:4]}-****, folder {s.root}, every {cfg['every']} s")
     while True:
         try:
             room, changed = s.once()

@@ -305,7 +305,7 @@ admin signed in.
 | POST | `/api/screens/pair` | `code`, `room_id`, `view`, `name` (optional) | Add the screen showing that pairing code to a room, showing `view` (techs only; not a screen's own key) |
 | GET | `/api/screens/layouts` |  | What a screen can show, grouped: Timer, Captions, Test patterns |
 | POST | `/api/screens/pair/request` | `name`, `info` | (Screens) ask for a pairing code; no key needed |
-| GET | `/api/screens/pair/status` | `secret` | (Screens) waiting, or paired with the screen's key |
+| POST | `/api/screens/pair/status` | `secret` | (Screens) waiting, or paired with the screen's key |
 | PUT | `/api/fleet/nodes/{node_id}/screen` | `room_id`, `view` | Route a screen from the dashboard: which room and which view it shows |
 | GET | `/api/fleet/nodes` |  | Tech laptops and screens, online or not |
 | POST | `/api/fleet/nodes/{node_id}/command` | `kind`, `payload` | Send a node a command: set_url, reload, message, identify, restart_browser (reboot, shutdown and update are for admins) |

@@ -72,7 +72,7 @@ def test_a_laptop_sends_text_and_the_screens_get_captions(admin):
     admin.put(f"/api/captions/{rid}/settings", json={"gain_db": 4})
     with admin.websocket_connect(f"/ws?topics=captions:{rid}") as viewer:
         assert viewer.receive_json()["type"] == "hello"
-        with admin.websocket_connect(f"/ws/audio/{rid}?node_token={tok}&mode=local") as mic:
+        with admin.websocket_connect(f"/ws/audio/{rid}?mode=local", headers={"Authorization": f"Node {tok}"}) as mic:
             ready = mic.receive_json()
             assert ready["type"] == "ready" and ready["mode"] == "local"
             assert ready["audio"]["gain_db"] == 4 and len(ready["audio"]["eq_bands_hz"]) == len(ready["audio"]["eq_band_gains_db"])

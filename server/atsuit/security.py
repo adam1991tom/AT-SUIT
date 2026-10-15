@@ -3,8 +3,12 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
+import re
 import secrets
+import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -123,6 +127,10 @@ def _from_session(c, token: str) -> Principal | None:
 
 def _from_node(c, token: str) -> Principal | None:
     r = c.execute("SELECT id,name,kind,operator,site_id,room_id FROM nodes WHERE token_hash=?", (token_hash(token),)).fetchone()
+    return _node_principal(r)
+
+
+def _node_principal(r) -> Principal | None:
     if not r:
         return None
     # On a tech laptop the person at it is who chat and help requests come from.
@@ -135,7 +143,10 @@ def _from_apikey(c, key: str) -> Principal | None:
     return Principal("apikey", r["id"], r["name"], "tech") if r else None
 
 
-def resolve(headers, cookies, query) -> Principal | None:
+def resolve(headers, cookies) -> Principal | None:
+    """Who is asking, from a header or a cookie. Never from the address: a
+    password, token or key in a URL ends up in browser history, proxy and
+    server logs, so the query string is not read here at all."""
     auth = headers.get("authorization", "")
     with db.ro() as c:
         if auth.lower().startswith("node "):
@@ -149,19 +160,132 @@ def resolve(headers, cookies, query) -> Principal | None:
                 return p
         if cookies.get(NODE_COOKIE):
             return _from_node(c, cookies[NODE_COOKIE])
-        if query.get("node_token"):
-            return _from_node(c, query["node_token"])
-        if query.get("token"):
-            return _from_session(c, query["token"])
     return None
 
 
 def principal(request: Request) -> Principal | None:
-    return resolve(request.headers, request.cookies, request.query_params)
+    return resolve(request.headers, request.cookies)
 
 
 def ws_principal(ws: WebSocket) -> Principal | None:
-    return resolve(ws.headers, ws.cookies, ws.query_params)
+    """A browser can't put a header on a WebSocket, so a page that isn't signed in
+    by cookie first swaps its header for a ticket (POST /api/auth/ws-ticket) and
+    opens the socket with ?ticket=. A ticket works once, within a minute, so one
+    that turns up in a log is already useless."""
+    return resolve(ws.headers, ws.cookies) or redeem_ticket(ws.query_params.get("ticket", ""))
+
+
+# ----------------------------------------------------------- ws tickets --
+TICKET_SECONDS = 60
+_TICKETS_MAX = 5000
+_tickets: dict[str, tuple[float, str, int]] = {}
+_tickets_lock = threading.Lock()
+
+
+def issue_ticket(p: Principal) -> str:
+    now = time.monotonic()
+    with _tickets_lock:
+        for k, (exp, *_) in list(_tickets.items()):
+            if exp < now:
+                del _tickets[k]
+        if len(_tickets) >= _TICKETS_MAX:
+            raise HTTPException(429, "Too many connections starting at once; try again in a minute")
+        t = secrets.token_urlsafe(24)
+        _tickets[t] = (now + TICKET_SECONDS, p.kind, p.id)
+    return t
+
+
+def redeem_ticket(ticket: str) -> Principal | None:
+    if not ticket:
+        return None
+    with _tickets_lock:
+        item = _tickets.pop(ticket, None)
+    if not item or item[0] < time.monotonic():
+        return None
+    _, kind, pid = item
+    # Looked up again, so a laptop removed or an account turned off in that minute gets nothing.
+    with db.ro() as c:
+        if kind == "node":
+            return _node_principal(c.execute("SELECT id,name,kind,operator,site_id,room_id FROM nodes WHERE id=?", (pid,)).fetchone())
+        if kind == "account":
+            r = c.execute("SELECT id,username,display_name,role,site_id FROM accounts WHERE id=? AND active=1", (pid,)).fetchone()
+            return Principal("account", r["id"], r["display_name"] or r["username"], r["role"], r["site_id"]) if r else None
+        if kind == "apikey":
+            r = c.execute("SELECT id,name FROM api_keys WHERE id=?", (pid,)).fetchone()
+            return Principal("apikey", r["id"], r["name"], "tech") if r else None
+    return None
+
+
+# ------------------------------------------------- secrets out of addresses --
+# Query parameters that carry a password, token, key or code. They are never
+# read from the address (see resolve), wiped from logs, and a page opened with
+# one is sent on to the same page without it.
+SECRET_PARAMS = frozenset({
+    "password", "new_password", "new_password2", "pass", "passwd", "pw", "pin",
+    "username", "operator", "token", "node_token", "access_token", "ticket", "secret",
+    "key", "api_key", "apikey", "code", "enrol_code", "sync_code", "setup_code", "licence_key", "admin_password",
+})
+# Links whose path itself is the key: a presenter's upload link, and the old
+# room sync tool's room code. They have to stay links, so they're kept out of the logs.
+_SECRET_PATH = re.compile(r"^(/(?:api/)?present/|/api/presenter/sync/)([^/?#]+)")
+
+
+def secret_params(query: str) -> set[str]:
+    from urllib.parse import parse_qsl
+
+    return {k for k, _ in parse_qsl(query, keep_blank_values=True) if k.lower() in SECRET_PARAMS}
+
+
+def strip_secrets(query: str) -> str:
+    from urllib.parse import parse_qsl, urlencode
+
+    return urlencode([(k, v) for k, v in parse_qsl(query, keep_blank_values=True) if k.lower() not in SECRET_PARAMS])
+
+
+def clean_url(url: str) -> str:
+    """A full address with any secret taken out of its query and fragment (for
+    addresses a laptop reports, which are shown on the console)."""
+    from urllib.parse import urlsplit, urlunsplit
+
+    try:
+        u = urlsplit(str(url))
+    except ValueError:
+        return ""
+    frag = u.fragment if "=" not in u.fragment else strip_secrets(u.fragment)
+    return urlunsplit((u.scheme, u.netloc, u.path, strip_secrets(u.query), frag))
+
+
+def redact_url(url: str) -> str:
+    """A path and query fit for a log: secret values become ***."""
+    from urllib.parse import parse_qsl, quote
+
+    path, sep, query = str(url).partition("?")
+    path = _SECRET_PATH.sub(lambda m: m.group(1) + "***", path)
+    if not sep:
+        return path
+    parts = [f"{quote(k, safe='')}={'***' if k.lower() in SECRET_PARAMS else quote(v, safe=',')}"
+             for k, v in parse_qsl(query, keep_blank_values=True)]
+    return f"{path}?{'&'.join(parts)}" if parts else path
+
+
+class RedactSecrets(logging.Filter):
+    """On uvicorn's loggers: the request line of every access and WebSocket log
+    line goes through redact_url, so nothing secret reaches a log file."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple) and record.args:
+            record.args = tuple(redact_url(a) if isinstance(a, str) and a.startswith("/") else a for a in record.args)
+        return True
+
+
+_redacting = RedactSecrets()
+
+
+def redact_logs() -> None:
+    for name in ("uvicorn.access", "uvicorn.error", "uvicorn"):
+        log = logging.getLogger(name)
+        if _redacting not in log.filters:
+            log.addFilter(_redacting)
 
 
 def require(role: str = "viewer", kinds: tuple[str, ...] = ("account", "node", "apikey")):

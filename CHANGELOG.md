@@ -5,6 +5,23 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.10.1
+
+A security fix, and the tech picks their own room.
+
+**No password ever goes in the web address**
+- A sign-in form could end up putting the username and password in the address bar (and so in browser history and the server's logs). Every form is now sent only by AT SUITE itself, never by the browser, and a page opened with a password, key or code in its address is sent straight on to the same page without it.
+- Nothing signs in through the address any more. The laptop's captions mic used its laptop key in the address; it now uses a pass that works once, for a minute. The node agent sends its key in a header, the Linux screen agent sends its pairing secret in the request, and the room sync tool sends the room code in a header.
+- The server's logs never show a password, key, code or presenter upload link, even from older agents.
+- Laptops and screens can't report an address with a password or key in it to the console.
+- Also tightened: sign-in cookies are marked secure when AT SUITE is reached over https, sign-in pages aren't cached, no page passes its address on to other sites, changing your password signs you out everywhere else, and sign-in fields have a size limit.
+- The Linux screen agent (0.4.0) and node agent (0.2.0) update themselves from the server as usual.
+
+**The tech picks their room**
+- Picking the room is the tech's job. On the start screen every room is offered, with the laptop's room for today already picked, and the tech can pick another.
+- Once signed in, the tech can move the laptop from the room list in the top bar of the workspace. Chat, the timer, captions and the overlay follow it.
+- The laptop still keeps its room all day: with nobody signed in it can't change, and signing out leaves it where it is. Managers and admins can still move it from the console, and every move is in the audit log.
+
 ## 1.8.0
 
 The first step to AT-SUIT 2: the laptops do more of the work and tell the server how they are.
