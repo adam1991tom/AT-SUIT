@@ -40,7 +40,9 @@ module.exports = async () => {
   await call("POST", "/api/setup", { organisation: "Test", site_name: "Main", admin_username: "admin", admin_password: "correct-horse", rooms: ["CC", "HD", "RH"], licence_key });
   const { cookie } = await call("POST", "/api/auth/login", { username: "admin", password: "correct-horse" });
   await call("POST", "/api/admin/accounts", { username: "amy", display_name: "Amy", role: "tech", password: "amy-password-1" }, cookie);
-  await call("POST", "/api/admin/accounts", { username: "ben", display_name: "Ben", role: "tech", password: "ben-password-1" }, cookie);
+  // Amy chooses her own password at her first sign-in on the laptop; Ben has already chosen his.
+  await call("POST", "/api/admin/accounts", { username: "ben", display_name: "Ben", role: "tech", password: "ben-first-1" }, cookie);
+  await call("POST", "/api/auth/login", { username: "ben", password: "ben-first-1", new_password: "ben-password-1" });
   const code = (await call("GET", "/api/fleet/enrolment", null, cookie)).data[0].enrol_code;
   fs.writeFileSync(path.join(os.tmpdir(), "atsuit-test.json"), JSON.stringify({ base: BASE, data, code, pid: server.pid }));
 };
