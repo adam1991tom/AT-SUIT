@@ -715,7 +715,12 @@
   // Updates from GitHub releases: the server checks, the host's updater installs (update.sh --auto).
   async function admUpdates(a) {
     const u = await api("/api/admin/updates"), L = u.latest || {};
-    const MODES = [["auto", "Install by itself", "When a new version is out and no show is on, the server updates itself: backup first, health check, rolled back if it isn't healthy."],
+    if (u.hosted) {  // a hosted venue: the provider updates it
+      a.innerHTML = `<div class="panel" style="max-width:640px"><h2>Version</h2>${kv([["Running", `<b>${esc(u.current)}</b>`],
+        ["Windows tech app", u.app ? esc(u.app) : '<span class="muted">not published yet</span>']])}<p class="small muted">${esc(u.detail)}</p></div>`;
+      return;
+    }
+    const MODES =[["auto", "Install by itself", "When a new version is out and no show is on, the server updates itself: backup first, health check, rolled back if it isn't healthy."],
       ["notify", "Tell me only", "Shows here when a new version is out. Press Install now to update."],
       ["off", "Off", "Doesn't check. Update with sudo ./update.sh on the server."]];
     const state = !u.latest ? (u.error ? `<span class="pill bad">Couldn't check</span> ${esc(u.error)}` : '<span class="muted">Not checked yet.</span>')

@@ -1,0 +1,21 @@
+name: Cloud
+
+# The hosting kit (cloud/): two venues behind the front door, end to end, on the runner's Docker.
+on:
+  push:
+    branches: [ATSUIT]
+    paths: ["cloud/**", "server/**", "docs/kb/**", "Dockerfile", ".github/workflows/cloud.yml"]
+  pull_request:
+    paths: ["cloud/**", "server/**", "docs/kb/**", "Dockerfile", ".github/workflows/cloud.yml"]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the tool
+        run: python3 -m py_compile cloud/atcloud && bash -n cloud/bootstrap.sh cloud/test/e2e.sh
+      - name: Build the image (no speech engine; the cloud server never makes captions)
+        run: docker build --build-arg WITH_ASR=0 --build-arg VERSION=$(cat VERSION) -t atsuit:e2e .
+      - name: Two venues end to end
+        run: cloud/test/e2e.sh atsuit:e2e

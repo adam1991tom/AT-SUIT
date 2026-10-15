@@ -10,3 +10,5 @@ server/tests
 !docs/COMPANION.md
 !docs/views
 !docs/views/**
+!docs/kb
+!docs/kb/**

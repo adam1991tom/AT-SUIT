@@ -75,6 +75,8 @@ branding/             logo, icons, brand guide and make_brand.py
 tools/licence.py      vendor tool to make keys and issue licences
 deploy/Caddyfile      https front end (compose profile "tls")
 docs/DESIGN.md        architecture, module map, migration and build order
+cloud/                hosting AT-SUIT for many venues on one cloud server (guide: docs/HOSTING.md)
+docs/kb/              the help library every venue's AI helper answers from (/guide/help)
 ```
 
 ## Releases

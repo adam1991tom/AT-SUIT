@@ -1,0 +1,863 @@
+#!/usr/bin/env python3
+"""atcloud: run AT-SUIT for many venues on one cloud server.
+
+Every venue gets its own AT-SUIT container, data volume and private network, at
+https://<venue>.<domain>. Venues share nothing but the server: one venue's laptops,
+chat, accounts and licence can't reach another's. A Caddy front door ("the edge")
+sends each address to its venue; Cloudflare sits in front of it.
+
+  atcloud init --domain atsuit.app          once: settings, folders, the edge
+  atcloud new grandhall --name "Grand Hall" [--licence key.txt]
+                                            a new venue; prints the setup link to send them
+  atcloud list                              every venue: running, version, set up, licence, laptops
+  atcloud info grandhall                    one venue in full
+  atcloud link grandhall                    the setup link again
+  atcloud licence grandhall key.txt         put in (or renew) a venue's licence key
+  atcloud suspend grandhall                 stop it; its address says it's paused. Data is kept
+  atcloud resume grandhall
+  atcloud update [venue ...|--all] [--version 1.11.0] [--force]
+                                            move venues to a version: copy first, health check,
+                                            back to the old version if it isn't healthy. Never
+                                            while a show is on, unless --force
+  atcloud app [--release v1.11.0 | --dir DIR]
+                                            the Windows tech app laptops update from, for every venue
+  atcloud models                            fetch the speech model laptops caption with, once for all
+  atcloud storagebox u123456                nightly backups to a Hetzner Storage Box (once)
+  atcloud backup [venue ...]                encrypted backup of every venue (restic); nightly by timer
+  atcloud snapshots [venue]                 the backups there are
+  atcloud restore grandhall [--snapshot ID] --yes
+                                            put a venue back as it was (it's stopped meanwhile)
+  atcloud remove grandhall --yes            last backup, then delete the venue and its data
+  atcloud edge                              (re)start the front door
+  atcloud ai on [--model llama3.2:3b] | off a private AI model for every venue's AI helper
+  atcloud check                             exit 1 if any active venue isn't healthy (for monitoring)
+  atcloud logs grandhall
+
+Settings live in $ATCLOUD_ROOT/atcloud.env (default /srv/atcloud). Only Python 3 and Docker are needed.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import secrets
+import shutil
+import subprocess
+import sys
+import time
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+
+KIT = Path(__file__).resolve().parent
+ROOT = Path(os.environ.get("ATCLOUD_ROOT", "/srv/atcloud"))
+EDGE = "atcloud-edge"
+AI = "atcloud-ai"
+EDGE_IMAGE = "caddy:2.8-alpine"
+AI_IMAGE = "ollama/ollama:0.5.7"
+RESTIC_IMAGE = "restic/restic:0.17.3"
+HELPER_IMAGE = "alpine:3.20"
+SPEECH_MODEL = "sherpa-onnx-streaming-zipformer-en-2023-06-21"
+RELEASES = "https://github.com/adam1991tom/AT-SUIT-releases/releases/download"
+SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$")
+RESERVED = {"www", "admin", "api", "app", "mail", "smtp", "status", "help", "kb", "docs", "cloud", "edge", "portal",
+            "billing", "shop", "support", "dashboard", "login", "account", "accounts", "static", "cdn", "ns1", "ns2"}
+DEFAULTS = {
+    "ATCLOUD_DOMAIN": "",
+    "ATCLOUD_IMAGE": "ghcr.io/adam1991tom/at-suit",
+    "ATCLOUD_VERSION": "latest",
+    "ATCLOUD_MEMORY": "768m",
+    "ATCLOUD_CPUS": "1.0",
+    "ATCLOUD_TZ": "Europe/London",
+    "ATCLOUD_HTTPS_PORT": "443",
+    "ATCLOUD_TRUSTED_PROXIES": "private_ranges",
+    "ATCLOUD_AI": "0",
+    "ATCLOUD_AI_MODEL": "llama3.2:3b",
+    "RESTIC_REPOSITORY": "",
+    "RESTIC_KEEP": "--keep-daily 7 --keep-weekly 4",
+}
+
+
+class Fail(Exception):
+    pass
+
+
+# ------------------------------------------------------------------ basics --
+def say(*a) -> None:
+    print(*a, flush=True)
+
+
+def run(*args: str, check: bool = True, capture: bool = True, stdin: str | None = None, quiet: bool = False) -> str:
+    r = subprocess.run(list(args), capture_output=capture, text=True, input=stdin)
+    if check and r.returncode != 0:
+        err = (r.stderr or r.stdout or "").strip() if capture else ""
+        raise Fail(f"{' '.join(args[:4])}{' …' if len(args) > 4 else ''} failed: {err[-600:]}" if not quiet else err[-600:])
+    return (r.stdout or "").strip() if capture else ""
+
+
+def docker(*args: str, **kw) -> str:
+    return run("docker", *args, **kw)
+
+
+def exists(kind: str, name: str) -> bool:
+    return subprocess.run(["docker", kind, "inspect", name], capture_output=True).returncode == 0
+
+
+def now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def conf() -> dict:
+    out = dict(DEFAULTS)
+    f = ROOT / "atcloud.env"
+    if f.is_file():
+        for line in f.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                out[k.strip()] = v.strip().strip('"')
+    return out
+
+
+def save_conf(changes: dict) -> None:
+    f = ROOT / "atcloud.env"
+    lines = f.read_text().splitlines() if f.is_file() else []
+    done = set()
+    for i, line in enumerate(lines):
+        k = line.split("=", 1)[0].strip()
+        if k in changes:
+            lines[i] = f"{k}={changes[k]}"
+            done.add(k)
+    lines += [f"{k}={v}" for k, v in changes.items() if k not in done]
+    f.write_text("\n".join(lines) + "\n")
+    f.chmod(0o600)
+
+
+def need_init(c: dict) -> None:
+    if not c["ATCLOUD_DOMAIN"]:
+        raise Fail(f"Run `atcloud init --domain yourdomain` first (no {ROOT}/atcloud.env yet).")
+
+
+# ----------------------------------------------------------------- venues --
+def names(slug: str) -> dict:
+    return {"container": f"atsuit-{slug}", "volume": f"atsuit-{slug}-data", "network": f"atsuit-{slug}-net"}
+
+
+def tenant_file(slug: str) -> Path:
+    return ROOT / "tenants" / f"{slug}.json"
+
+
+def load(slug: str) -> dict:
+    f = tenant_file(slug)
+    if not f.is_file():
+        raise Fail(f"There's no venue called {slug}. `atcloud list` shows them.")
+    return json.loads(f.read_text())
+
+
+def store(t: dict) -> None:
+    f = tenant_file(t["slug"])
+    f.write_text(json.dumps(t, indent=2) + "\n")
+    f.chmod(0o600)  # it holds the setup code
+
+
+def tenants() -> list[dict]:
+    d = ROOT / "tenants"
+    return [json.loads(f.read_text()) for f in sorted(d.glob("*.json"))] if d.is_dir() else []
+
+
+def check_slug(slug: str) -> str:
+    slug = slug.strip().lower()
+    if not SLUG_RE.match(slug) or slug in RESERVED or slug.startswith("xn--"):
+        raise Fail(f"'{slug}' can't be a venue address: use 1-32 lowercase letters, digits and dashes "
+                   f"(not {', '.join(sorted(RESERVED)[:6])}…).")
+    return slug
+
+
+def address(c: dict, slug: str) -> str:
+    port = c["ATCLOUD_HTTPS_PORT"]
+    return f"https://{slug}.{c['ATCLOUD_DOMAIN']}" + ("" if port == "443" else f":{port}")
+
+
+def setup_link(c: dict, t: dict) -> str:
+    return f"{address(c, t['slug'])}/setup?code={t['setup_code']}"
+
+
+def image(c: dict, version: str) -> str:
+    return f"{c['ATCLOUD_IMAGE']}:{version}"
+
+
+def exec_py(slug: str, *args: str, stdin: str | None = None, check: bool = True) -> str:
+    return docker("exec", *(["-i"] if stdin is not None else []), names(slug)["container"],
+                  "python", "-m", "atsuit.hosted", *args, stdin=stdin, check=check)
+
+
+def info(slug: str) -> dict | None:
+    try:
+        return json.loads(exec_py(slug, "info").splitlines()[-1])
+    except (Fail, ValueError, IndexError):
+        return None
+
+
+def state(slug: str) -> str:
+    n = names(slug)["container"]
+    if not exists("container", n):
+        return "missing"
+    return docker("inspect", "-f", "{{.State.Status}}", n)
+
+
+def healthy(slug: str, wait: float = 90) -> bool:
+    end = time.time() + wait
+    probe = "import urllib.request,sys;urllib.request.urlopen('http://127.0.0.1:8080/api/health',timeout=3)"
+    while time.time() < end:
+        if state(slug) == "running" and subprocess.run(
+                ["docker", "exec", names(slug)["container"], "python", "-c", probe], capture_output=True).returncode == 0:
+            return True
+        time.sleep(1)
+    return False
+
+
+def uid(img: str) -> str:
+    return docker("run", "--rm", "--entrypoint", "id", img, "-u")
+
+
+def start_container(c: dict, t: dict) -> None:
+    """(Re)create a venue's container from its settings. Its data stays in its volume."""
+    n = names(t["slug"])
+    if exists("container", n["container"]):
+        docker("rm", "-f", n["container"])
+    img = image(c, t["version"])
+    model = ROOT / "models" / SPEECH_MODEL
+    env = {
+        "ATSUIT_HOSTED": "1",
+        "ATSUIT_SETUP_CODE": t["setup_code"],
+        "ATSUIT_PUBLIC_URL": address(c, t["slug"]),
+        "ATSUIT_ASR": "0",  # captions are made on the laptops; the server never hears the audio
+        "ATSUIT_KB_DIR": "/app/atsuit/kb:/kb",
+        "TZ": c["ATCLOUD_TZ"],
+    }
+    if c["ATCLOUD_AI"] == "1":
+        env.update(ATSUIT_AI_URL=f"http://{AI}:11434", ATSUIT_AI_MODEL=c["ATCLOUD_AI_MODEL"])
+    args = ["run", "-d", "--name", n["container"], "--hostname", t["slug"], "--network", n["network"],
+            "--restart", "unless-stopped", "--memory", t.get("memory") or c["ATCLOUD_MEMORY"],
+            "--cpus", t.get("cpus") or c["ATCLOUD_CPUS"], "--pids-limit", "512",
+            "--read-only", "--tmpfs", "/tmp:size=64m", "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+            "--log-opt", "max-size=10m", "--log-opt", "max-file=3",
+            "--label", f"atcloud.venue={t['slug']}",
+            "-v", f"{n['volume']}:/data", "-v", f"{ROOT / 'kb'}:/kb:ro", "-v", f"{ROOT / 'app'}:/srv/app:ro"]
+    if model.is_dir():  # one copy of the speech model for every venue, read-only
+        args += ["-v", f"{model}:/data/models/{SPEECH_MODEL}:ro"]
+    for k, v in env.items():
+        args += ["-e", f"{k}={v}"]
+    docker(*args, img)
+
+
+def write_site(c: dict, t: dict) -> None:
+    """The edge's route for one venue: to its container, or a 'paused' page."""
+    slug = t["slug"]
+    host = f"{slug}.{c['ATCLOUD_DOMAIN']}"
+    if t["status"] == "active":
+        body = (f"\treverse_proxy atsuit-{slug}:8080 {{\n"
+                "\t\theader_up X-Forwarded-For {client_ip}\n"
+                "\t}\n")
+    else:
+        body = '\theader Content-Type "text/plain; charset=utf-8"\n' \
+               '\trespond "This AT-SUIT venue is paused. Please contact your AT-SUIT provider." 503\n'
+    (ROOT / "sites" / f"{slug}.caddy").write_text(f"@v_{slug} host {host}\nhandle @v_{slug} {{\n{body}}}\n")
+
+
+def reload_edge() -> None:
+    if state_of(EDGE) == "running":
+        docker("exec", EDGE, "caddy", "reload", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile")
+
+
+def state_of(container: str) -> str:
+    return docker("inspect", "-f", "{{.State.Status}}", container) if exists("container", container) else "missing"
+
+
+def join(container: str, network: str) -> None:
+    if state_of(container) == "missing" or not exists("network", network):
+        return
+    nets = docker("inspect", "-f", "{{json .NetworkSettings.Networks}}", container)
+    if network not in json.loads(nets or "{}"):
+        docker("network", "connect", network, container)
+
+
+# --------------------------------------------------------------- commands --
+def cmd_init(a) -> None:
+    for d in ("tenants", "tenants/removed", "sites", "certs", "kb", "app", "models", "backups"):
+        (ROOT / d).mkdir(parents=True, exist_ok=True)
+    c = conf()
+    changes = {k: v for k, v in DEFAULTS.items() if k not in c or not (ROOT / "atcloud.env").is_file()}
+    if a.domain:
+        changes["ATCLOUD_DOMAIN"] = a.domain.strip().lower().strip(".")
+    if a.image:
+        changes["ATCLOUD_IMAGE"] = a.image
+    if a.version:
+        changes["ATCLOUD_VERSION"] = a.version
+    if a.https_port:
+        changes["ATCLOUD_HTTPS_PORT"] = str(a.https_port)
+    if a.cloudflare:
+        changes["ATCLOUD_TRUSTED_PROXIES"] = " ".join(cloudflare_ranges())
+    save_conf(changes)
+    c = conf()
+    need_init(c)
+    pw = ROOT / "restic-password"
+    if not pw.exists():
+        pw.write_text(secrets.token_urlsafe(32) + "\n")
+        pw.chmod(0o600)
+        say(f"Made the backup password in {pw}. Keep a copy somewhere safe: without it no backup can be read.")
+    cert, key = ROOT / "certs" / "origin.pem", ROOT / "certs" / "origin.key"
+    if not cert.exists():
+        # A stand-in until the Cloudflare origin certificate goes here (see docs/HOSTING.md).
+        run("openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "3650", "-subj", "/CN=atcloud",
+            "-addext", f"subjectAltName=DNS:*.{c['ATCLOUD_DOMAIN']},DNS:{c['ATCLOUD_DOMAIN']}",
+            "-keyout", str(key), "-out", str(cert))
+        key.chmod(0o600)
+        say(f"Made a stand-in certificate. Put the Cloudflare origin certificate in {cert} and {key}, then `atcloud edge`.")
+    cmd_edge(a)
+    say(f"Ready. Venues will be at https://<venue>.{c['ATCLOUD_DOMAIN']}. Next: atcloud new <venue> --name \"Venue name\"")
+
+
+def cloudflare_ranges() -> list[str]:
+    out = []
+    for v in ("v4", "v6"):
+        with urllib.request.urlopen(f"https://www.cloudflare.com/ips-{v}", timeout=20) as r:
+            out += [ln.strip() for ln in r.read().decode().split() if ln.strip()]
+    if not out:
+        raise Fail("Couldn't get Cloudflare's addresses")
+    return out
+
+
+def cmd_edge(a=None) -> None:
+    c = conf()
+    need_init(c)
+    if exists("container", EDGE):
+        docker("rm", "-f", EDGE)
+    if not exists("volume", "atcloud-edge-data"):
+        docker("volume", "create", "atcloud-edge-data")
+    docker("run", "-d", "--name", EDGE, "--restart", "unless-stopped",
+           "-p", f"{c['ATCLOUD_HTTPS_PORT']}:443",
+           "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE", "--security-opt", "no-new-privileges:true",
+           "--log-opt", "max-size=10m", "--log-opt", "max-file=3",
+           "-e", f"ATCLOUD_DOMAIN={c['ATCLOUD_DOMAIN']}", "-e", f"ATCLOUD_TRUSTED_PROXIES={c['ATCLOUD_TRUSTED_PROXIES']}",
+           "-v", f"{KIT / 'Caddyfile'}:/etc/caddy/Caddyfile:ro", "-v", f"{ROOT / 'sites'}:/etc/caddy/sites:ro",
+           "-v", f"{ROOT / 'certs'}:/certs:ro", "-v", "atcloud-edge-data:/data", EDGE_IMAGE)
+    for t in tenants():
+        join(EDGE, names(t["slug"])["network"])
+    for _ in range(30):
+        if subprocess.run(["docker", "exec", EDGE, "wget", "-q", "-O", "/dev/null", "http://localhost:2019/config/"],
+                          capture_output=True).returncode == 0:
+            break
+        time.sleep(0.5)
+    else:
+        raise Fail(f"The front door didn't start: {docker('logs', '--tail', '20', EDGE, check=False)}")
+    say(f"Front door running on port {c['ATCLOUD_HTTPS_PORT']}.")
+
+
+def cmd_new(a) -> None:
+    c = conf()
+    need_init(c)
+    slug = check_slug(a.venue)
+    if tenant_file(slug).exists():
+        raise Fail(f"{slug} already exists.")
+    n = names(slug)
+    for kind in ("container", "volume", "network"):
+        if exists(kind, n[kind]):
+            raise Fail(f"Docker already has a {kind} called {n[kind]}. Remove it or pick another name.")
+    t = {"slug": slug, "name": a.name or slug, "status": "active", "version": a.version or c["ATCLOUD_VERSION"],
+         "setup_code": secrets.token_urlsafe(18), "memory": a.memory or "", "cpus": a.cpus or "", "created_at": now()}
+    key = Path(a.licence).read_text().strip() if a.licence else ""
+    img = image(c, t["version"])
+    say(f"Making {slug} ({img})…")
+    if not a.no_pull:
+        docker("pull", "-q", img)
+    docker("network", "create", "--label", f"atcloud.venue={slug}", n["network"])
+    docker("volume", "create", "--label", f"atcloud.venue={slug}", n["volume"])
+    try:
+        # As the app's own user, so the nested read-only model mount doesn't leave /data/models owned by root.
+        docker("run", "--rm", "--entrypoint", "mkdir", "-v", f"{n['volume']}:/data", img, "-p", f"/data/models/{SPEECH_MODEL}")
+        store(t)
+        start_container(c, t)
+        if not healthy(slug):
+            raise Fail(f"{slug} didn't start. `atcloud logs {slug}` says why.")
+        if key:
+            exec_py(slug, "licence", "/dev/stdin", stdin=key)
+        if (ROOT / "app" / "latest.yml").is_file():  # the Windows app its laptops update from
+            exec_py(slug, "app", "/srv/app", check=False)
+        join(EDGE, n["network"])
+        if c["ATCLOUD_AI"] == "1":
+            join(AI, n["network"])
+        write_site(c, t)
+        reload_edge()
+    except BaseException:
+        say("Something went wrong; undoing.")
+        for args in (("rm", "-f", n["container"]), ("network", "rm", n["network"]), ("volume", "rm", n["volume"])):
+            run("docker", *args, check=False)
+        tenant_file(slug).unlink(missing_ok=True)
+        (ROOT / "sites" / f"{slug}.caddy").unlink(missing_ok=True)
+        raise
+    say(f"\n{t['name']} is ready at {address(c, slug)}")
+    say(f"Send them this setup link (it works once, to make their admin account):\n  {setup_link(c, t)}")
+    if not key:
+        say(f"No licence yet: they paste one at setup, or run `atcloud licence {slug} key.txt`.")
+
+
+def cmd_list(a) -> None:
+    rows = [("VENUE", "NAME", "STATUS", "VERSION", "SET UP", "LICENCE", "LAPTOPS", "ADDRESS")]
+    c = conf()
+    for t in tenants():
+        st = state(t["slug"])
+        i = info(t["slug"]) if st == "running" else None
+        lic = (i or {}).get("licence") or {}
+        status = t["status"] if t["status"] != "active" else ("running" if i else st)
+        rows.append((t["slug"], t["name"][:24], status, (i or {}).get("version") or t["version"],
+                     "yes" if (i or {}).get("setup_complete") else ("no" if i else "?"),
+                     (lic.get("state") or "?") if i else "?", str((i or {}).get("laptops", "?")), address(c, t["slug"])))
+    widths = [max(len(r[k]) for r in rows) for k in range(len(rows[0]))]
+    for r in rows:
+        say("  ".join(v.ljust(w) for v, w in zip(r, widths)).rstrip())
+    if len(rows) == 1:
+        say("No venues yet. atcloud new <venue> --name \"Venue name\"")
+
+
+def cmd_info(a) -> None:
+    t = load(a.venue)
+    out = {**{k: v for k, v in t.items() if k != "setup_code"}, "container": state(t["slug"]),
+           "address": address(conf(), t["slug"]), "server": info(t["slug"])}
+    say(json.dumps(out, indent=2))
+
+
+def cmd_link(a) -> None:
+    c, t = conf(), load(a.venue)
+    i = info(t["slug"])
+    if i and i.get("setup_complete"):
+        say(f"{t['slug']} is set up already. Its admins sign in at {address(c, t['slug'])}")
+    else:
+        say(setup_link(c, t))
+
+
+def cmd_licence(a) -> None:
+    t = load(a.venue)
+    key = Path(a.file).read_text().strip()
+    out = json.loads(exec_py(t["slug"], "licence", "/dev/stdin", stdin=key).splitlines()[-1])
+    say(f"{t['slug']}: licensed to {out.get('licensee')} ({out.get('edition')}), state {out.get('state')}.")
+
+
+def cmd_suspend(a) -> None:
+    c, t = conf(), load(a.venue)
+    t["status"] = "suspended"
+    t["suspended_at"] = now()
+    store(t)
+    write_site(c, t)
+    reload_edge()
+    docker("stop", names(t["slug"])["container"], check=False)
+    say(f"{t['slug']} is paused. Its data is kept; `atcloud resume {t['slug']}` brings it back.")
+
+
+def cmd_resume(a) -> None:
+    c, t = conf(), load(a.venue)
+    t["status"] = "active"
+    t.pop("suspended_at", None)
+    store(t)
+    if state(t["slug"]) == "missing":
+        start_container(c, t)
+    else:
+        docker("start", names(t["slug"])["container"])
+    if not healthy(t["slug"]):
+        raise Fail(f"{t['slug']} didn't start. `atcloud logs {t['slug']}`")
+    write_site(c, t)
+    reload_edge()
+    say(f"{t['slug']} is back at {address(c, t['slug'])}")
+
+
+def pick(a) -> list[dict]:
+    if getattr(a, "all", False) or not a.venues:
+        return [t for t in tenants() if t["status"] == "active"]
+    return [load(v) for v in a.venues]
+
+
+def volume_copy(slug: str, dest: Path, restore: bool = False) -> None:
+    """A whole copy of a venue's data (for rolling an update back), or putting one back."""
+    vol = names(slug)["volume"]
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if restore:
+        docker("run", "--rm", "-v", f"{vol}:/data", "-v", f"{dest.parent}:/b:ro", HELPER_IMAGE, "sh", "-c",
+               f"find /data -mindepth 1 -maxdepth 1 ! -name models -exec rm -rf {{}} + && tar xzpf /b/{dest.name} -C /data")
+    else:
+        docker("run", "--rm", "-v", f"{vol}:/data:ro", "-v", f"{dest.parent}:/b", HELPER_IMAGE,
+               "tar", "czpf", f"/b/{dest.name}", "--exclude=./models", "-C", "/data", ".")
+
+
+def cmd_update(a) -> None:
+    c = conf()
+    need_init(c)
+    version = a.version or c["ATCLOUD_VERSION"]
+    img = image(c, version)
+    if not a.no_pull:
+        docker("pull", "-q", img)
+    failed = []
+    for t in pick(a):
+        slug, old = t["slug"], t["version"]
+        i = info(slug)
+        live = (i or {}).get("live") or []
+        if live and not a.force:
+            say(f"{slug}: skipped, a show is on in {', '.join(live)}. Run again later, or --force.")
+            failed.append(slug)
+            continue
+        say(f"{slug}: {(i or {}).get('version') or old} → {version}…")
+        copy = ROOT / "backups" / "pre-update" / f"{slug}-{int(time.time())}.tgz"
+        docker("stop", "-t", "20", names(slug)["container"], check=False)
+        volume_copy(slug, copy)
+        t["version"] = version
+        start_container(c, t)
+        if healthy(slug, wait=180):
+            store(t)
+            if (ROOT / "app" / "latest.yml").is_file():
+                exec_py(slug, "app", "/srv/app", check=False)
+            copy.unlink(missing_ok=True)
+            say(f"{slug}: on {version}.")
+            continue
+        say(f"{slug}: not healthy on {version}; putting {old} and its data back.")
+        logs = docker("logs", "--tail", "40", names(slug)["container"], check=False)
+        docker("stop", names(slug)["container"], check=False)
+        volume_copy(slug, copy, restore=True)
+        t["version"] = old
+        start_container(c, t)
+        healthy(slug)
+        failed.append(slug)
+        say(logs)
+    reload_edge()
+    if failed:
+        raise Fail(f"Not updated: {', '.join(failed)}")
+
+
+def cmd_app(a) -> None:
+    c = conf()
+    dest = ROOT / "app"
+    dest.mkdir(exist_ok=True)
+    if a.dir:
+        src = Path(a.dir)
+        names_ = [f.name for f in src.iterdir() if f.name == "latest.yml" or f.suffix in (".exe", ".blockmap")]
+        if "latest.yml" not in names_:
+            raise Fail(f"No latest.yml in {src}")
+        stage = ROOT / "app.new"
+        shutil.rmtree(stage, ignore_errors=True)
+        stage.mkdir()
+        for n in names_:
+            shutil.copyfile(src / n, stage / n)
+    else:
+        tag = a.release or f"v{c['ATCLOUD_VERSION']}"
+        if tag == "vlatest":
+            raise Fail("Say which release: atcloud app --release v1.11.0")
+        stage = ROOT / "app.new"
+        shutil.rmtree(stage, ignore_errors=True)
+        stage.mkdir()
+        with urllib.request.urlopen(f"{RELEASES}/{tag}/latest.yml", timeout=60) as r:
+            yml = r.read()
+        m = re.search(rb"^path:\s*['\"]?([^'\"\n]+?)['\"]?\s*$", yml, re.M)
+        if not m:
+            raise Fail("The release's latest.yml names no installer")
+        exe = m.group(1).decode()
+        for n in (exe, f"{exe}.blockmap"):
+            say(f"Downloading {n}…")
+            with urllib.request.urlopen(f"{RELEASES}/{tag}/{n}", timeout=600) as r, (stage / n).open("wb") as out:
+                shutil.copyfileobj(r, out)
+        (stage / "latest.yml").write_bytes(yml)
+    for f in dest.iterdir():  # swap in place: venues mount this folder
+        f.unlink()
+    for f in sorted(stage.iterdir(), key=lambda f: f.name == "latest.yml"):
+        f.replace(dest / f.name)
+    stage.rmdir()
+    for t in tenants():
+        if t["status"] == "active" and state(t["slug"]) == "running":
+            ok = subprocess.run(["docker", "exec", names(t["slug"])["container"], "python", "-m", "atsuit.hosted", "app", "/srv/app"],
+                                capture_output=True).returncode == 0
+            say(f"{t['slug']}: {'published' if ok else 'FAILED'}")
+
+
+def cmd_models(a) -> None:
+    c = conf()
+    need_init(c)
+    dest = ROOT / "models"
+    if (dest / SPEECH_MODEL / "tokens.txt").is_file():
+        say("The speech model is here already.")
+        return
+    img = image(c, c["ATCLOUD_VERSION"])
+    say(f"Downloading {SPEECH_MODEL} once for every venue (about 200 MB)…")
+    docker("run", "--rm", "--user", "0", "-v", f"{dest}:/m", "--entrypoint", "python", img, "-c",
+           f"from pathlib import Path; from atsuit import asr; asr.download_model({SPEECH_MODEL!r}, Path('/m'))")
+    docker("run", "--rm", "-v", f"{dest}:/m", HELPER_IMAGE, "chmod", "-R", "a+rX", "/m")
+    say("Done. Venues get it on their next start (`atcloud update --all`).")
+
+
+def restic(c: dict, *args: str, volumes: list[str] = (), env: dict | None = None) -> str:
+    repo = c["RESTIC_REPOSITORY"]
+    if not repo:
+        raise Fail(f"Set RESTIC_REPOSITORY in {ROOT}/atcloud.env first (see docs/HOSTING.md).")
+    mounts = ["-v", f"{ROOT / 'restic-password'}:/run/restic-password:ro", "-v", "atcloud-restic-cache:/root/.cache/restic"]
+    if repo.startswith("/"):
+        mounts += ["-v", f"{repo}:{repo}"]
+    if (ROOT / "ssh").is_dir():
+        mounts += ["-v", f"{ROOT / 'ssh'}:/root/.ssh:ro"]
+    for v in volumes:
+        mounts += ["-v", v]
+    e = ["-e", f"RESTIC_REPOSITORY={repo}", "-e", "RESTIC_PASSWORD_FILE=/run/restic-password"]
+    for k, v in (env or {}).items():
+        e += ["-e", f"{k}={v}"]
+    return docker("run", "--rm", "--hostname", "atcloud", *mounts, *e, RESTIC_IMAGE, *args)
+
+
+def ensure_repo(c: dict) -> None:
+    try:
+        restic(c, "cat", "config")
+    except Fail:
+        restic(c, "init")
+        say("Made the backup repository.")
+
+
+def cmd_backup(a) -> None:
+    c = conf()
+    need_init(c)
+    ensure_repo(c)
+    failed = []
+    for t in pick(a) if a.venues else tenants():
+        slug, vol = t["slug"], names(t["slug"])["volume"]
+        if not exists("volume", vol):
+            continue
+        try:
+            if state(slug) == "running":
+                exec_py(slug, "snapshot")  # a consistent copy of the live database
+            else:  # a paused venue: its database is at rest, so a plain copy is consistent
+                docker("run", "--rm", "-v", f"{vol}:/data", HELPER_IMAGE, "sh", "-c",
+                       "mkdir -p /data/.snapshot && cp /data/atsuit.db /data/.snapshot/atsuit.db && "
+                       "chown -R $(stat -c %u:%g /data) /data/.snapshot")
+            # The live database files are left out (the snapshot is in), and so are caption
+            # transcripts (deleted after 12 hours; never kept in backups) and speech models.
+            restic(c, "backup", "--tag", f"venue:{slug}", "--host", "atcloud", "--json", "--quiet",
+                   "--exclude", f"/venues/{slug}/models", "--exclude", f"/venues/{slug}/transcripts",
+                   "--exclude", f"/venues/{slug}/atsuit.db", "--exclude", f"/venues/{slug}/atsuit.db-wal",
+                   "--exclude", f"/venues/{slug}/atsuit.db-shm", "--exclude", f"/venues/{slug}/.snapshot/atsuit.db.part",
+                   f"/venues/{slug}", volumes=[f"{vol}:/venues/{slug}:ro"])
+            say(f"{slug}: backed up")
+        except Fail as exc:
+            say(f"{slug}: FAILED {exc}")
+            failed.append(slug)
+    restic(c, "forget", "--prune", "--group-by", "tags", *c["RESTIC_KEEP"].split())
+    (ROOT / "backups" / "last-run.json").write_text(json.dumps({"at": now(), "failed": failed}) + "\n")
+    if failed:
+        raise Fail(f"Backups failed for {', '.join(failed)}")
+
+
+def cmd_snapshots(a) -> None:
+    c = conf()
+    args = ["snapshots", "--compact"] + (["--tag", f"venue:{a.venue}"] if a.venue else [])
+    say(restic(c, *args))
+
+
+def cmd_restore(a) -> None:
+    c, t = conf(), load(a.venue)
+    if not a.yes:
+        raise Fail(f"This replaces {t['slug']}'s data with the backup. Add --yes to go ahead.")
+    slug, vol = t["slug"], names(t["slug"])["volume"]
+    snap = a.snapshot or "latest"
+    say(f"{slug}: stopping and restoring {snap}…")
+    docker("stop", "-t", "20", names(slug)["container"], check=False)
+    owner = uid(image(c, t["version"]))
+    # Clear the venue's data (but not the shared model mount point or the transcripts, which never
+    # go in backups), restore into it, then make the snapshot the live database.
+    docker("run", "--rm", "-v", f"{vol}:/data", HELPER_IMAGE, "sh", "-c",
+           "find /data -mindepth 1 -maxdepth 1 ! -name models ! -name transcripts -exec rm -rf {} +")
+    restic(c, "restore", f"{snap}:/venues/{slug}",
+           "--tag", f"venue:{slug}", "--host", "atcloud", "--target", "/data", volumes=[f"{vol}:/data"])
+    docker("run", "--rm", "-v", f"{vol}:/data", HELPER_IMAGE, "sh", "-c",
+           "test -f /data/.snapshot/atsuit.db && mv /data/.snapshot/atsuit.db /data/atsuit.db; "
+           f"rm -f /data/atsuit.db-wal /data/atsuit.db-shm; chown -R {owner}:{owner} /data")
+    if t["status"] == "active":
+        docker("start", names(slug)["container"])
+        if not healthy(slug):
+            raise Fail(f"{slug} didn't start after the restore. `atcloud logs {slug}`")
+    say(f"{slug}: restored from {snap}.")
+
+
+def cmd_remove(a) -> None:
+    c, t = conf(), load(a.venue)
+    if not a.yes:
+        raise Fail(f"This deletes {t['slug']} and all its data. Add --yes to go ahead.")
+    slug, n = t["slug"], names(t["slug"])
+    if not a.no_backup and c["RESTIC_REPOSITORY"]:
+        a.venues = [slug]
+        cmd_backup(a)
+    (ROOT / "sites" / f"{slug}.caddy").unlink(missing_ok=True)
+    reload_edge()
+    run("docker", "rm", "-f", n["container"], check=False)
+    for cont in (EDGE, AI):
+        run("docker", "network", "disconnect", n["network"], cont, check=False)
+    run("docker", "network", "rm", n["network"], check=False)
+    run("docker", "volume", "rm", n["volume"], check=False)
+    t.update(status="removed", removed_at=now(), setup_code="")
+    (ROOT / "tenants" / "removed" / f"{slug}-{int(time.time())}.json").write_text(json.dumps(t, indent=2) + "\n")
+    tenant_file(slug).unlink()
+    say(f"{slug} is removed." + (" Its last backup stays in the backup repository until it ages out." if not a.no_backup and c["RESTIC_REPOSITORY"] else ""))
+
+
+def cmd_storagebox(a) -> None:
+    """Nightly backups to a Hetzner Storage Box: a key of its own, the box's address, and the repository."""
+    user = a.user.strip()
+    if not re.match(r"^u\d+(-sub\d+)?$", user):
+        raise Fail("That isn't a Storage Box user name; it looks like u123456 (Hetzner Robot → Storage Box).")
+    host = f"{user.split('-')[0]}.your-storagebox.de"
+    d = ROOT / "ssh"
+    d.mkdir(mode=0o700, exist_ok=True)
+    key = d / "id_ed25519"
+    if not key.exists():
+        run("ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "atcloud-backups", "-f", str(key))
+    (d / "config").write_text(f"Host storagebox\n  HostName {host}\n  User {user}\n  Port 23\n"
+                              "  IdentityFile /root/.ssh/id_ed25519\n  IdentitiesOnly yes\n  ServerAliveInterval 60\n")
+    (d / "known_hosts").write_text(run("ssh-keyscan", "-p", "23", host) + "\n")
+    for f in d.iterdir():
+        f.chmod(0o600)
+    say(f"Putting this server's backup key on {host}. Type the Storage Box password once:")
+    run("sh", "-c", f"ssh -p 23 -o UserKnownHostsFile={d / 'known_hosts'} {user}@{host} install-ssh-key < {key}.pub",
+        capture=False)
+    save_conf({"RESTIC_REPOSITORY": "sftp:storagebox:atcloud"})
+    ensure_repo(conf())
+    say("Backups go to the Storage Box now, every night (atcloud-backup.timer). `atcloud backup` runs one now.")
+
+
+def cmd_ai(a) -> None:
+    c = conf()
+    if a.state == "on":
+        save_conf({"ATCLOUD_AI": "1", **({"ATCLOUD_AI_MODEL": a.model} if a.model else {})})
+        c = conf()
+        if not exists("volume", "atcloud-ai-data"):
+            docker("volume", "create", "atcloud-ai-data")
+        if state_of(AI) == "missing":
+            docker("run", "-d", "--name", AI, "--restart", "unless-stopped", "--memory", a.memory,
+                   "--log-opt", "max-size=10m", "--log-opt", "max-file=3", "-v", "atcloud-ai-data:/root/.ollama", AI_IMAGE)
+        for t in tenants():
+            join(AI, names(t["slug"])["network"])
+        say(f"Fetching {c['ATCLOUD_AI_MODEL']}…")
+        docker("exec", AI, "ollama", "pull", c["ATCLOUD_AI_MODEL"], capture=False)
+    else:
+        save_conf({"ATCLOUD_AI": "0"})
+        run("docker", "rm", "-f", AI, check=False)
+    say("Run `atcloud update --all` so every venue picks this up (it waits for shows to end).")
+
+
+def cmd_check(a) -> None:
+    bad = []
+    if state_of(EDGE) != "running":
+        bad.append("edge")
+    for t in tenants():
+        if t["status"] == "active" and not healthy(t["slug"], wait=5):
+            bad.append(t["slug"])
+    say("all healthy" if not bad else f"not healthy: {', '.join(bad)}")
+    if bad:
+        sys.exit(1)
+
+
+def cmd_logs(a) -> None:
+    docker("logs", "--tail", str(a.lines), names(load(a.venue)["slug"])["container"], capture=False)
+
+
+# ------------------------------------------------------------------- main --
+def main(argv: list[str]) -> int:
+    p = argparse.ArgumentParser(prog="atcloud", description=__doc__.split("\n\n")[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("init", help="settings, folders and the front door")
+    s.add_argument("--domain")
+    s.add_argument("--image")
+    s.add_argument("--version")
+    s.add_argument("--https-port", type=int)
+    s.add_argument("--cloudflare", action="store_true", help="trust only Cloudflare's addresses for visitors' IPs")
+    s.set_defaults(fn=cmd_init)
+
+    s = sub.add_parser("new", help="a new venue")
+    s.add_argument("venue")
+    s.add_argument("--name")
+    s.add_argument("--licence", help="file with the venue's licence key")
+    s.add_argument("--version")
+    s.add_argument("--memory", help="e.g. 1g (default ATCLOUD_MEMORY)")
+    s.add_argument("--cpus")
+    s.add_argument("--no-pull", action="store_true")
+    s.set_defaults(fn=cmd_new)
+
+    sub.add_parser("list").set_defaults(fn=cmd_list)
+    for name, fn in (("info", cmd_info), ("link", cmd_link), ("suspend", cmd_suspend), ("resume", cmd_resume)):
+        s = sub.add_parser(name)
+        s.add_argument("venue")
+        s.set_defaults(fn=fn)
+
+    s = sub.add_parser("licence")
+    s.add_argument("venue")
+    s.add_argument("file")
+    s.set_defaults(fn=cmd_licence)
+
+    s = sub.add_parser("update", help="move venues to a version")
+    s.add_argument("venues", nargs="*")
+    s.add_argument("--all", action="store_true")
+    s.add_argument("--version")
+    s.add_argument("--force", action="store_true", help="even while a show is on")
+    s.add_argument("--no-pull", action="store_true")
+    s.set_defaults(fn=cmd_update)
+
+    s = sub.add_parser("app", help="the Windows tech app for every venue")
+    g = s.add_mutually_exclusive_group()
+    g.add_argument("--release", help="a release tag, e.g. v1.11.0")
+    g.add_argument("--dir", help="a folder with latest.yml, the .exe and its .blockmap")
+    s.set_defaults(fn=cmd_app)
+
+    sub.add_parser("models").set_defaults(fn=cmd_models)
+
+    s = sub.add_parser("backup")
+    s.add_argument("venues", nargs="*")
+    s.set_defaults(fn=cmd_backup)
+
+    s = sub.add_parser("snapshots")
+    s.add_argument("venue", nargs="?")
+    s.set_defaults(fn=cmd_snapshots)
+
+    s = sub.add_parser("restore")
+    s.add_argument("venue")
+    s.add_argument("--snapshot")
+    s.add_argument("--yes", action="store_true")
+    s.set_defaults(fn=cmd_restore)
+
+    s = sub.add_parser("remove")
+    s.add_argument("venue")
+    s.add_argument("--yes", action="store_true")
+    s.add_argument("--no-backup", action="store_true")
+    s.set_defaults(fn=cmd_remove, venues=[])
+
+    sub.add_parser("edge").set_defaults(fn=cmd_edge)
+
+    s = sub.add_parser("storagebox", help="back up to a Hetzner Storage Box")
+    s.add_argument("user", help="the Storage Box user, e.g. u123456")
+    s.set_defaults(fn=cmd_storagebox)
+
+    s = sub.add_parser("ai")
+    s.add_argument("state", choices=("on", "off"))
+    s.add_argument("--model")
+    s.add_argument("--memory", default="4g")
+    s.set_defaults(fn=cmd_ai)
+
+    sub.add_parser("check").set_defaults(fn=cmd_check)
+
+    s = sub.add_parser("logs")
+    s.add_argument("venue")
+    s.add_argument("--lines", type=int, default=200)
+    s.set_defaults(fn=cmd_logs)
+
+    a = p.parse_args(argv)
+    try:
+        a.fn(a)
+    except Fail as exc:
+        print(f"atcloud: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

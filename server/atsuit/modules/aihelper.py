@@ -17,7 +17,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import db
+from .. import config, db
 from ..security import Principal, require_admin, require_tech
 from .core import site_ok
 
@@ -38,7 +38,50 @@ def prefs(c) -> dict:
         out["model_from_presenters"] = True
         p = db.get_setting(c, "presenter", {}) or {}
         out["ai_url"], out["ai_model"] = p.get("ai_url", ""), p.get("ai_model") or out["ai_model"]
+    if not out["ai_url"] and config.cfg.ai_url:  # then the provider's private model (hosted venues)
+        out["ai_url"], out["ai_model"] = config.cfg.ai_url, config.cfg.ai_model or out["ai_model"]
     return out
+
+
+def guides() -> list[dict]:
+    """The help library, one item per section so an answer can point at the right part."""
+    items = []
+    for a in articles():
+        sections, head, lines = [], a["title"], []
+        for ln in a["markdown"].splitlines():
+            if ln.startswith("## "):
+                sections.append((head, lines))
+                head, lines = ln[3:].strip(), []
+            elif not ln.startswith("# "):
+                lines.append(ln)
+        sections.append((head, lines))
+        for head, lines in sections:
+            body = "\n".join(lines).strip()
+            if body:
+                items.append({"kind": "AT-SUIT guide", "title": (a["title"] if head == a["title"] else f"{a['title']}: {head}")[:120],
+                              "text": body[:3000], "url": f"/guide/help#{a['slug']}"})
+    return items
+
+
+def articles() -> list[dict]:
+    """The help library as whole articles, for the Help page (/guide/help). A provider's article
+    replaces AT-SUIT's own of the same name."""
+    out = {}
+    for d in config.cfg.kb_dirs:
+        for f in sorted(d.glob("*.md")) if d.is_dir() else []:
+            try:
+                text = f.read_text("utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            title = next((ln[2:].strip() for ln in text.splitlines() if ln.startswith("# ")), f.stem.replace("-", " "))
+            out[f.stem] = {"slug": f.stem, "title": title, "markdown": text}
+    return sorted(out.values(), key=lambda a: a["title"].lower())
+
+
+@router.get("/api/guide/help")
+def help_articles():
+    # No sign-in: it's AT-SUIT's own how-to, nothing about the venue.
+    return {"articles": articles()}
 
 
 def words(text: str) -> list[str]:
@@ -62,11 +105,11 @@ def knowledge(c, site_id: int | None) -> list[dict]:
     for k in c.execute("SELECT question,answer,added_by FROM ai_knowledge WHERE site_id IS ? OR site_id IS NULL OR ? IS NULL "
                        "ORDER BY id DESC LIMIT 500", (site_id, site_id)):
         items.append({"kind": "worked before", "title": k["question"][:120], "text": f"Q: {k['question']}\nA: {k['answer']}"})
-    return items
+    return items + guides()
 
 
 def best(question: str, items: list[dict], top: int = 4) -> list[dict]:
-    """The items sharing the most (and the rarest) words with the question."""
+    """The items sharing the most (and the rarest) words with the question; the venue's own before help articles."""
     q = set(words(question))
     if not q or not items:
         return []
@@ -75,10 +118,12 @@ def best(question: str, items: list[dict], top: int = 4) -> list[dict]:
     n = len(docs)
     scored = []
     for item, d in zip(items, docs):
+        if item["kind"] == "AT-SUIT guide" and sum(1 for w in q if d.get(w)) < min(2, len(q)):
+            continue  # a help article has to be about the question, not share one word with it
         s = sum(math.log(1 + n / df[w]) * (1 + math.log(d[w])) for w in q if d.get(w))
         if s > 0:
             scored.append((s / math.sqrt(1 + sum(d.values()) / 40), item))
-    scored.sort(key=lambda x: -x[0])
+    scored.sort(key=lambda x: (x[1]["kind"] == "AT-SUIT guide", -x[0]))  # what this venue knows comes first
     return [i for _, i in scored[:top]]
 
 
@@ -132,13 +177,21 @@ def answer(c_items: list[dict], cfg: dict, question: str, who: str, room: str, v
         except (httpx.HTTPError, ValueError):
             pass  # no model reachable: fall back to what worked before
     if found:
-        lines = [f"• {s['title']}: {s['text'].split('Fixed by: ')[-1].split('A: ')[-1]}" for s in found[:3]]
-        text = "Here's what has worked here before:\n" + "\n".join(lines)
+        lines = [f"• {s['title']}: {_gist(s)}" for s in found[:3]]
+        text = ("Here's what I found:\n" if any(s["kind"] == "AT-SUIT guide" for s in found[:3])
+                else "Here's what has worked here before:\n") + "\n".join(lines)
     elif web:
         text = f"From the web ({web['title']}): {web['text']}"
     else:
         text = "I don't know this one yet. Call for help and the crew will come; once it's fixed, add how, so I can help next time."
     return {"answer": text, "sources": _out(sources), "model": False}
+
+
+def _gist(s: dict) -> str:
+    if s["kind"] == "AT-SUIT guide":  # a help article: its first paragraph, the rest is a click away
+        first = s["text"].split("\n\n")[0].replace("\n", " ")
+        return first if len(first) <= 300 else first[:297].rsplit(" ", 1)[0] + "…"
+    return s["text"].split("Fixed by: ")[-1].split("A: ")[-1]
 
 
 def _out(sources: list[dict]) -> list[dict]:

@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import VERSION, asr, config, db, licence, updates
+from . import VERSION, asr, config, db, hosted, licence, updates
 from .hub import can_subscribe, hub
 from .modules import aihelper, captions, cluster, comms, core, dashboard, fleet, imports, notes, overlays, pairing, preshow, presenter, reports, timers, weather
 from .security import ws_principal
@@ -80,9 +80,11 @@ async def lifespan(app: FastAPI):
     cluster.reset()
     pairing.reset()
     tasks = [asyncio.create_task(housekeeping()), asyncio.create_task(captions.load_engine()),
-             asyncio.create_task(timers.end_actions()), asyncio.create_task(updates.loop()),
+             asyncio.create_task(timers.end_actions()),
              asyncio.create_task(licence.watch()), asyncio.create_task(comms.escalate_loop()),
              asyncio.create_task(reports.save_loop()), asyncio.create_task(captions.retention_loop())]
+    if not config.cfg.hosted:  # hosted venues are updated by their provider
+        tasks.append(asyncio.create_task(updates.loop()))
     yield
     for t in tasks:
         t.cancel()
@@ -97,12 +99,16 @@ def create_app() -> FastAPI:
                    weather, aihelper):
         app.include_router(module.router)
     app.include_router(fleet.legacy)
+    app.include_router(hosted.public)
+    if config.cfg.hosted:
+        app.include_router(hosted.updates_router)  # ahead of the updater's own routes
     app.include_router(updates.router)
     app.include_router(captions.ws_router)
     app.include_router(cluster.ws_router)
     app.include_router(timers.public)
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
     app.add_middleware(LicenceGate)
+    app.add_middleware(hosted.SetupGate)
 
     @app.get("/api/licence/status", include_in_schema=False)
     def licence_status():
@@ -166,6 +172,10 @@ def create_app() -> FastAPI:
     def tech_card_page():
         # The printable tech quick-start card.
         return page("quickstart.html")
+
+    @app.get("/guide/help", include_in_schema=False)
+    def help_page():
+        return page("help.html")
 
     @app.get("/guide/companion", include_in_schema=False)
     def companion_guide_page():
