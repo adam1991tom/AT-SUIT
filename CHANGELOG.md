@@ -7,6 +7,12 @@ the GitHub release.
 
 ## 1.0.10
 
+**Passwords**
+- Techs sign in to their laptop with their own account. The start screen asks for a username and password instead of a name (still with the room and Main PC / Backup PC). Admins and managers add people under People, with a password or left blank for ChangeMe.
+- A password someone else set has to be changed at the next sign-in, on the laptop, the workspace and the console alike. ChangeMe, the username and the old password aren't accepted.
+- **Forgot password?** on every sign-in screen. The admins and managers get a pop-up in the console and a count on People, where one press resets it to ChangeMe (and signs that person out everywhere). The screen gives the same answer for any username, so it can't be used to find out who has an account, and it's slowed down after five tries. Settings → General can make Forgot reset a tech's password straight away; an admin's or manager's always waits for an admin.
+- Sites already set up keep name-only sign-in until an admin ticks **Techs sign in with their own account and password** in Settings → General. New sites have it on.
+
 **Timer**
 - Quick timer and message buttons show what's live. The loaded quick timer is outlined in the brand colour; once it's running it fills and gently pulses. A message on stage fills and pulses too, as do Clock, Blink and Blackout while they're on. Turning off animations in the appearance settings (or in Windows) swaps the pulse for a steady outline.
 - Tap a loaded quick timer again to start it. Tapping one that's already running leaves it running and says so, instead of resetting it. Tapping the message that's on stage still takes it off.

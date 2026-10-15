@@ -211,6 +211,7 @@ class LoginIn(BaseModel):
     username: str
     password: str
     shared: bool = False  # signing in on a tech laptop: a short session that ends with the browser
+    new_password: str | None = Field(None, max_length=256)  # when the password must be changed first
 
 
 SHARED_MINUTES = 30
@@ -227,25 +228,63 @@ LOGIN_TRIES, LOGIN_WINDOW = 8, 300
 _login_fails: dict[tuple[str, str], list[float]] = {}
 
 
-@router.post("/api/auth/login")
-def login(body: LoginIn, request: Request, response: Response):
-    user = body.username.strip()
+# What a password reset sets. Nobody can sign in with it: the next sign-in has to choose a new one.
+DEFAULT_PASSWORD = "ChangeMe"
+
+
+def check_new_password(new: str, username: str, old_hash: str | None = None) -> None:
+    if len(new) < 8:
+        raise HTTPException(400, "A password needs at least 8 characters")
+    if new.lower() in (DEFAULT_PASSWORD.lower(), "password", "12345678") or new.lower() == username.lower():
+        raise HTTPException(400, "Choose a password of your own")
+    if old_hash and verify_password(new, old_hash):
+        raise HTTPException(400, "Choose a different password from the old one")
+
+
+def check_login(c, username: str, password: str, request: Request, new_password: str | None = None):
+    """The account for a username and password, or 401. A password someone else
+    set (a new account, a reset) has to be changed first: without new_password
+    that is a 428, and with it the new password is saved."""
+    user = username.strip()
     key, now = (request.client.host if request.client else "", user.lower()), time.monotonic()
     fails = [t for t in _login_fails.get(key, []) if now - t < LOGIN_WINDOW]
     if len(fails) >= LOGIN_TRIES:
         wait = int(LOGIN_WINDOW - (now - fails[0])) + 1
         raise HTTPException(429, f"Too many wrong passwords. Try again in {max(1, wait // 60)} min.")
-    with db.tx() as c:
-        a = c.execute("SELECT * FROM accounts WHERE username=? AND active=1", (user,)).fetchone()
-        ok = bool(a) and verify_password(body.password, a["password_hash"])
-        if not ok:
-            db.audit(c, user[:64] or "?", "auth.fail", key[0])
-    if not ok:
+    a = c.execute("SELECT * FROM accounts WHERE username=? AND active=1", (user,)).fetchone()
+    if not (a and verify_password(password, a["password_hash"])):  # the caller audits it: this transaction rolls back
         _login_fails[key] = fails + [now]
         if len(_login_fails) > 10000:  # don't let made-up usernames grow this forever
             _login_fails.clear()
         raise HTTPException(401, "Wrong username or password")
     _login_fails.pop(key, None)
+    if a["must_change"]:
+        if not new_password:
+            raise HTTPException(428, "Choose a new password")
+        check_new_password(new_password, a["username"], a["password_hash"])
+        c.execute("UPDATE accounts SET password_hash=?, must_change=0, reset_asked_at=NULL WHERE id=?",
+                  (hash_password(new_password), a["id"]))
+        db.audit(c, a["username"], "auth.password_changed", "first sign-in")
+    return a
+
+
+def reset_password(c, account_id: int) -> None:
+    """Back to the default password, to be changed at the next sign-in; signs them out everywhere."""
+    c.execute("UPDATE accounts SET password_hash=?, must_change=1, reset_asked_at=NULL WHERE id=?",
+              (hash_password(DEFAULT_PASSWORD), account_id))
+    c.execute("DELETE FROM sessions WHERE account_id=?", (account_id,))
+
+
+@router.post("/api/auth/login")
+def login(body: LoginIn, request: Request, response: Response):
+    try:
+        with db.tx() as c:
+            a = check_login(c, body.username, body.password, request, body.new_password)
+    except HTTPException as e:
+        if e.status_code == 401:
+            with db.tx() as c:
+                db.audit(c, body.username.strip()[:64] or "?", "auth.fail", request.client.host if request.client else "")
+        raise
     with db.tx() as c:
         token = create_session(c, a["id"], minutes=SHARED_MINUTES if body.shared else None)
         db.audit(c, a["username"], "auth.login", "shared computer" if body.shared else "")
@@ -281,11 +320,51 @@ def change_password(body: PasswordIn, p: Principal = Depends(require_user)):
     if p.kind != "account":
         raise HTTPException(400, "Only accounts have passwords")
     with db.tx() as c:
-        a = c.execute("SELECT password_hash FROM accounts WHERE id=?", (p.id,)).fetchone()
+        a = c.execute("SELECT username,password_hash FROM accounts WHERE id=?", (p.id,)).fetchone()
         if not verify_password(body.current, a["password_hash"]):
             raise HTTPException(400, "Current password is wrong")
-        c.execute("UPDATE accounts SET password_hash=? WHERE id=?", (hash_password(body.new), p.id))
+        check_new_password(body.new, a["username"], a["password_hash"])
+        c.execute("UPDATE accounts SET password_hash=?, must_change=0, reset_asked_at=NULL WHERE id=?", (hash_password(body.new), p.id))
     return {"ok": True}
+
+
+class ForgotIn(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+
+
+FORGOT_TRIES, FORGOT_WINDOW = 5, 600
+_forgot_asks: dict[str, list[float]] = {}
+
+
+@router.post("/api/auth/forgot")
+async def forgot_password(body: ForgotIn, request: Request):
+    """Forgot password: the admins and managers are told, and one of them resets it
+    to the default password, which has to be changed at the next sign-in. With
+    "Forgot password resets at once" on, a tech's or viewer's password is reset
+    straight away (an admin's or manager's always waits for an admin). The answer
+    is the same whether or not the username exists."""
+    ip, now = request.client.host if request.client else "", time.monotonic()
+    asks = [t for t in _forgot_asks.get(ip, []) if now - t < FORGOT_WINDOW]
+    if len(asks) >= FORGOT_TRIES:
+        raise HTTPException(429, "Too many requests. Ask an admin or manager in person.")
+    _forgot_asks[ip] = asks + [now]
+    if len(_forgot_asks) > 10000:
+        _forgot_asks.clear()
+    with db.tx() as c:
+        a = c.execute("SELECT id,username,display_name,role,site_id FROM accounts WHERE username=? AND active=1",
+                      (body.username.strip(),)).fetchone()
+        at_once = bool(db.get_setting(c, "forgot_resets_at_once", False))
+        done = bool(a) and at_once and a["role"] in MANAGED_ROLES
+        if a:
+            if done:
+                reset_password(c, a["id"])
+            else:
+                c.execute("UPDATE accounts SET reset_asked_at=? WHERE id=?", (db.now_iso(), a["id"]))
+            db.audit(c, a["username"], "auth.forgot", ("reset to the default" if done else "asked for a reset") + f" from {ip}")
+    if a:
+        await hub.publish("managers", "account.reset", {"id": a["id"], "username": a["username"], "name": a["display_name"],
+                                                       "site_id": a["site_id"], "done": done})
+    return {"ok": True, "at_once": at_once}
 
 
 # --------------------------------------------------------------- bootstrap --
@@ -304,8 +383,14 @@ def bootstrap(p: Principal = Depends(require_user)):
             sites = [s for s in sites if s["id"] == p.site_id]
             rooms = [r for r in rooms if r["site_id"] == p.site_id]
         lic = licence.current(c)
+        # People waiting for a password reset, for the admins and managers who can do it
+        asks = [] if not (p.kind == "account" and p.at_least("manager")) else [
+            {"id": r["id"], "name": r["display_name"]} for r in c.execute(
+                "SELECT id,display_name,role,site_id FROM accounts WHERE reset_asked_at IS NOT NULL AND active=1 ORDER BY reset_asked_at")
+            if (p.site_id is None or r["site_id"] == p.site_id) and (p.role == "admin" or r["role"] in MANAGED_ROLES)]
         return {
             "version": VERSION,
+            "reset_asks": asks,
             "me": {"kind": p.kind, "id": p.id, "name": p.name, "role": p.role, "site_id": p.site_id, "room_id": p.room_id},
             "branding": get_branding(c),
             "modules": modules_enabled(c),
@@ -359,6 +444,8 @@ def get_settings(p: Principal = Depends(require_admin)):
             "modules": {**DEFAULT_MODULES, **db.get_setting(c, "modules", {})},
             "legacy_fleet_api": db.get_setting(c, "legacy_fleet_api", True),
             "message_retention_days": db.get_setting(c, "message_retention_days", 0),
+            "tech_passwords": db.get_setting(c, "tech_passwords", True),
+            "forgot_resets_at_once": db.get_setting(c, "forgot_resets_at_once", False),
             "licence": lic.public(),
         }
 
@@ -369,6 +456,8 @@ class SettingsIn(BaseModel):
     modules: dict | None = None
     legacy_fleet_api: bool | None = None
     message_retention_days: int | None = None
+    tech_passwords: bool | None = None
+    forgot_resets_at_once: bool | None = None
 
 
 @router.put("/api/admin/settings")
@@ -389,6 +478,9 @@ def put_settings(body: SettingsIn, p: Principal = Depends(require_admin)):
             db.set_setting(c, "legacy_fleet_api", body.legacy_fleet_api)
         if body.message_retention_days is not None:
             db.set_setting(c, "message_retention_days", max(0, body.message_retention_days))
+        for key in ("tech_passwords", "forgot_resets_at_once"):
+            if getattr(body, key) is not None:
+                db.set_setting(c, key, getattr(body, key))
         db.audit(c, p.name, "settings.update", ",".join(k for k, v in body.model_dump().items() if v is not None))
     return {"ok": True}
 
@@ -577,7 +669,8 @@ class AccountIn(BaseModel):
 @router.get("/api/admin/accounts")
 def list_accounts(p: Principal = Depends(require_manager)):
     with db.ro() as c:
-        rows = db.rows(c.execute("SELECT id,username,display_name,role,site_id,active,created_at FROM accounts ORDER BY username"))
+        rows = db.rows(c.execute("SELECT id,username,display_name,role,site_id,active,created_at,must_change,reset_asked_at "
+                                 "FROM accounts ORDER BY username"))
     # A user kept to one site only sees that site's people (and themselves).
     return [r for r in rows if p.site_id is None or r["site_id"] == p.site_id or r["id"] == p.id]
 
@@ -586,7 +679,8 @@ def list_accounts(p: Principal = Depends(require_manager)):
 def add_account(body: AccountIn, p: Principal = Depends(require_manager)):
     if body.role not in ROLES:
         raise HTTPException(400, "Unknown role")
-    if not body.password or len(body.password) < 8:
+    # No password given: the default one. Either way they choose their own at their first sign-in.
+    if body.password and len(body.password) < 8:
         raise HTTPException(400, "Password must be at least 8 characters")
     _check_manages(p, body.role)
     if p.site_id is not None and body.site_id != p.site_id:
@@ -594,8 +688,8 @@ def add_account(body: AccountIn, p: Principal = Depends(require_manager)):
     with db.tx() as c:
         try:
             cur = c.execute(
-                "INSERT INTO accounts(username,password_hash,display_name,role,site_id,active,created_at) VALUES(?,?,?,?,?,?,?)",
-                (body.username.strip(), hash_password(body.password), body.display_name.strip() or body.username.strip(),
+                "INSERT INTO accounts(username,password_hash,display_name,role,site_id,active,created_at,must_change) VALUES(?,?,?,?,?,?,?,1)",
+                (body.username.strip(), hash_password(body.password or DEFAULT_PASSWORD), body.display_name.strip() or body.username.strip(),
                  body.role, body.site_id, int(body.active), db.now_iso()),
             )
         except sqlite3.IntegrityError:
@@ -629,12 +723,31 @@ def edit_account(account_id: int, body: AccountIn, p: Principal = Depends(requir
         if body.password:
             if len(body.password) < 8:
                 raise HTTPException(400, "Password must be at least 8 characters")
-            c.execute("UPDATE accounts SET password_hash=? WHERE id=?", (hash_password(body.password), account_id))
+            # Set by someone else: they choose their own at the next sign-in.
+            c.execute("UPDATE accounts SET password_hash=?, must_change=?, reset_asked_at=NULL WHERE id=?",
+                      (hash_password(body.password), int(account_id != p.id), account_id))
             c.execute("DELETE FROM sessions WHERE account_id=?", (account_id,))
         if not body.active:
             c.execute("DELETE FROM sessions WHERE account_id=?", (account_id,))
         db.audit(c, p.name, "account.edit", body.username)
     return {"ok": True}
+
+
+@router.post("/api/admin/accounts/{account_id}/reset")
+async def reset_account_password(account_id: int, p: Principal = Depends(require_manager)):
+    """Forgot password: back to the default (ChangeMe), changed at the next sign-in."""
+    if account_id == p.id:
+        raise HTTPException(400, "Change your own password under your name at the top")
+    with db.tx() as c:
+        a = c.execute("SELECT username,display_name,role,site_id FROM accounts WHERE id=?", (account_id,)).fetchone()
+        if not a or (p.site_id is not None and a["site_id"] != p.site_id):
+            raise HTTPException(404, "Account not found")
+        _check_manages(p, a["role"])
+        reset_password(c, account_id)
+        db.audit(c, p.name, "account.reset_password", a["username"])
+    await hub.publish("managers", "account.reset", {"id": account_id, "username": a["username"], "name": a["display_name"],
+                                                   "site_id": a["site_id"], "done": True, "by": p.name})
+    return {"ok": True, "password": DEFAULT_PASSWORD}
 
 
 @router.delete("/api/admin/accounts/{account_id}")

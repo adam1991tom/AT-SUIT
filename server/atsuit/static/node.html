@@ -124,7 +124,9 @@
     <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
     <h1>Start on <span id="startNode"></span></h1>
     <p class="muted small" style="margin-top:0">This resets each morning, so the next tech starts fresh.</p>
-    <label>Your name</label><input name="operator" required maxlength="60" placeholder="e.g. Adam">
+    <div id="startName"><label>Your name</label><input name="operator" maxlength="60" placeholder="e.g. Adam"></div>
+    <div id="startAcct" class="hidden"><label>Username</label><input name="username" autocomplete="username" maxlength="64">
+      <label>Password</label><input name="password" type="password" autocomplete="current-password"></div>
     <label>Room</label><div class="tiles" id="startRooms"></div>
     <label>This PC is the</label>
     <div class="opts">
@@ -335,8 +337,13 @@
     if (!roomId || !node.node.operator || !node.node.mode || !signedIn) {
       $("start").classList.remove("hidden");
       $("startNode").textContent = node.node.name;
-      const f = $("startForm");
-      f.operator.value = node.node.operator || "";
+      const f = $("startForm"), withPw = node.tech_passwords !== false;
+      // With tech passwords on, each tech signs in with their own account; otherwise they type their name.
+      $("startName").classList.toggle("hidden", withPw);
+      $("startAcct").classList.toggle("hidden", !withPw);
+      f.operator.required = !withPw; f.username.required = withPw; f.password.required = withPw;
+      const pw = withPw ? AT.passwordForm(f, $("startErr")) : null;
+      if (!withPw) f.operator.value = node.node.operator || "";
       if (node.node.mode) f.querySelector(`[name=mode][value=${node.node.mode}]`).checked = true;
       // Once a laptop has its room for the day it keeps it, whoever signs in; only an admin moves it.
       const locked = roomId;
@@ -354,12 +361,14 @@
         const mode = f.querySelector("[name=mode]:checked")?.value;
         try {
           await post("/api/auth/logout").catch(() => {}); // this laptop, not someone's account
-          await api("/api/nodes/me/start", { method: "POST", headers: nodeHdr(), body: { operator: f.operator.value, room_id: pick, mode } });
+          const who = withPw ? { username: f.username.value, password: f.password.value, ...pw.extra() } : { operator: f.operator.value };
+          await api("/api/nodes/me/start", { method: "POST", headers: nodeHdr(), body: { ...who, room_id: pick, mode } });
           if (APP) await APP.setSettings({ popups: mode === "backup" });
           location.reload();
-        } catch (ex) { $("startErr").textContent = ex.message; }
+        } catch (ex) { if (!pw?.handle(ex)) $("startErr").textContent = ex.message; }
       };
-      if (!f.operator.value) f.operator.focus();
+      if (withPw) f.username.focus();
+      else if (!f.operator.value) f.operator.focus();
       return;
     }
   }
@@ -367,11 +376,11 @@
   if (!boot) {
     $("login").classList.remove("hidden");
     $("nodeName").textContent = node ? node.node.name : "Tech workspace";
-    const f = $("loginForm");
+    const f = $("loginForm"), pw = AT.passwordForm(f, $("loginErr"));
     f.onsubmit = async (e) => {
       e.preventDefault();
-      try { await post("/api/auth/login", { username: f.username.value, password: f.password.value }); location.reload(); }
-      catch (ex) { $("loginErr").textContent = ex.message; }
+      try { await post("/api/auth/login", { username: f.username.value, password: f.password.value, ...pw.extra() }); location.reload(); }
+      catch (ex) { if (!pw.handle(ex)) $("loginErr").textContent = ex.message; }
     };
     return;
   }

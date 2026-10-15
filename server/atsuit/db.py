@@ -160,6 +160,16 @@ MIGRATIONS: list[str] = [
         edited_at TEXT, done_at TEXT, done_by TEXT);
     CREATE INDEX room_notes_room ON room_notes(room_id, done_at);
     """,
+    # 11: tech passwords. A password someone else set must be changed at the next
+    # sign-in; "forgot" asks the admins and managers for a reset. Sites set up before
+    # this keep name-only sign-in on tech laptops until an admin turns passwords on.
+    """
+    ALTER TABLE accounts ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE accounts ADD COLUMN reset_asked_at TEXT;
+    ALTER TABLE nodes ADD COLUMN operator_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL;
+    INSERT OR IGNORE INTO settings(key, value) SELECT 'tech_passwords', 'false'
+        WHERE EXISTS (SELECT 1 FROM settings WHERE key='setup_complete');
+    """,
 ]
 
 

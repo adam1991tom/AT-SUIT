@@ -177,6 +177,43 @@ const AT = (() => {
     }
     return null;
   }
+  // Sign-in forms (with username and password inputs): "Forgot password?", and the
+  // step where someone signing in with a password an admin set chooses their own.
+  // Send {...body, ...pw.extra()}, and pass any error to pw.handle() first.
+  function passwordForm(f, errEl) {
+    f.password.insertAdjacentHTML("afterend", `
+      <div class="pw-new hidden"><p class="small" style="margin:.5rem 0 0">Choose your own password now: at least 8 characters, not ChangeMe.</p>
+        <label>New password</label><input name="new_password" type="password" autocomplete="new-password">
+        <label>New password again</label><input name="new_password2" type="password" autocomplete="new-password"></div>
+      <p class="small" style="margin:.35rem 0 0"><a href="#" data-forgot>Forgot password?</a></p>`);
+    const box = f.querySelector(".pw-new");
+    f.querySelector("[data-forgot]").onclick = async (e) => {
+      e.preventDefault();
+      const username = f.username.value.trim();
+      if (!username) { errEl.textContent = "Type your username first, then press Forgot password."; f.username.focus(); return; }
+      try {
+        const r = await post("/api/auth/forgot", { username });
+        errEl.textContent = r.at_once
+          ? "Your password is now ChangeMe. Sign in with it and choose a new one. Your admins and managers have been told."
+          : "Your admins and managers have been told. Once one of them resets it, sign in with ChangeMe and choose a new one.";
+      } catch (ex) { errEl.textContent = ex.message; }
+    };
+    return {
+      extra() {
+        if (box.classList.contains("hidden")) return {};
+        if (f.new_password.value !== f.new_password2.value) throw new Error("The two new passwords are different");
+        return { new_password: f.new_password.value };
+      },
+      handle(ex) {
+        if (ex.status !== 428) return false;
+        box.classList.remove("hidden");
+        errEl.textContent = "This password was set for you, so choose your own to carry on.";
+        f.new_password.focus();
+        return true;
+      },
+    };
+  }
+
   // Every match, here and in the parts moved out into windows of their own.
   function qa(root, sel) {
     const all = [...root.querySelectorAll(sel)];
@@ -188,5 +225,5 @@ const AT = (() => {
     return [...new Set(all)];
   }
 
-  return { esc, api, post, put, del, upload, socket, toast, guard, fmtTime, stamp, ticker, timerClock, timerDisplay, when, branding, h, detach, q, qa };
+  return { esc, api, post, put, del, upload, socket, toast, guard, fmtTime, stamp, ticker, timerClock, timerDisplay, when, branding, h, detach, q, qa, passwordForm };
 })();

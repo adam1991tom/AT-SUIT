@@ -53,21 +53,21 @@
     // Opened from a tech laptop: a short admin session that ends with the browser.
     const shared = new URLSearchParams(location.search).has("shared");
     if (shared) document.getElementById("loginErr").insertAdjacentHTML("beforebegin", '<p class="muted small">Admins only. On this laptop you are signed out after 30 minutes, or when the browser closes.</p>');
-    const f = document.getElementById("loginForm");
+    const f = document.getElementById("loginForm"), pw = AT.passwordForm(f, document.getElementById("loginErr"));
     f.onsubmit = async (e) => {
       e.preventDefault();
       try {
-        const r = await post("/api/auth/login", { username: f.username.value, password: f.password.value, shared });
+        const r = await post("/api/auth/login", { username: f.username.value, password: f.password.value, shared, ...pw.extra() });
         const me = await api("/api/auth/me").catch(() => null);
         if (me && !["admin", "manager"].includes(me.role)) { await post("/api/auth/logout"); throw new Error("The console is for admins and managers. Techs use the workspace on their laptop."); }
         location.reload();
-      } catch (ex) { document.getElementById("loginErr").textContent = ex.message; }
+      } catch (ex) { if (!pw.handle(ex)) document.getElementById("loginErr").textContent = ex.message; }
     };
   }
 
   function topics() {
     return [...boot.sites.map((s) => `site:${s.id}`), ...boot.rooms.map((r) => `room:${r.id}`), `dm:${boot.me.id}`, "fleet",
-      ...boot.rooms.map((r) => `timer:${r.id}`), ...boot.rooms.map((r) => `captions:${r.id}`), ...(boot.modules.presenter ? ["presenter"] : [])];
+      ...boot.rooms.map((r) => `timer:${r.id}`), ...boot.rooms.map((r) => `captions:${r.id}`), ...(boot.modules.presenter ? ["presenter"] : []), ...(isManager ? ["managers"] : [])];
   }
 
   function start() {
@@ -86,9 +86,14 @@
     if (!locked) {
       sock = AT.socket(topics(), onEvent);
       if (boot.modules.comms) { refreshHelpCount(); refreshUnread(); }
+      if (isManager) setResets(boot.reset_asks || []);
     }
     route();
   }
+
+  // People in the side bar shows how many are waiting for a password reset.
+  function setResets(asks) { const u = document.getElementById("resetCount"); u.textContent = asks.length; u.classList.toggle("hidden", !asks.length); }
+  function refreshResets() { if (isManager) api("/api/bootstrap").then((b) => { boot.reset_asks = b.reset_asks; setResets(b.reset_asks || []); }).catch(() => {}); }
 
   // The Chat badge in the side bar, on every page (the Chat page keeps it up to date while it's open).
   function setUnread(n) { const u = document.getElementById("unreadAll"); u.textContent = n > 99 ? "99+" : n; u.classList.toggle("hidden", !n); }
@@ -103,6 +108,12 @@
     if (evt.type === "help.new") { toast(`Help needed in ${evt.data.room_name}: ${evt.data.description || evt.data.category}`, "bad"); refreshHelpCount(); }
     if (evt.type === "help.updated") refreshHelpCount();
     if (evt.type === "rooms.changed") api("/api/bootstrap").then((b) => { boot = b; });
+    if (evt.type === "account.reset") {
+      const d = evt.data;
+      if (!d.done) toast(`${d.name} forgot their password. Reset it under People.`, "bad");
+      else if (d.by !== boot.me.name) toast(d.by ? `${d.by} reset ${d.name}'s password to ChangeMe` : `${d.name}'s password was reset to ChangeMe (they asked)`);
+      refreshResets();
+    }
     view && view.onEvent && view.onEvent(evt);
   }
 
@@ -496,6 +507,11 @@
       <h2 style="margin-top:1rem">Other</h2>
       <label><input type="checkbox" name="legacy" ${s.legacy_fleet_api ? "checked" : ""} style="width:auto"> Accept old kiosk agents (Device Suite API, no sign-in)</label>
       <label>Delete chat messages older than (days, 0 = keep)</label><input name="retention" type="number" min="0" value="${s.message_retention_days}">
+      <h2 style="margin-top:1rem">Passwords</h2>
+      <label><input type="checkbox" name="techpw" ${s.tech_passwords ? "checked" : ""} style="width:auto"> Techs sign in to their laptop with their own account and password</label>
+      <p class="small muted" style="margin:.1rem 0 .4rem">Off: they just type their name. Add everyone under People before you turn this on.</p>
+      <label><input type="checkbox" name="forgotnow" ${s.forgot_resets_at_once ? "checked" : ""} style="width:auto"> Forgot password resets a tech's password to ChangeMe straight away</label>
+      <p class="small muted" style="margin:.1rem 0 .4rem">Off (safer): an admin or manager resets it with one press under People. Admin and manager passwords always wait for an admin.</p>
       <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form></div>`;
     const bf = a.querySelector("#brand");
     bf.onsubmit = (e) => { e.preventDefault(); guard(() => put("/api/admin/settings", { branding: Object.fromEntries(new FormData(bf)) })).then(() => location.reload()); };
@@ -503,7 +519,7 @@
     mf.onsubmit = (e) => {
       e.preventDefault();
       const modules = Object.fromEntries(Object.keys(s.modules).map((m) => [m, mf[m].checked]));
-      guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value })).then(() => location.reload());
+      guard(() => put("/api/admin/settings", { modules, legacy_fleet_api: mf.legacy.checked, message_retention_days: +mf.retention.value, tech_passwords: mf.techpw.checked, forgot_resets_at_once: mf.forgotnow.checked })).then(() => location.reload());
     };
   }
 
@@ -683,18 +699,25 @@
 
   async function admAccounts(a) {
     const [accts, sites] = await Promise.all([api("/api/admin/accounts"), api("/api/admin/sites")]);
+    view = { onEvent: (e) => e.type === "account.reset" && admAccounts(a) };
     const mine = boot.me.site_id; // someone kept to one site can only add people to it
     const siteOpts = (sel) => (mine == null ? `<option value="">All sites</option>` : "") + sites.map((s) => `<option value="${s.id}" ${s.id === (sel ?? mine) ? "selected" : ""}>${esc(s.name)}</option>`).join("");
     // A manager looks after techs and viewers; admin and manager accounts are shown but only an admin changes them.
     const roles = isAdminRole ? ["admin", "manager", "tech", "viewer"] : ["tech", "viewer"];
     const canEdit = (u) => isAdminRole || u.id === boot.me.id || roles.includes(u.role);
     const roleOpts = (sel) => (roles.includes(sel) ? roles : [sel]).map((r) => `<option ${r === sel ? "selected" : ""}>${r}</option>`).join("");
-    a.innerHTML = `<div class="panel"><p class="muted small">Admins configure everything. Managers set up rooms, add techs, move laptops between rooms and read the audit log, but can't change site settings, the licence, branding or views, or add laptops. Techs chat, run timers, send captions and control nodes. Viewers can read.</p><table><tr><th>Username</th><th>Name</th><th>Role</th><th>Site</th><th>Active</th><th>New password</th><th></th></tr>
+    // Forgot password: one press puts it back to ChangeMe, which they change at their next sign-in.
+    const asking = accts.filter((u) => u.reset_asked_at && canEdit(u) && u.id !== boot.me.id);
+    const resetBtn = (u, label) => `<button class="small" data-reset="${u.id}" data-name="${esc(u.display_name)}">${label}</button>`;
+    a.innerHTML = (asking.length ? `<div class="panel" style="border-color:var(--warn)"><h2>Forgot their password</h2>
+      ${asking.map((u) => `<div class="row" style="justify-content:space-between"><span><b>${esc(u.display_name)}</b> <span class="muted small">(${esc(u.username)}) asked ${esc(AT.when(u.reset_asked_at))}</span></span>${resetBtn(u, "Reset to ChangeMe")}</div>`).join("")}
+      <p class="muted small" style="margin-bottom:0">Check it's really them first. They sign in with ChangeMe and choose a new password straight away.</p></div>` : "") +
+      `<div class="panel"><p class="muted small">New people sign in with the password you give them (or ChangeMe if you leave it blank) and choose their own at their first sign-in. A password you set for someone has to be changed the same way.</p><p class="muted small">Admins configure everything. Managers set up rooms, add techs, move laptops between rooms and read the audit log, but can't change site settings, the licence, branding or views, or add laptops. Techs chat, run timers, send captions and control nodes. Viewers can read.</p><table><tr><th>Username</th><th>Name</th><th>Role</th><th>Site</th><th>Active</th><th>New password</th><th></th></tr>
       ${accts.filter((u) => !canEdit(u)).map((u) => `<tr><td>${esc(u.username)}</td><td>${esc(u.display_name)}</td><td>${esc(u.role)}</td><td class="muted small" colspan="4">Only an admin can change this account.</td></tr>`).join("")}
       ${accts.filter(canEdit).map((u) => `<tr data-u="${u.id}"><td><input data-un value="${esc(u.username)}"></td><td><input data-dn value="${esc(u.display_name)}"></td><td><select data-role ${u.id === boot.me.id ? 'disabled title="You can\'t change your own role"' : ""}>${roleOpts(u.role)}</select></td>
-        <td><select data-site>${siteOpts(u.site_id)}</select></td><td><input type="checkbox" data-act ${u.active ? "checked" : ""} ${u.id === boot.me.id ? "disabled" : ""} style="width:auto"></td><td><input data-pw type="password" placeholder="unchanged"></td>
-        <td class="row"><button class="small" data-save>Save</button>${u.id === boot.me.id ? "" : '<button class="small danger" data-del>Delete</button>'}</td></tr>`).join("")}
-      <tr id="new"><td><input data-un placeholder="username"></td><td><input data-dn placeholder="Display name"></td><td><select data-role>${roleOpts("tech")}</select></td><td><select data-site>${siteOpts(null)}</select></td><td></td><td><input data-pw type="password" placeholder="password (8+)"></td><td><button class="small primary" data-add>Add</button></td></tr></table></div>`;
+        <td><select data-site>${siteOpts(u.site_id)}</select></td><td><input type="checkbox" data-act ${u.active ? "checked" : ""} ${u.id === boot.me.id ? "disabled" : ""} style="width:auto"></td><td><input data-pw type="password" placeholder="unchanged">${u.must_change ? '<div class="muted small">Chooses a new one at next sign-in</div>' : ""}</td>
+        <td class="row"><button class="small" data-save>Save</button>${u.id === boot.me.id ? "" : resetBtn(u, "Reset password") + '<button class="small danger" data-del>Delete</button>'}</td></tr>`).join("")}
+      <tr id="new"><td><input data-un placeholder="username"></td><td><input data-dn placeholder="Display name"></td><td><select data-role>${roleOpts("tech")}</select></td><td><select data-site>${siteOpts(null)}</select></td><td></td><td><input data-pw type="password" placeholder="blank = ChangeMe"></td><td><button class="small primary" data-add>Add</button></td></tr></table></div>`;
     const read = (row) => ({ username: row.querySelector("[data-un]").value, display_name: row.querySelector("[data-dn]").value, role: row.querySelector("[data-role]").value,
       site_id: row.querySelector("[data-site]").value ? +row.querySelector("[data-site]").value : null, active: row.querySelector("[data-act]") ? row.querySelector("[data-act]").checked : true, password: row.querySelector("[data-pw]").value || null });
     a.querySelectorAll("[data-u]").forEach((row) => {
@@ -702,6 +725,9 @@
       row.querySelector("[data-del]") && (row.querySelector("[data-del]").onclick = () => confirm("Delete this account?") && guard(() => del(`/api/admin/accounts/${row.dataset.u}`)).then(() => admAccounts(a)));
     });
     a.querySelector("[data-add]").onclick = () => guard(() => post("/api/admin/accounts", read(a.querySelector("#new")))).then(() => admAccounts(a));
+    a.querySelectorAll("[data-reset]").forEach((b) => b.onclick = () =>
+      confirm(`Reset ${b.dataset.name}'s password to ChangeMe? They're signed out, and choose a new one when they sign in.`) &&
+      guard(() => post(`/api/admin/accounts/${b.dataset.reset}/reset`)).then((r) => { if (r) { toast(`${b.dataset.name} can sign in with ChangeMe now`, "good"); refreshResets(); admAccounts(a); } }));
   }
 
   async function admLinks(a) {
