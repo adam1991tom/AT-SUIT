@@ -13,6 +13,12 @@ the GitHub release.
 - **Forgot password?** on every sign-in screen. The admins and managers get a pop-up in the console and a count on People, where one press resets it to ChangeMe (and signs that person out everywhere). The screen gives the same answer for any username, so it can't be used to find out who has an account, and it's slowed down after five tries. Settings → General can make Forgot reset a tech's password straight away; an admin's or manager's always waits for an admin.
 - Sites already set up keep name-only sign-in until an admin ticks **Techs sign in with their own account and password** in Settings → General. New sites have it on.
 
+**AI helper**
+- An **AI helper** in the techs' Help menu. Ask it anything ("the lectern mic is dead"), and when you send a help call it answers straight away while the crew is on the way.
+- It answers from what your venue knows: the admins' **venue notes** (Settings → AI helper), how past help calls were fixed (pressing Resolved now asks "How was it fixed?"), and answers techs marked **This fixed it**. Admins can see and forget what it has learned.
+- With a private AI model on your own network (Ollama, the same one Presenters can use) it writes a short step-by-step answer from those notes. Without one it lists what worked before.
+- **Web quick search** is there but off by default. When an admin turns it on, only the question goes to DuckDuckGo, never your notes, chat, names or rooms.
+
 **Captions privacy (NDA and GDPR)**
 - Caption transcripts are stored encrypted with the server's own key, so a copied file or backup can't be read without it. Text, SRT and VTT exports work as before.
 - Transcripts are deleted automatically 12 hours after they end (1 to 168 hours in Settings → General). The transcript lists show when each one goes. One still recording is never cut short, and stray transcript files nothing lists are cleared too.

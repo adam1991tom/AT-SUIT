@@ -449,6 +449,7 @@ def list_help(status: str | None = None, p: Principal = Depends(require_user)):
 
 class HelpUpdate(BaseModel):
     status: str
+    resolution: str | None = Field(None, max_length=2000)  # how it was fixed: the AI helper learns from it
 
 
 @router.put("/api/comms/help/{help_id}")
@@ -461,6 +462,8 @@ async def update_help(help_id: int, body: HelpUpdate, p: Principal = Depends(req
             raise HTTPException(404, "Help request not found")
         col = {"acknowledged": "acknowledged_at", "resolved": "resolved_at"}.get(body.status)
         c.execute("UPDATE help_requests SET status=?, assigned_to=? WHERE id=?", (body.status, p.name, help_id))
+        if body.resolution is not None:
+            c.execute("UPDATE help_requests SET resolution=? WHERE id=?", (body.resolution.strip(), help_id))
         if col:
             c.execute(f"UPDATE help_requests SET {col}=? WHERE id=?", (db.now_iso(), help_id))
         out = dict(c.execute("SELECT * FROM help_requests WHERE id=?", (help_id,)).fetchone())

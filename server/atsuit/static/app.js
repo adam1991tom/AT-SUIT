@@ -25,7 +25,7 @@
     laptops: { title: "Laptops & screens", mod: "fleet", tabs: { list: ["All laptops & screens", fleet], setup: ["Add laptops", admFleet, "admin"], overlays: ["Overlay laptops", admOverlays, "admin"] } },
     people: { title: "People", role: "manager", tabs: { people: ["People", admAccounts] } },
     links: { title: "Links", role: "manager", mod: "dashboard", tabs: { links: ["Links", admLinks] } },
-    settings: { title: "Settings", role: "admin", tabs: { general: ["General", admGeneral], appearance: ["Look", admAppearance], chat: ["Chat", admChat], keys: ["API keys", admKeys], updates: ["Updates", admUpdates], info: ["About", admInfo] } },
+    settings: { title: "Settings", role: "admin", tabs: { general: ["General", admGeneral], appearance: ["Look", admAppearance], chat: ["Chat", admChat], ai: ["AI helper", admAi], keys: ["API keys", admKeys], updates: ["Updates", admUpdates], info: ["About", admInfo] } },
     licence: { title: "Licence", role: "admin", tabs: { licence: ["Licence", admLicence] } },
     servers: { title: "Servers", role: "admin", tabs: { servers: ["Servers", admServers] } },
     backups: { title: "Backups & import", role: "admin", tabs: { backups: ["Backups", admData] } },
@@ -634,6 +634,32 @@
       if (f.get("token")) body.token = f.get("token");
       guard(() => put("/api/admin/updates", body)).then(() => { toast("Saved", "good"); again(); });
     };
+  }
+
+  // The AI helper in the techs' Help menu: what it knows, where its answers come from, and what it has learned.
+  async function admAi(a) {
+    const d = await api("/api/admin/ai"), s = d.settings;
+    a.innerHTML = `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))"><form class="panel" id="aif"><h2>AI helper</h2>
+      <p class="small muted" style="margin-top:0">Techs ask it in the Help menu, and it answers each help call while the crew is on the way. It answers from your venue notes, from how past help calls were fixed (${d.help_fixes} so far), and from answers techs marked "This fixed it".</p>
+      <label><input type="checkbox" name="enabled" ${s.enabled ? "checked" : ""} style="width:auto"> Turn on the AI helper</label>
+      <label>Venue notes</label><textarea name="venue_notes" rows="10" placeholder="One topic per paragraph, its first line a heading. E.g.&#10;Hall A projector&#10;Use input HDMI 2. The remote is on the lectern shelf.">${esc(s.venue_notes)}</textarea>
+      <label><input type="checkbox" name="learn_help" ${s.learn_help ? "checked" : ""} style="width:auto"> Learn from how help calls were fixed</label>
+      <h2 style="margin-top:1rem">Private AI model (optional)</h2>
+      <p class="small muted" style="margin-top:0">With a model on your own network (<a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>), it writes a short answer from those notes. Without one it lists what worked before. Leave the address empty to use the one set in Presenters${d.presenter_ai_url ? ` (${esc(d.presenter_ai_url)})` : ""}.</p>
+      <label>Ollama address</label><input name="ai_url" placeholder="http://192.168.1.50:11434" value="${esc(s.ai_url)}">
+      <label>Model</label><input name="ai_model" value="${esc(s.ai_model)}">
+      <h2 style="margin-top:1rem">Web quick search</h2>
+      <label><input type="checkbox" name="web_search" ${s.web_search ? "checked" : ""} style="width:auto"> Look up questions on the web when the venue's notes don't cover them</label>
+      <p class="small muted" style="margin:.1rem 0 .4rem">Off by default. When on, only the question is sent (to DuckDuckGo), never your notes, chat, names or rooms. Leave it off for NDA work.</p>
+      <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form>
+      <div class="panel"><h2>Learned from techs</h2>${d.learned.length ? `<table><tr><th>Question</th><th>Answer</th><th>By</th><th></th></tr>${d.learned.map((k) => `<tr><td>${esc(k.question)}</td><td class="small" style="white-space:pre-wrap">${esc(k.answer)}</td><td class="small muted">${esc(k.added_by)}<br>${when(k.created_at)}</td><td><button class="small danger" data-forget="${k.id}">Forget</button></td></tr>`).join("")}</table>` : '<p class="muted">Nothing yet. When an answer fixes something, techs press "This fixed it".</p>'}</div></div>`;
+    const f = a.querySelector("#aif");
+    f.onsubmit = (e) => {
+      e.preventDefault();
+      guard(() => put("/api/admin/ai", { enabled: f.enabled.checked, venue_notes: f.venue_notes.value, learn_help: f.learn_help.checked, ai_url: f.ai_url.value.trim(), ai_model: f.ai_model.value.trim() || "llama3.1:8b", web_search: f.web_search.checked }))
+        .then((ok) => ok && toast("Saved", "good"));
+    };
+    a.querySelectorAll("[data-forget]").forEach((b) => b.onclick = () => confirm("Forget this answer?") && guard(() => del(`/api/admin/ai/learned/${b.dataset.forget}`)).then(() => admAi(a)));
   }
 
   // Where Report a bug sends people, for now.

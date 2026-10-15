@@ -156,6 +156,11 @@
           <input id="helpText" class="grow" placeholder="What's wrong?"></div>
         <div class="row" style="margin-top:.4rem;justify-content:flex-end"><button class="helpbtn" id="helpBtn">Send</button></div>
         <div style="margin-top:.6rem"><b class="small">Open requests</b><div id="helpList" class="small" style="margin-top:.3rem"></div></div>
+        <div id="aiBox" class="hidden" style="margin-top:.7rem;border-top:1px solid var(--line);padding-top:.6rem">
+          <b>🤖 AI helper</b> <span class="muted small" id="aiWhere"></span>
+          <div class="row" style="margin-top:.4rem"><input id="aiQ" class="grow" placeholder="Ask anything, e.g. the lectern mic is dead"><button id="aiAsk">Ask</button></div>
+          <div id="aiA" class="small" style="margin-top:.4rem;max-height:40vh;overflow:auto"></div>
+        </div>
       </div></div>
     <button id="laptopBtn" class="hidden">This laptop</button>
     <a class="btn hidden" id="consoleBtn" href="/#/dashboard" target="_blank">Console</a>
@@ -798,8 +803,36 @@
     $("helpCount").textContent = open; $("helpCount").classList.toggle("hidden", !open); $("helpTop").classList.toggle("help-alarm", !!open);
     $("helpList").innerHTML = rows.map((h) => `<div class="row" style="margin:.25rem 0"><span class="pill ${h.status === "open" ? "bad" : "warn"}">${esc(h.status)}</span> <b>${esc(h.room_name)}</b> ${esc(h.category)}: ${esc(h.description)} <span class="muted">${esc(h.assigned_to)}</span>` +
       `${h.status === "open" ? `<button class="small" data-h="${h.id}" data-s="acknowledged">On my way</button>` : ""}<button class="small" data-h="${h.id}" data-s="resolved">Resolved</button></div>`).join("") || '<span class="muted">No open requests.</span>';
-    $("helpList").querySelectorAll("[data-h]").forEach((b) => b.onclick = () => guard(() => AT.put(`/api/comms/help/${b.dataset.h}`, { status: b.dataset.s })));
+    $("helpList").querySelectorAll("[data-h]").forEach((b) => b.onclick = () => {
+      // How it was fixed is optional; the AI helper offers it the next time someone asks.
+      const fix = b.dataset.s === "resolved" && ai.on ? prompt("How was it fixed? (optional: the AI helper learns from it)", "") : null;
+      if (fix === null && b.dataset.s === "resolved" && ai.on && !confirm("Mark it resolved without saying how?")) return;
+      guard(() => AT.put(`/api/comms/help/${b.dataset.h}`, { status: b.dataset.s, ...(fix ? { resolution: fix } : {}) }));
+    });
   }
+
+  // The AI helper, in the Help menu: answers from the venue's notes and past fixes (and a local AI model if
+  // the admins set one up). "This fixed it" teaches it for next time.
+  const ai = { on: false };
+  async function askAi(question, lead = "") {
+    if (!ai.on || !question.trim()) return;
+    $("aiA").innerHTML = '<span class="muted">Thinking…</span>';
+    try {
+      const r = await post("/api/ai/ask", { question, room_id: roomId });
+      const src = r.sources.length ? `<div class="muted" style="margin-top:.3rem">From: ${r.sources.map((s) => s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : `${esc(s.kind)}: ${esc(s.title)}`).join(" · ")}</div>` : "";
+      $("aiA").innerHTML = (lead ? `<div class="muted">${esc(lead)}</div>` : "") + `<div style="white-space:pre-wrap">${esc(r.answer)}</div>${src}` +
+        '<div class="row" style="margin-top:.4rem;justify-content:flex-end"><button class="small" id="aiFixed">This fixed it</button></div>';
+      $("aiFixed").onclick = () => guard(() => post("/api/ai/learn", { question, answer: r.answer, room_id: roomId }))
+        .then((ok) => { if (ok) { $("aiFixed").disabled = true; $("aiFixed").textContent = "Thanks, noted"; } });
+    } catch (ex) { $("aiA").innerHTML = `<span class="muted">${esc(ex.message)}</span>`; }
+  }
+  if (boot.modules.comms) api("/api/ai").then((s) => {
+    ai.on = s.enabled;
+    $("aiBox").classList.toggle("hidden", !s.enabled);
+    $("aiWhere").textContent = s.model ? "· private AI on your network" : "· from this venue's notes and past fixes";
+  }).catch(() => {});
+  $("aiAsk").onclick = () => askAi($("aiQ").value);
+  $("aiQ").onkeydown = (e) => { if (e.key === "Enter") askAi($("aiQ").value); };
   $("helpTop").onclick = (e) => {
     e.stopPropagation();
     const box = $("helpBox"), opening = box.classList.contains("hidden");
@@ -817,7 +850,11 @@
       if (sending) return;
       sending = true; $("helpBtn").disabled = true; $("helpBtn").textContent = "Sending…";
       guard(() => post("/api/comms/help", { room_id: roomId, category: $("helpCat").value, description: $("helpText").value, priority: "urgent" }))
-        .then(() => { $("helpText").value = ""; toast("Help call sent. You'll see here when someone is on the way.", "good"); renderHelp(); }, () => {})
+        .then(() => {
+          const what = $("helpText").value;
+          $("helpText").value = ""; toast("Help call sent. You'll see here when someone is on the way.", "good"); renderHelp();
+          if (what.trim()) { $("aiQ").value = what; askAi(what, "While the crew is on the way:"); }
+        }, () => {})
         .finally(() => setTimeout(() => { sending = false; $("helpBtn").disabled = false; $("helpBtn").textContent = "Send"; }, 1500));
     };
     $("helpBtn").onclick = send;
