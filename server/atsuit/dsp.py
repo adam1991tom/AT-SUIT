@@ -2,12 +2,12 @@
 behind the Audio & EQ tab. Ported from AT-LiveCaption's app/core/dsp.py.
 
 LiveCaption filtered with scipy's lfilter (one RBJ peaking biquad per band).
-AT-SUIT has no scipy, and its audio arrives at 16 kHz over the network, so
+AT-SUITE has no scipy, and its audio arrives at 16 kHz over the network, so
 the same ten-band curve is built from the same RBJ biquads but applied as one
 linear-phase FIR (frequency sampling + Hann window), with overlap-add state
 kept across chunks so the stream stays continuous. Bands at or above the
 Nyquist frequency (8 kHz at 16 kHz) can't be heard by the recogniser and are
-ignored, which is why AT-SUIT shows eight bands, not ten.
+ignored, which is why AT-SUITE shows eight bands, not ten.
 
 Pure numpy: unit tested with synthetic sines, no model or sound card needed.
 """

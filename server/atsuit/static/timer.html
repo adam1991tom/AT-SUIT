@@ -211,7 +211,7 @@
 
   let s = await AT.api(`/api/timers/${roomId}`), cues = [];
   const got = (x) => { AT.stamp(x, s._rx ? s : null); s = x; };
-  // In the AT-SUIT app: the timer as the tech's laptop works it out while the server is out of reach.
+  // In the AT-SUITE app: the timer as the tech's laptop works it out while the server is out of reach.
   document.addEventListener("atsuit:timer", (e) => { if (e.detail && String(e.detail.room_id) === roomId) s = e.detail; });
   got(s);
   $("room").textContent = s.room;

@@ -1,8 +1,8 @@
-<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUIT" width="200">
+<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUITE" width="200">
 
-# AT-SUIT design
+# AT-SUITE design
 
-AT-SUIT replaces the separate AT apps, Docker containers and dashboards with
+AT-SUITE replaces the separate AT apps, Docker containers and dashboards with
 one server app and one node client per laptop. This document covers what
 exists today, the target architecture, how each existing app maps into a
 module, the data migration, deployment, productisation, and the build order.
@@ -44,10 +44,10 @@ Observations that shape the design:
   identical, so accounts migrate without password resets.
 - **AT Ops already proved the fleet + chat merge**, but it runs two
   uvicorn servers to keep the old ports and has separate auth for each half.
-  AT-SUIT keeps its fleet logic and its backwards-compatible machine
+  AT-SUITE keeps its fleet logic and its backwards-compatible machine
   endpoints, and drops the two-port split.
 - **LiveCaption and LiveOverlay both default to port 8765**, which is why
-  they can't share a laptop today. In AT-SUIT, captions run on the server, so
+  they can't share a laptop today. In AT-SUITE, captions run on the server, so
   the clash disappears.
 - **No reverse proxy, no TLS, every app on its own port.** The dashboard
   exists mainly because nothing else ties the ports together.
@@ -56,7 +56,7 @@ Observations that shape the design:
   importer only takes `ROOM|URL|LABEL;` rows and reports bad ones.
 - **Secrets are scattered**: a hardcoded SSH password in the Fleet Dashboard,
   a Beszel token in shell history, SSH private keys inside
-  `~/dashboard-source.zip`. AT-SUIT keeps every secret in its own data
+  `~/dashboard-source.zip`. AT-SUITE keeps every secret in its own data
   volume, encrypted where it can be.
 
 ---
@@ -64,7 +64,7 @@ Observations that shape the design:
 ## 2. Target architecture
 
 ```
-                         ┌───────────────────────── AT-SUIT server (Docker) ─────────────────────────┐
+                         ┌───────────────────────── AT-SUITE server (Docker) ─────────────────────────┐
   Tech laptop (node)     │                                                                            │
   ┌──────────────────┐   │  FastAPI app :8080                                                         │
   │ Browser: /node   │◄──┼─► core      setup wizard, accounts, roles, sites, rooms, settings, licence │
@@ -184,7 +184,7 @@ Message bodies and overlay tokens are encrypted at rest with a Fernet key in
 | Old kiosk agents | `POST /heartbeat`, `GET /agent/poll/<host>`, `POST /agent/ack`, `/client-update`, `/client-bootstrap` | none (as today), can be switched off |
 | Companion / automation | `/api/v1/timers/<room>/start` etc. | API key header `X-API-Key` |
 
-**Tech laptops run AT-SUIT Node** (`node-app/`, Electron), which shows the
+**Tech laptops run AT-SUITE Node** (`node-app/`, Electron), which shows the
 server's `/node` workspace in its own window. It enrols once and keeps its
 token encrypted with Windows DPAPI. A tech laptop has no fixed room and no
 password: the tech types their name, picks the room and says main or backup
@@ -203,7 +203,7 @@ message; the agent handles restart_browser, update and (if allowed) reboot
 and shutdown. Both heartbeat; the server merges their reports.
 
 **Custom Ontime views run unchanged.** They connect to `ws://host/ws` and
-read Ontime's `runtime-data` messages. AT-SUIT serves each uploaded view
+read Ontime's `runtime-data` messages. AT-SUITE serves each uploaded view
 with a small script that points that socket at `/ontime/<room>/ws`, which
 sends the same message shapes (clock, timer, eventNow/eventNext, message,
 rundown) built from the room's timer and cue list. The shim (`static/ontime-shim.js`)
@@ -211,7 +211,7 @@ also moves Ontime's REST reads (`/data/settings`, `/data/runtime`,
 `/data/rundowns/current`) to `/ontime/<room>/data/...`. The second line under
 the timer is sent as Ontime's secondary message (`message.secondary`,
 `secondarySource: "secondary"`) or aux timer 1 (`secondarySource: "aux1"`).
-`static/viewbar.js` is served with the shim and draws the AT-SUIT status bar
+`static/viewbar.js` is served with the shim and draws the AT-SUITE status bar
 over an imported view when it is switched on for that view.
 
 The client's BDNG view ships this way: `docs/views/bdng.html` is the original
@@ -230,7 +230,7 @@ unreachable just updates the next time it checks in. SSH remains only as a
 stop-gap for the old Device Suite kiosk agents until they are re-enrolled.
 
 Every existing kiosk keeps working on day one through the old-agent API, so
-the fleet can be cut over by pointing the agents at AT-SUIT's address and
+the fleet can be cut over by pointing the agents at AT-SUITE's address and
 port, without reinstalling them.
 
 ---
@@ -252,8 +252,8 @@ of what they took and skipped.
 
 Cut-over per server, after the side-by-side trial:
 1. Back up the old volumes (`docker run --rm -v roomcomms-data:/d -v $PWD:/b alpine tar czf /b/roomcomms.tgz /d`).
-2. Import into AT-SUIT, check the import report.
-3. Point kiosk agents and the RoomComms Windows client at AT-SUIT.
+2. Import into AT-SUITE, check the import report.
+3. Point kiosk agents and the RoomComms Windows client at AT-SUITE.
 4. Stop the old container or unit. Keep its volume for 30 days.
 
 ---
@@ -276,7 +276,7 @@ Cut-over per server, after the side-by-side trial:
   the Licence page works without one). Everything after that is configured in the Admin UI on site:
   rooms, accounts, links, nodes, modules, branding, captions, retention.
   No file editing is needed.
-- **Side-by-side trial on ATSERVER1**: run AT-SUIT on **port 8180** (and
+- **Side-by-side trial on ATSERVER1**: run AT-SUITE on **port 8180** (and
   8443 for TLS), compose project `atsuit`, volume `atsuit-data`. Nothing
   existing listens there (8000, 4001-4020, 5050, 5070, 16622 and 45876 are
   taken), and nothing existing is touched.
@@ -300,7 +300,7 @@ Cut-over per server, after the side-by-side trial:
 - **Repository licence**: proprietary from 1.0.4 (earlier versions were MIT).
   The source repository can be private: releases (install files, the Windows
   app and the node agent, no source) are published to the public
-  `AT-SUIT-releases` repository, and the image to GHCR, so servers and
+  `AT-SUITE-releases` repository, and the image to GHCR, so servers and
   laptops update without a token.
 - **Supportability**: `/api/health`, a diagnostics bundle download in Admin
   (versions, settings without secrets, recent logs), audit log, and backups.
@@ -315,7 +315,7 @@ Cut-over per server, after the side-by-side trial:
 | 1 | Core (setup, accounts, sites, rooms, licence), comms, timers, fleet with old-agent API, dashboard, node UI, captions with server ASR, overlay control, importers for RoomComms, rooms.txt, state.json, Homarr | done in v0.1 |
 | 1b | Side-by-side install on ATSERVER1 port 8180, import copies of live data, trial with two laptops in one room | needs the owner's go |
 | 2 | Presenter module from AT-Presenter (portal, file review, schedule import via Ollama, room sync) | done in v0.4 |
-| 3 | Native timers replace Ontime views on kiosks, Companion module for AT-SUIT (timers + overlays) | timers and custom views done in v0.3/v0.4; Companion module next |
+| 3 | Native timers replace Ontime views on kiosks, Companion module for AT-SUITE (timers + overlays) | timers and custom views done in v0.3/v0.4; Companion module next |
 | 4 | Node desktop app (Windows): enrol once, room of the day, silent pop-ups for the backup laptop, self-update from the server | done in v0.2 (`node-app/`) |
 | 4b | Bundle LiveOverlay and ScreenTest into the Node app; browser ScreenTest page | |
 | 5 | Retire old containers per section 5, then Homarr and the Fleet Dashboard | |

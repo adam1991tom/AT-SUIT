@@ -1,6 +1,6 @@
 """Licences for tests, signed with a throwaway vendor key instead of the real one.
 
-In pytest, conftest.py makes the server trust TEST_PUB. Tests that run AT-SUIT as its
+In pytest, conftest.py makes the server trust TEST_PUB. Tests that run AT-SUITE as its
 own process (and the Windows app's tests) start it with this file instead of uvicorn:
 
     python tests/licensed_server.py --port 18180 [--host 127.0.0.1]

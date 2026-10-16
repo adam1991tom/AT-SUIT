@@ -1,4 +1,4 @@
-// Runs the real app against a real AT-SUIT server (started in global-setup).
+// Runs the real app against a real AT-SUITE server (started in global-setup).
 module.exports = {
   testDir: "test",
   timeout: 90000,

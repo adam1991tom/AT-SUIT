@@ -1,4 +1,4 @@
-"""The AT-SUIT Node app's overlay, controlled from any tech, a laptop in the
+"""The AT-SUITE Node app's overlay, controlled from any tech, a laptop in the
 room or Companion."""
 
 

@@ -1,4 +1,4 @@
-// Shared helpers for every AT-SUIT page.
+// Shared helpers for every AT-SUITE page.
 const AT = (() => {
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 

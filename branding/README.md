@@ -1,8 +1,8 @@
-# AT-SUIT brand pack
+# AT-SUITE brand pack
 
-![AT-SUIT](social/readme-banner.png)
+![AT-SUITE](social/readme-banner.png)
 
-The AT-SUIT logo, app icons, social images, colours and brand guide. AT-SUIT is a member of the AT family (AT GROUP, AT SOLUTIONS, AT NET, AT EVENTS, AT HANDYMAN). It uses the same C-shaped gear and lettering as the rest of the family, and its colour is **AT-SUIT Orange #FF7A1A**.
+The AT-SUITE logo, app icons, social images, colours and brand guide. AT-SUITE is a member of the AT family (AT GROUP, AT SOLUTIONS, AT NET, AT EVENTS, AT HANDYMAN). It uses the same C-shaped gear and lettering as the rest of the family, and its colour is **AT-SUITE Orange #FF7A1A**.
 
 Read the brand guide before using the logo: [`manual/index.html`](manual/index.html) (also available as [`manual/AT-SUIT-brand-guide.pdf`](manual/AT-SUIT-brand-guide.pdf), A4 landscape).
 
@@ -10,7 +10,7 @@ Read the brand guide before using the logo: [`manual/index.html`](manual/index.h
 
 | Name | Hex | RGB | Use |
 |---|---|---|---|
-| AT-SUIT Orange | `#FF7A1A` | 255 122 26 | The gear, primary accent |
+| AT-SUITE Orange | `#FF7A1A` | 255 122 26 | The gear, primary accent |
 | Night Navy | `#0B1020` | 11 16 32 | Brand background, logo plate, banners |
 | App Dark | `#0E1116` | 14 17 22 | App UI background |
 | Outline Black | `#000000` | 0 0 0 | Logo outlines |
@@ -26,7 +26,7 @@ The values can also be read by code from [`colours.json`](colours.json).
 |---|---|---|
 | `logo/` | `atsuit-wordmark.svg/.png` (2000×760) | Primary logo, transparent background |
 | | `atsuit-icon.svg/.png` (1024) | Icon (gear + AT), transparent background |
-| | `atsuit-stacked.svg/.png` (1200×1400) | Icon above "AT SUIT" |
+| | `atsuit-stacked.svg/.png` (1200×1400) | Icon above "AT SUITE" |
 | | `*-on-dark.*` / `*-on-light.*` | The same logos on a navy (#0B1020) or white plate |
 | | `*-black.*` / `*-white.*` | One-colour versions (icon, wordmark, stacked) |
 | | `atsuit-gear.svg/.png` | Gear only, for loaders and watermarks |
