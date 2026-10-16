@@ -348,13 +348,16 @@ def cmd_edge(a=None) -> None:
     for t in tenants():
         join(EDGE, names(t["slug"])["network"])
     for _ in range(30):
-        if subprocess.run(["docker", "exec", EDGE, "wget", "-q", "-O", "/dev/null", "http://localhost:2019/config/"],
-                          capture_output=True).returncode == 0:
+        # 127.0.0.1, not localhost: Caddy's admin listens on IPv4 only, and wget may try ::1 first
+        probe = subprocess.run(["docker", "exec", EDGE, "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"],
+                               capture_output=True, text=True)
+        if probe.returncode == 0:
             break
         time.sleep(0.5)
     else:
         logs = subprocess.run(["docker", "logs", "--tail", "5", EDGE], capture_output=True, text=True)
-        raise Fail(f"The front door didn't start: {(logs.stdout + logs.stderr).strip()[-800:]}")
+        raise Fail(f"The front door didn't start: {(probe.stdout + probe.stderr).strip()}\n"
+                   f"{(logs.stdout + logs.stderr).strip()[-800:]}")
     say(f"Front door running on port {c['ATCLOUD_HTTPS_PORT']}.")
 
 
