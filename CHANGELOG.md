@@ -5,7 +5,7 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
-## 1.10.4
+## 1.10.6
 
 The AI helper is a chat now, and it knows a lot more about fixing shows.
 
