@@ -15,7 +15,7 @@
   {% for p in cat.plan_list %}
   <div class="plan{% if p.featured %} featured{% endif %}">
     {% if p.featured %}<span class="badge">Most popular</span>{% endif %}
-    <h3>{{ p.name }}</h3>
+    <h2 class="h3">{{ p.name }}</h2>
     <p class="muted small">{{ p.for_ }}</p>
     <p class="price yearly">{{ money(p.yearly) }}<small> / year</small></p>
     <p class="price monthly">{{ money(p.monthly) }}<small> / month</small></p>
@@ -32,7 +32,7 @@
   </div>
   {% endfor %}
   <div class="plan">
-    <h3>{{ cat.enterprise.name }}</h3>
+    <h2 class="h3">{{ cat.enterprise.name }}</h2>
     <p class="muted small">{{ cat.enterprise.for }}</p>
     <p class="price" style="font-size:1.8rem">Let's talk</p>
     <ul class="ticks">
@@ -48,11 +48,11 @@
 
 <section style="padding-bottom:0">
   <div class="grid3">
-    <div class="card"><h3>Managed hosting</h3><p class="price brand-font" style="font-size:1.6rem;margin:0"><span class="yearly">+{{ money(cat.hosting.yearly) }} / year</span><span class="monthly">+{{ money(cat.hosting.monthly) }} / month</span></p>
+    <div class="card"><h2 class="h3">Managed hosting</h2><p class="price brand-font" style="font-size:1.6rem;margin:0"><span class="yearly">+{{ money(cat.hosting.yearly) }} / year</span><span class="monthly">+{{ money(cat.hosting.monthly) }} / month</span></p>
       <p class="muted">We run your AT SUITE server for you in the EU, with nightly encrypted backups, updates outside show times and monitoring. Add it to any plan. <a href="/hosting">Details</a></p></div>
-    <div class="card"><h3>{{ cat.event.name }}</h3><p class="price brand-font" style="font-size:1.6rem;margin:0">{{ money(cat.event.price) }} one-off</p>
+    <div class="card"><h2 class="h3">{{ cat.event.name }}</h2><p class="price brand-font" style="font-size:1.6rem;margin:0">{{ money(cat.event.price) }} one-off</p>
       <p class="muted">{{ cat.event.for }}. Every feature, no subscription. Ideal for AV hire and one-off shows.</p><a class="btn small" href="/buy/event">Buy an event pass</a></div>
-    <div class="card"><h3>Free trial</h3><p class="price brand-font" style="font-size:1.6rem;margin:0">{{ cat.trial.days }} days free</p>
+    <div class="card"><h2 class="h3">Free trial</h2><p class="price brand-font" style="font-size:1.6rem;margin:0">{{ cat.trial.days }} days free</p>
       <p class="muted">Every feature and up to {{ cat.trial.laptops }} laptops, on your own server. No card needed.</p><a class="btn small" href="/register?next=/account">Start a trial</a></div>
   </div>
 </section>
@@ -60,7 +60,7 @@
 <section>
 <h2>Compare the plans</h2>
 <div class="table-wrap"><table>
-  <thead><tr><th scope="col"></th>{% for p in cat.plan_list %}<th scope="col">{{ p.name }}</th>{% endfor %}<th scope="col">Enterprise</th></tr></thead>
+  <thead><tr><th scope="col"><span class="sr-only">What you get</span></th>{% for p in cat.plan_list %}<th scope="col">{{ p.name }}</th>{% endfor %}<th scope="col">Enterprise</th></tr></thead>
   <tbody>
     <tr><th scope="row">Tech laptops</th>{% for p in cat.plan_list %}<td>{{ p.laptops }}</td>{% endfor %}<td>As agreed</td></tr>
     <tr><th scope="row">Yearly</th>{% for p in cat.plan_list %}<td>{{ money(p.yearly) }}</td>{% endfor %}<td>Quote</td></tr>

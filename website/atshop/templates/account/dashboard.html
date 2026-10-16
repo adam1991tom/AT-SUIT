@@ -4,7 +4,7 @@
 <h1>Hello{% if acc.name %} {{ acc.name.split()[0] }}{% endif %}</h1>
 {% include "account/_nav.html" %}
 
-{% if orders_open and not current %}<div class="notice" data-order="{{ orders_open[0].ref }}">If you've just paid, your licence key will appear here in a moment.</div>{% endif %}
+{% if orders_open and not current %}<div class="notice" data-order="{{ orders_open[0].ref }}" role="status">If you've just paid, your licence key will appear here in a moment.</div>{% endif %}
 {% if active_sub and active_sub.status == 'past_due' %}<div class="notice warn"><strong>Your last payment didn't go through.</strong> Paddle will try again. Please <form class="inline-form" method="post" action="/account/billing/portal"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="go" value="card"><button class="btn small" type="submit">update your card</button></form></div>{% endif %}
 
 <div class="dash">

@@ -11,7 +11,7 @@
   <div class="field"><label for="organisation">Venue or company</label><input id="organisation" name="organisation" type="text" autocomplete="organization" maxlength="120" value="{{ acc.organisation }}">
     <span class="hint">New licence keys are made out to this name.</span></div>
   <div class="field"><label for="phone">Phone</label><input id="phone" name="phone" type="tel" autocomplete="tel" maxlength="40" value="{{ acc.phone }}"></div>
-  <label class="check"><input type="checkbox" name="marketing" value="1" {% if acc.marketing %}checked{% endif %}> Send me occasional product news</label>
+  <label class="check"><input type="checkbox" name="marketing" value="1" {% if acc.marketing %}checked{% endif %}> <span>Send me occasional product news</span></label>
   <div><button class="btn primary" type="submit">Save changes</button></div>
 </form>
 <p class="small muted" style="margin-top:24px">To close your account or get a copy of your data, <a href="/contact?kind=privacy">contact us</a>.</p>

@@ -16,7 +16,7 @@
 {% if error %}<p class="notice warn">Couldn't load invoices from Paddle just now ({{ error }}). Showing what we have.</p>{% endif %}
 <h2 style="margin-top:32px">Invoices</h2>
 {% if txns %}
-<div class="table-wrap"><table><thead><tr><th>Date</th><th>For</th><th class="num">Total</th><th>Status</th><th></th></tr></thead><tbody>
+<div class="table-wrap"><table><thead><tr><th>Date</th><th>For</th><th class="num">Total</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
 {% for t in txns %}<tr>
   <td>{{ (t.billed_at or t.created_at) | day }}</td>
   <td>{% for i in t['items'] %}{{ (i.price or {}).description or (i.price or {}).name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
@@ -26,7 +26,7 @@
 </tr>{% endfor %}
 </tbody></table></div>
 {% elif local %}
-<div class="table-wrap"><table><thead><tr><th>Date</th><th>Period</th><th class="num">Total</th><th></th></tr></thead><tbody>
+<div class="table-wrap"><table><thead><tr><th>Date</th><th>Period</th><th class="num">Total</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
 {% for t in local %}<tr><td>{{ t.billed_at | day }}</td><td>{{ t.period_start | day }} to {{ t.period_end | day }}</td><td class="num">{{ (t.total | int / 100) if t.total else '' }} {{ t.currency or '' }}</td><td><a href="/account/invoice/{{ t.id }}">Invoice (PDF)</a></td></tr>{% endfor %}
 </tbody></table></div>
 {% else %}<p class="muted">No invoices yet.</p>{% endif %}
