@@ -1,13 +1,11 @@
 <script>
-  // The tech workspace as a desktop: docked windows filling the screen,
-  // floating windows over them, and the taskbar.
+  // The tech workspace as a desktop: docked windows filling the screen and
+  // floating windows over them. The Layout menu (Menu.svelte) sits in the page's top bar.
   import * as T from "./tree.js";
   import { desk, can } from "./store.svelte.js";
   import Node from "./Node.svelte";
   import Group from "./Group.svelte";
-  import Taskbar from "./Taskbar.svelte";
 
-  let { onShare } = $props();
   let areaEl = $state(null);
   const area = () => areaEl;
   const L = $derived(desk.layout);
@@ -18,9 +16,7 @@
     const mq = window.matchMedia("(max-width: 900px)");
     const on = () => (desk.narrow = mq.matches);
     on(); mq.addEventListener("change", on);
-    const shut = () => (desk.menu = false);
-    window.addEventListener("click", shut);
-    return () => { mq.removeEventListener("change", on); window.removeEventListener("click", shut); };
+    return () => mq.removeEventListener("change", on);
   });
   const px = (r) => `left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px`;
 </script>
@@ -30,7 +26,7 @@
     {#if L.root && T.nodeShown(L.root, can)}
       <div class="dk-root"><Node node={L.root} path={[]} {area} /></div>
     {:else}
-      <div class="dk-empty muted">Everything is closed. Open a window from the taskbar below.</div>
+      <div class="dk-empty muted">Everything is closed. Open a window from the Layout menu at the top.</div>
     {/if}
     {#each floats as f (f.group.id)}
       <Group g={f.group} float={f} {area} />
@@ -53,5 +49,4 @@
       {/if}
     {/if}
   </div>
-  <Taskbar {onShare} />
 </div>

@@ -43,7 +43,7 @@
   #bellBtn .unread { background: var(--accent); color: #fff; }
   .note { padding: .5rem .6rem; border-left: 3px solid var(--line); background: var(--panel2); border-radius: 0 6px 6px 0; margin-top: .45rem; cursor: pointer; }
   .note.n-urgent, .note.n-error { border-left-color: var(--bad); } .note.n-timer { border-left-color: var(--warn); } .note.n-good { border-left-color: var(--good); } .note.n-chat { border-left-color: var(--accent); }
-  #toasts { bottom: 3.6rem; z-index: 1100; }
+  #toasts { z-index: 1100; }
   .scr .row select, .scr .row input { width: auto; flex: 1 1 0 !important; min-width: 0; }
   /* chat inside its window */
   .chat-pane { display: flex; flex-direction: column; height: 100%; min-height: 320px; }
@@ -149,6 +149,7 @@
     <button class="small ver hidden" id="topVer" title="This app's version. Click for updates."></button>
     <span class="muted" id="who"></span><span class="pill hidden" id="modePill"></span>
     <select id="room" aria-label="Room" style="width:auto"></select>
+    <div id="layoutMenu"></div>
     <span id="roomAsk" class="row hidden" style="gap:.3rem"><span class="small" id="roomAskText"></span><button class="small primary" id="roomMove">Move</button><button class="small" id="roomStay">Cancel</button></span>
     <div class="livebar" id="liveBar"></div>
     <span class="pill" id="conn">connecting</span>
@@ -399,7 +400,7 @@
           await post("/api/auth/logout").catch(() => {}); // this laptop, not someone's account
           const who = withPw ? { username: f.username.value, password: f.password.value, ...pw.extra() } : { operator: f.operator.value };
           await api("/api/nodes/me/start", { method: "POST", headers: nodeHdr(), body: { ...who, room_id: pick, mode } });
-          if (APP) await APP.setSettings({ popups: mode === "backup" });
+          if (APP) { await APP.setSettings({ popups: mode === "backup" }); await APP.maximise?.().catch(() => {}); }
           location.reload();
         } catch (ex) { if (!pw?.handle(ex)) $("startErr").textContent = ex.message; }
       };
@@ -415,7 +416,11 @@
     const f = $("loginForm"), pw = AT.passwordForm(f, $("loginErr"));
     f.onsubmit = async (e) => {
       e.preventDefault();
-      try { await post("/api/auth/login", { username: f.username.value, password: f.password.value, ...pw.extra() }); location.reload(); }
+      try {
+        await post("/api/auth/login", { username: f.username.value, password: f.password.value, ...pw.extra() });
+        await APP?.maximise?.().catch(() => {}); // the workspace opens in a maximised window
+        location.reload();
+      }
       catch (ex) { if (!pw.handle(ex)) $("loginErr").textContent = ex.message; }
     };
     return;
@@ -541,7 +546,7 @@
   }
 
   // The workspace is a desktop of windows (static/ui/desk.js, built from web/src/desk): every part
-  // docks, tabs, floats, resizes, minimises, maximises and pops out, with a taskbar and saved layouts.
+  // docks, tabs, floats, resizes, minimises, maximises and pops out, with a Layout menu in the top bar for the windows and saved layouts.
   // Parts are registered below; the desk starts once they all are.
   const WINS = ["captions", "sessions", "screens", "previews", "overlays", "links"];
   const wins = Object.fromEntries(WINS.map((id) => [id, { open: () => ATDesk.open(id), available: (yes) => ATDesk.available(id, yes) }]));
@@ -608,7 +613,7 @@
     F.closed.push(...WINS);
     let shared = null;
     try { shared = (await api("/api/workspace/layout")).layout; } catch (_) {}
-    ATDesk.start($("desk"), { key: "atsuit_desk2", fallback: F, shared, canShare: boot.me.role === "admin",
+    ATDesk.start($("desk"), { key: "atsuit_desk2", fallback: F, shared, canShare: boot.me.role === "admin", menu: $("layoutMenu"),
       onShare: (layout) => guard(() => AT.put("/api/workspace/layout", { layout })).then(() => toast("Every laptop now starts with this layout", "good")) });
   }
   // The timer reaching its warning, danger and overtime is worth a note.
@@ -814,7 +819,7 @@
     onCount: (unseen, total) => { ATDesk.badge("notes", unseen); liveBar.notes(unseen, total); } });
   setInterval(() => { if (ATDesk.isOpen("notes") && !document.hidden) notes.seen(); }, 1500);
 
-  // chat: a window like the rest; its taskbar button counts what came in while it was out of sight
+  // chat: a window like the rest; the Layout menu counts what came in while it was out of sight
   let chatUnread = 0;
   const chatSeen = () => ATDesk.isOpen("chat") && !document.hidden;
   const setDock = (open) => { if (open) ATDesk.open("chat"); };
