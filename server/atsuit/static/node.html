@@ -166,6 +166,7 @@
           <div class="row" style="margin-top:.4rem"><input id="aiQ" class="grow" placeholder="Ask anything, e.g. the lectern mic is dead"><button id="aiAsk">Ask</button></div>
           <div id="aiA" class="small" style="margin-top:.4rem;max-height:40vh;overflow:auto"></div>
         </div>
+        <div class="row" style="margin-top:.7rem;border-top:1px solid var(--line);padding-top:.6rem"><span class="small muted grow">Something in AT SUITE not working right?</span><button class="small" id="bugBtn">Report a bug</button></div>
       </div></div>
     <button id="laptopBtn" class="hidden">This laptop</button>
     <a class="btn hidden" id="consoleBtn" href="/#/dashboard" target="_blank">Console</a>
@@ -245,6 +246,7 @@
 <div id="watched" class="hidden">📷 A manager can see this laptop's screens</div>
 
 <script src="/static/common.js"></script>
+<script src="/static/bugreport.js"></script>
 <script src="/static/chat.js"></script>
 <script src="/static/previews.js"></script>
 <script src="/static/ui/desk.js"></script>
@@ -885,6 +887,8 @@
     if (opening) { renderHelp(); $("helpText").focus(); }
   };
   $("helpBox").onclick = (e) => e.stopPropagation();
+  // Report a bug: to the admins' Bug reports page, not about the room (that's a help call)
+  $("bugBtn").onclick = () => { $("helpBox").classList.add("hidden"); AT.reportBug(); };
   if (boot.modules.comms) {
     renderHelp();
     // One press is one call: the button stays off until the server answers and for a moment after,

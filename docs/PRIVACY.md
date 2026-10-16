@@ -22,7 +22,7 @@ all of them without breaking a show:
 | Schedule AI (optional) | The Ollama server an admin sets up | The schedule file being imported | Only when someone imports a schedule that needs it |
 | AI helper model (optional) | The Ollama server an admin sets up, on your network | The question, the room and the matching venue notes and past fixes | When a tech asks the AI helper |
 | AI helper web search (off by default) | api.duckduckgo.com | The question only | When a tech asks something the venue notes don't cover |
-| Report a bug | Your own email app | What you type, plus the version and server name | Only when you press Send in your email app |
+| Bug report to GitHub (off by default) | The GitHub repository an admin sets up in Bug reports | The report's title and details, the AT-SUITE version, the server's operating system and the browser. No names, organisation, rooms, addresses or screenshot | When an admin presses Send to GitHub, or for every new report if they turned that on |
 
 ## Captions
 

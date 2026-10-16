@@ -26,6 +26,8 @@ def can_subscribe(p: Principal | None, topic: str) -> bool:
         return p.kind == "account" and topic == f"dm:{p.id}"
     if topic in ("fleet", "audit", "presenter"):
         return p.at_least("tech")
+    if topic == "admins":  # bug reports
+        return p.kind == "account" and p.at_least("admin")
     if topic == "managers":  # password reset requests
         return p.kind == "account" and p.at_least("manager")
     if p.site_id is None:
