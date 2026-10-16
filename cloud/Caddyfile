@@ -1,0 +1,34 @@
+# The front door of an AT-SUITE cloud server: https://<venue>.<domain> → that venue's container.
+# atcloud writes one file per venue into sites/ and reloads; nothing here changes per venue.
+# Cloudflare sits in front: it holds the public certificate, and this server uses a Cloudflare
+# origin certificate (certs/origin.pem and origin.key) for the hop from Cloudflare to here.
+{
+	admin localhost:2019
+	auto_https disable_redirects # only 443 is open; Cloudflare sends everyone to https
+	servers {
+		# Visitors' real addresses come from Cloudflare (atcloud init --cloudflare lists its ranges).
+		trusted_proxies static {$ATCLOUD_TRUSTED_PROXIES}
+		client_ip_headers CF-Connecting-IP X-Forwarded-For
+	}
+}
+
+*.{$ATCLOUD_DOMAIN} {
+	tls /certs/origin.pem /certs/origin.key
+	# Only Cloudflare may connect (Docker's published ports go round the server's own firewall).
+	@outside not remote_ip {$ATCLOUD_TRUSTED_PROXIES}
+	handle @outside {
+		abort
+	}
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	import /etc/caddy/sites/*.caddy
+	handle {
+		header Content-Type "text/plain; charset=utf-8"
+		respond "There's no AT-SUITE venue at this address." 404
+	}
+}

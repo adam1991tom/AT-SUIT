@@ -21,7 +21,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from .. import db
+from .. import config, db
 from ..security import Principal, require_admin, require_tech
 from .core import site_ok
 
@@ -44,6 +44,8 @@ def prefs(c) -> dict:
         out["model_from_presenters"] = True
         p = db.get_setting(c, "presenter", {}) or {}
         out["ai_url"], out["ai_model"] = p.get("ai_url", ""), p.get("ai_model") or out["ai_model"]
+    if not out["ai_url"] and config.cfg.ai_url:  # then the provider's private model (hosted venues)
+        out["ai_url"], out["ai_model"] = config.cfg.ai_url, config.cfg.ai_model or out["ai_model"]
     return out
 
 
@@ -59,17 +61,45 @@ def words(text: str) -> list[str]:
     return [_stem(w) for w in re.findall(r"[a-z0-9]+", text.lower()) if w not in STOP and len(w) > 1]
 
 
-@lru_cache(maxsize=1)
+def guide_files() -> list[Path]:
+    """The tech guide's files: AT-SUIT's own, then a provider's (ATSUIT_KB_DIR), whose file of the
+    same name replaces AT-SUIT's."""
+    files = {}
+    for d in [GUIDE_DIR, *config.cfg.kb_dirs]:
+        for f in sorted(d.glob("*.md")) if d.is_dir() else []:
+            files[f.name] = f
+    return sorted(files.values(), key=lambda f: f.name)
+
+
 def guide() -> tuple[dict, ...]:
-    """The built-in tech guide: one item per "## " heading, its "Keywords:" line only for finding it."""
+    """The tech guide: one item per "## " heading, its "Keywords:" line only for finding it."""
+    return _guide(tuple((str(f), f.stat().st_mtime) for f in guide_files()))
+
+
+@lru_cache(maxsize=1)
+def _guide(files: tuple) -> tuple[dict, ...]:
     items = []
-    for f in sorted(GUIDE_DIR.glob("*.md")):
+    for name, _ in files:
+        f = Path(name)
         for block in re.split(r"^## ", f.read_text(encoding="utf-8"), flags=re.M)[1:]:
             title, _, body = block.partition("\n")
             keys = re.search(r"^Keywords:(.*)$", body, flags=re.M)
             text = re.sub(r"^Keywords:.*\n?", "", body, flags=re.M).strip()
-            items.append({"kind": GUIDE, "title": title.strip(), "text": text, "keys": keys.group(1) if keys else ""})
+            items.append({"kind": GUIDE, "title": title.strip(), "text": text, "keys": keys.group(1) if keys else "",
+                          "url": f"/guide/help#{f.stem}"})
     return tuple(items)
+
+
+@router.get("/api/guide/help")
+def help_articles():
+    """The tech guide as pages, for /guide/help. No sign-in: it's general show-day know-how,
+    nothing about the venue."""
+    out = []
+    for f in guide_files():
+        text = re.sub(r"^Keywords:.*\n?", "", f.read_text(encoding="utf-8"), flags=re.M)
+        title = next((ln[2:].strip() for ln in text.splitlines() if ln.startswith("# ")), f.stem)
+        out.append({"slug": f.stem, "title": title, "markdown": text})
+    return {"articles": sorted(out, key=lambda a: a["title"].lower())}
 
 
 def knowledge(c, site_id: int | None) -> list[dict]:

@@ -79,7 +79,9 @@ def test_the_built_in_tech_guide(admin, monkeypatch):
                             ("howling from the speakers", "Feedback"), ("remote people hear an echo on teams", "echo"),
                             ("speaker is overrunning", "overrunning"), ("hum from the laptop", "Hum")]:
         r = tech.post("/api/ai/ask", json={"question": question}).json()
-        assert r["sources"][0] == {"kind": "tech guide", "title": r["sources"][0]["title"]} and title in r["sources"][0]["title"], (question, r)
+        src = r["sources"][0]
+        assert src == {"kind": "tech guide", "title": src["title"], "url": src["url"]} and title in src["title"], (question, r)
+        assert src["url"].startswith("/guide/help#")  # the full entry, on the Help page
         assert r["answer"].startswith("From the tech guide") and "1." in r["answer"]
 
     # The venue's own knowledge comes first, the guide after it.

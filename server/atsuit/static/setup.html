@@ -56,7 +56,23 @@
   const st = await AT.api("/api/setup/status");
   if (st.setup_complete) location.replace("/");
   AT.branding();
-  const f = document.getElementById("f"), steps = [...f.querySelectorAll("section")];
+  const f = document.getElementById("f");
+  // A hosted AT-SUITE (or one with a setup code) is set up only from the link its provider sends.
+  // The code is after the # so it never reaches a server, a log or another site; it is taken
+  // out of the address bar as soon as it has been read.
+  const code = new URLSearchParams(location.hash.slice(1)).get("code") || "";
+  if (code) history.replaceState(null, "", location.pathname + location.search);
+  const host = await AT.api("/api/public/hosting").catch(() => ({}));
+  if (host.setup_code_needed && !code) {
+    f.innerHTML = `<img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUITE"><h1>Setup link needed</h1>
+      <p class="muted">This AT-SUITE is set up from the link your provider sent you. Open that link exactly as it is in the email.</p>`;
+    return;
+  }
+  if (host.licensed) {  // the provider has put the key in already
+    f.querySelector('[data-step="3"]').remove();
+    f.querySelector(".steps span:last-child").remove();
+  }
+  const steps = [...f.querySelectorAll("section")];
   let step = 0;
   function show() {
     steps.forEach((s, i) => s.classList.toggle("hidden", i !== step));
@@ -77,8 +93,9 @@
     delete body.confirm;
     body.rooms = body.rooms.split("\n").map((s) => s.trim()).filter(Boolean);
     try {
-      await AT.post("/api/setup", body);
-      location.replace(body.licence_key.trim() ? "/#/settings" : "/#/licence");
+      body.licence_key = body.licence_key || "";
+      await AT.api("/api/setup", { method: "POST", body, headers: code ? { "X-Setup-Code": code } : {} });
+      location.replace(body.licence_key.trim() || host.licensed ? "/#/settings" : "/#/licence");
     } catch (ex) { err.textContent = ex.message; }
   };
   show();
