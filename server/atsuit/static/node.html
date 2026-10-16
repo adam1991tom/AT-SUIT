@@ -98,8 +98,9 @@
   .hn-body { white-space: normal; overflow-wrap: anywhere; } .hn-foot { margin-top: .35rem; gap: .3rem; }
   .hn-done { margin-top: .8rem; } .hn-done summary { cursor: pointer; }
   /* the AI helper's chat */
-  .ai-pane { display: flex; flex-direction: column; gap: .5rem; height: 100%; min-height: 260px; }
-  .ai-log { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: .45rem; padding-right: .2rem; }
+  .dk-pane:has(> .ai-pane) { height: 100%; } /* the log scrolls, the box to type in stays put */
+  .ai-pane { display: flex; flex-direction: column; gap: .5rem; height: 100%; min-height: 300px; }
+  .ai-log { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: .45rem; padding-right: .2rem; }
   .ai-msg { max-width: 92%; padding: .45rem .7rem; border-radius: 10px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .92rem; }
   .ai-msg.tech { align-self: flex-end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 3px; }
   .ai-msg.helper { align-self: flex-start; background: var(--panel2); border: 1px solid var(--line); border-bottom-left-radius: 3px; }
@@ -243,14 +244,12 @@
 
   <section data-win="overlays" data-title="Overlays" hidden><div id="atOv"></div><div id="ovList"></div></section>
 
-  <section data-win="ai" data-title="AI helper" hidden>
-    <div class="ai-pane">
+  <section class="ai-pane" data-win="ai" data-title="AI helper" hidden>
       <div class="row" style="justify-content:space-between;gap:.4rem"><span class="muted small" id="aiWhere2"></span><button class="small" id="aiNew">New chat</button></div>
       <div class="ai-log" id="aiLog" role="log" aria-live="polite" aria-label="Chat with the AI helper"></div>
       <div class="ai-choices" id="aiChoices" role="group" aria-label="Quick answers"></div>
-      <div class="row" style="gap:.4rem"><input id="aiInput" class="grow" aria-label="Message the AI helper" placeholder="Say what's wrong, or answer its question" maxlength="1000"><button id="aiSend" class="primary">Send</button></div>
+      <div class="row" style="gap:.4rem;flex-wrap:nowrap"><input id="aiInput" style="flex:1;min-width:0;width:auto" aria-label="Message the AI helper" placeholder="Say what's wrong, or answer its question" maxlength="1000"><button id="aiSend" class="primary">Send</button></div>
       <div class="ai-foot"><span class="muted small grow" id="aiNote"></span><button class="small" id="aiFixed">This fixed it</button><button class="small helpbtn" id="aiCall">Call for help</button></div>
-    </div>
   </section>
   <section data-win="links" data-title="Links" hidden><input id="linkFind" placeholder="Find a link" style="margin-bottom:.5rem"><div id="links" style="max-height:60vh;overflow:auto"></div></section>
 
@@ -881,13 +880,16 @@
   const aiTech = () => ai.turns.filter((t) => t.role === "tech");
   function aiRender(choices = []) {
     const log = $("aiLog");
-    log.innerHTML = ai.turns.map((t, i) => {
-      const src = t.role === "helper" && t.sources?.length ? `<div class="ai-src muted">From: ${t.sources.map((s) => s.url
+    let said = "";
+    log.innerHTML = ai.turns.map((t) => {
+      // Where an answer came from, when it's not the same as the answer before.
+      const key = t.role === "helper" ? JSON.stringify(t.sources || []) : said;
+      const fresh = key !== said; said = key;
+      const src = t.role === "helper" && fresh && t.sources?.length ? `<div class="ai-src muted">From: ${t.sources.map((s) => s.url
         ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : `${esc(s.kind)}: ${esc(s.title)}`).join(" · ")}</div>` : "";
       return `<div class="ai-msg ${t.role}"${t.role === "helper" ? ' aria-label="AI helper"' : ""}>${t.lead ? `<div class="muted small">${esc(t.lead)}</div>` : ""}${esc(t.text)}${src}</div>`;
     }).join("") + (ai.busy ? '<div class="ai-msg helper muted">Thinking…</div>' : "") ||
       '<p class="muted small">Say what\'s wrong in plain words, like "the lectern mic is dead". The AI helper asks questions to narrow it down; keep talking until it\'s fixed.</p>';
-    log.scrollTop = log.scrollHeight;
     $("aiChoices").innerHTML = ai.busy ? "" : choices.map((c, i) => `<button class="small" data-ai-choice="${i}">${esc(c)}</button>`).join("");
     $("aiChoices").querySelectorAll("[data-ai-choice]").forEach((b) => b.onclick = () => aiPick(choices[+b.dataset.aiChoice]));
     const started = aiTech().length > 0;
@@ -896,6 +898,7 @@
     $("aiCall").disabled = !started || ai.helpSent;
     $("aiCall").textContent = ai.helpSent ? "Help is on the way" : "Call for help";
     $("aiSend").disabled = ai.busy;
+    log.scrollTop = log.scrollHeight; // after the answer buttons, which take room from the log
   }
   async function aiSay(text, lead = "") {
     text = text.trim();
