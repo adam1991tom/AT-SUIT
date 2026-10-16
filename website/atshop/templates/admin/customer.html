@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>{{ acc.organisation or acc.name or acc.email }}</h1>
+{% include "admin/_nav.html" %}
+<div class="grid2">
+<div class="card"><dl class="kv">
+  <dt>Email</dt><dd>{{ acc.email }}</dd><dt>Name</dt><dd>{{ acc.name }}</dd><dt>Organisation</dt><dd>{{ acc.organisation }}</dd>
+  <dt>Phone</dt><dd>{{ acc.phone }}</dd><dt>Paddle customer</dt><dd>{{ acc.paddle_customer_id or '–' }}</dd>
+  <dt>Joined</dt><dd>{{ acc.created_at | when }}</dd><dt>Last sign-in</dt><dd>{{ acc.last_login_at | when }}</dd>
+  <dt>Product news</dt><dd>{{ 'yes' if acc.marketing else 'no' }}</dd>
+</dl>
+<form method="post" action="/admin/customers/{{ acc.id }}/access" style="margin-top:12px"><input type="hidden" name="csrf" value="{{ csrf }}">
+{% if acc.disabled %}<input type="hidden" name="disabled" value="0"><button class="btn small" type="submit">Enable sign-in</button>
+{% else %}<input type="hidden" name="disabled" value="1"><button class="btn small danger" type="submit" data-confirm="Stop this customer signing in? Their keys keep working.">Disable sign-in</button>{% endif %}
+</form></div>
+<div>{% set email = acc.email %}{% include "admin/_issue.html" %}</div>
+</div>
+<h2 style="margin-top:32px">Subscriptions</h2>
+<div class="table-wrap"><table><thead><tr><th>Paddle id</th><th>Plan</th><th>Status</th><th>Period</th><th>Next bill</th><th>Note</th></tr></thead><tbody>
+{% for s_ in subs %}<tr><td>{{ s_.id }}</td><td>{{ s_.plan }} / {{ s_.cycle }}{% if s_.hosting %} + hosting{% endif %}</td><td>{{ s_.status }}{% if s_.scheduled_change %} (change scheduled){% endif %}</td><td>{{ s_.period_start | day }} to {{ s_.period_end | day }}</td><td>{{ s_.next_billed_at | day }}</td><td>{{ s_.problem or '' }}</td></tr>
+{% else %}<tr><td colspan="6" class="muted">None.</td></tr>{% endfor %}</tbody></table></div>
+<h2 style="margin-top:32px">Licences</h2>
+{% include "admin/_licence_table.html" %}
+<h2 style="margin-top:32px">Payments</h2>
+<div class="table-wrap"><table><thead><tr><th>Paddle id</th><th>When</th><th>Origin</th><th class="num">Total</th><th>Period</th></tr></thead><tbody>
+{% for t in txns %}<tr><td>{{ t.id }}</td><td>{{ t.billed_at | day }}</td><td>{{ t.origin }}</td><td class="num">{{ (t.total | int / 100) if t.total else '' }} {{ t.currency or '' }}</td><td>{{ t.period_start | day }} to {{ t.period_end | day }}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">None.</td></tr>{% endfor %}</tbody></table></div>
+<h2 style="margin-top:32px">Hosted venues</h2>
+<div class="table-wrap"><table><tbody>{% for v in venues %}<tr><td>{{ v.slug }}</td><td>{{ v.name }}</td><td>{{ v.status }}</td></tr>{% else %}<tr><td class="muted">None.</td></tr>{% endfor %}</tbody></table></div>
+<h2 style="margin-top:32px">Messages</h2>
+<div class="table-wrap"><table><tbody>{% for t in tickets %}<tr><td><a href="/admin/tickets/{{ t.id }}">#{{ t.id }} {{ t.subject }}</a></td><td>{{ t.status }}</td><td>{{ t.updated_at | when }}</td></tr>{% else %}<tr><td class="muted">None.</td></tr>{% endfor %}</tbody></table></div>
+<h2 style="margin-top:32px">Recent activity</h2>
+{% set rows = audit %}{% include "admin/_audit_table.html" %}
+</div></div>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block main %}
+<section class="hero">
+  <div class="wrap grid2">
+    <div>
+      <p class="eyebrow">For venues, AV crews and production companies</p>
+      <h1>Run the whole show from <span>one place</span>.</h1>
+      <p class="lead">AT SUITE puts show timers, crew chat, live captions, stage screens and every tech laptop in one workspace. The timer and captions run on each laptop, so they keep going even if the network drops.</p>
+      <div class="actions">
+        <a class="btn primary" href="/pricing">See pricing</a>
+        <a class="btn" href="/register?next=/account">Start a free 30-day trial</a>
+        <a class="btn ghost" href="/contact?kind=sales">Talk to us</a>
+      </div>
+      <p class="small muted" style="margin-top:14px">No card needed for the trial. Up to 10 laptops, every feature.</p>
+    </div>
+    <img class="shot" src="/static/img/shot-workspace.jpg" alt="The AT SUITE tech workspace: room timer, quick timers, chat, captions and handover notes" width="1280" height="720" fetchpriority="high">
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <p class="band"><span>Conference centres</span><span>Theatres</span><span>Hotels and venues</span><span>AV hire</span><span>Freelance technicians</span><span>Production companies</span></p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">What it replaces</p>
+    <h2>One subscription instead of a drawer of tools</h2>
+    <p class="lead">Show timers, a crew chat app, a caption service billed by the hour, screen test tools and a spreadsheet of laptops. AT SUITE does all of it, made for show days.</p>
+    <div class="grid3" style="margin-top:28px">
+      <div class="card"><h3><span class="icon">⏱</span>Show timers</h3><p class="muted">A countdown on every stage screen with a cue list, quick timers, stage messages, blink and blackout, and views for stage, backstage, clock and OBS overlays.</p></div>
+      <div class="card"><h3><span class="icon">💬</span>Crew chat and help</h3><p class="muted">Chat per room and for all crew, with files and emoji. Help calls that go to the next person if nobody answers, plus handover notes between shifts.</p></div>
+      <div class="card"><h3><span class="icon">CC</span>Live captions</h3><p class="muted">Captions are made on the tech's laptop from its microphone, offline. Show them on audience screens or as an OBS or vMix overlay. Transcripts delete themselves after 12 hours.</p></div>
+      <div class="card"><h3><span class="icon">🖥</span>Screens</h3><p class="muted">Pair a screen by typing its code, pick what it shows, and push test patterns (colour bars, LED tile map, sharpness) to it from the workspace.</p></div>
+      <div class="card"><h3><span class="icon">💻</span>Every laptop in view</h3><p class="muted">See each laptop's health and what it's showing. Updates install from the server, and the venue dashboard shows which rooms are live.</p></div>
+      <div class="card"><h3><span class="icon">✓</span>Show-day extras</h3><p class="muted">Presenter pages for slides and check-in, a pre-show health check, PDF show reports, Bitfocus Companion buttons and an AI tech guide.</p></div>
+    </div>
+    <p style="margin-top:24px"><a href="/features">Every feature in detail →</a></p>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap grid2">
+    <img class="shot" src="/static/img/shot-stage-timer.jpg" alt="A stage timer screen counting down from 04:48 for the Welcome session" width="1280" height="720" loading="lazy">
+    <div>
+      <p class="eyebrow">Built for the room, not the office</p>
+      <h2>Keeps working when the Wi-Fi doesn't</h2>
+      <ul class="ticks">
+        <li>The timer and captions run on the laptop. If the network or internet drops, the show carries on, and everything catches up when it's back.</li>
+        <li>Caption audio never leaves the laptop. That keeps NDA and GDPR worries off the table.</li>
+        <li>Licences never lock mid-show. An expired licence gets 14 days of grace, and any lock waits until no show is on.</li>
+        <li>Updates never happen during a show.</li>
+      </ul>
+      <a class="btn" href="/how-it-works">How it works</a>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Your choice of server</p>
+    <h2>We host it, or you do</h2>
+    <div class="grid2" style="gap:20px">
+      <div class="card"><h3>Managed hosting</h3><p class="muted">We run your AT SUITE server in the EU, with its own sealed copy for your venue, nightly encrypted backups and updates outside show times. Your techs just install the laptop app.</p><a href="/hosting">About managed hosting →</a></div>
+      <div class="card"><h3>Your own server</h3><p class="muted">Install AT SUITE on a small Linux server at your venue with one command. It runs with no internet at all, for strict-NDA events. The licence key is checked offline.</p><a href="/docs/self-hosted-install">Install guide →</a></div>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap center">
+    <h2>Try it on your next show</h2>
+    <p class="lead" style="margin-inline:auto">30 days free with every feature and up to 10 laptops. No card, no call.</p>
+    <div class="actions" style="justify-content:center"><a class="btn primary" href="/register?next=/account">Start free trial</a><a class="btn" href="/pricing">Pricing</a></div>
+  </div>
+</section>
+{% endblock %}

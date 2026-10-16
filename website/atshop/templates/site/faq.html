@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap prose">
+<p class="eyebrow">Questions</p>
+<h1>Questions and answers</h1>
+{% for q, a in [
+ ("What do I need to run AT SUITE?", "A Windows laptop for each tech, running the AT SUITE app, and an AT SUITE server. We can host the server, or you can run it on a small Linux machine at your venue. Stage screens can be any screen with a web browser."),
+ ("Does it work without internet?", "On your own server, yes, completely. The licence is checked offline. With managed hosting, chat and sync need the internet, but the timer and captions run on each laptop and keep going through a drop."),
+ ("Where do captions get made?", "On the tech's laptop, from its microphone, using a speech model that runs offline. Audio is never sent anywhere. Transcripts are encrypted and deleted after 12 hours by default; the venue's admins can change that."),
+ ("How accurate are the captions?", "They're good with a clear microphone and improve with the vocabulary list, but automatic captions can get names, accents and jargon wrong. For a deaf attendee who relies on captions, use a professional captioner as well."),
+ ("What counts as a laptop?", "Each tech laptop running the AT SUITE app counts towards your plan. Stage screens, browser views, presenters and crew on phones don't."),
+ ("What happens if my licence runs out?", "Admins are warned 30 days before and everyone 7 days before. After it ends there are 14 days of grace with everything working. Then AT SUITE locks until a new key is pasted in, but never during a show: the lock waits for a restart or the small hours with no timer running. Nothing is deleted."),
+ ("Can I try it first?", "Yes. Create an account and start a 30-day trial with every feature and up to 10 laptops. No card needed."),
+ ("Can I use it for just one event?", "Yes. The event pass is a one-off payment for 7 days and up to 10 laptops, with no subscription."),
+ ("Who do I pay?", "Paddle.com, our reseller, sells AT SUITE and handles payment, invoices and VAT. Business customers can add a VAT number at checkout."),
+ ("Is my data safe?", "Each hosted venue has its own sealed server and data, with encrypted backups in the EU. Passwords are stored only as hashes and admin actions are logged. See the privacy policy and data processing agreement."),
+ ("Does it work with Stream Deck?", "Yes. There's a Bitfocus Companion module, and a REST API for other automation."),
+] %}
+<details><summary>{{ q }}</summary><div>{{ a }}</div></details>
+{% endfor %}
+<p style="margin-top:28px">Something else? <a href="/contact">Ask us</a>.</p>
+</div></div>
+{% endblock %}

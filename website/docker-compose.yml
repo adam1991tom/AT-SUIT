@@ -1,0 +1,26 @@
+# Runs the shop on one server. Put Cloudflare (or the atcloud edge) in front for HTTPS; see README.md.
+#   cp .env.example .env    (fill it in)
+#   mkdir -p secrets && cp /safe/place/vendor-private-key.pem secrets/ && chmod 600 secrets/*
+#   docker compose up -d --build
+services:
+  shop:
+    build: .
+    image: atsuite-shop:local
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      SHOP_DATA: /data
+      LICENCE_SIGNING_KEY_FILE: /run/secrets/licence_signing_key
+    volumes:
+      - shop-data:/data
+    secrets:
+      - licence_signing_key
+    ports:
+      - "127.0.0.1:8090:8090"   # only the reverse proxy on this machine reaches it
+
+secrets:
+  licence_signing_key:
+    file: ./secrets/vendor-private-key.pem
+
+volumes:
+  shop-data:

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>Licences</h1>
+{% include "admin/_nav.html" %}
+<p class="muted">Keys work offline, so revoking one only stops the shop renewing or handing it out. A key on a server ends when its date passes.</p>
+{% include "admin/_issue.html" %}
+<form method="get" class="actions" style="margin:16px 0"><label class="skip" for="q">Search</label><input id="q" type="search" name="q" value="{{ q }}" placeholder="Serial, email or licensee" style="max-width:360px"><button class="btn small" type="submit">Search</button></form>
+{% set show_email = True %}{% include "admin/_licence_table.html" %}
+</div></div>
+{% endblock %}

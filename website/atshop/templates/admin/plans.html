@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>Plans and prices</h1>
+{% include "admin/_nav.html" %}
+<p class="muted">Prices come from <code>website/catalogue.toml</code>. To change one, edit that file, run <code>python tools/paddle_setup.py</code> to make the new Paddle price, and restart. Existing subscribers keep their old price until you move them.</p>
+<div class="table-wrap"><table><thead><tr><th>Item</th><th>Billing</th><th class="num">Price</th><th>Paddle price</th></tr></thead><tbody>
+{% for r in rows %}<tr><td>{{ r.name }}</td><td>{{ {'month':'monthly','year':'yearly','':'one-off'}[r.cycle] }}</td><td class="num">{{ money(r.amount) }}</td>
+<td>{% if r.price_id %}<code>{{ r.price_id }}</code>{% else %}<span class="badge warn">not in Paddle</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% if old %}<h2 style="margin-top:32px">Older prices still mapped</h2><p class="muted">Renewals on these still get the right key.</p>
+<div class="table-wrap"><table><tbody>{% for pid, p in old %}<tr><td><code>{{ pid }}</code></td><td>{{ p.kind }}:{{ p.key }}</td><td>{{ p.cycle or 'one-off' }}</td><td class="num">{{ money(p.amount / 100) }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+</div></div>
+{% endblock %}

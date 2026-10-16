@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap prose">
+<p class="eyebrow">Downloads</p>
+<h1>Downloads</h1>
+<p>AT SUITE needs a licence key to run. Start a <a href="/register?next=/account">free trial</a> or <a href="/pricing">choose a plan</a>, and your key will be in your account.</p>
+<h2>Server (Linux)</h2>
+<p>On a fresh Ubuntu or Debian server, as root. It installs Docker if needed, then the newest release:</p>
+<pre><code>curl -fsSL https://github.com/{{ s.releases_repo }}/releases/latest/download/get.sh | sudo bash</code></pre>
+<p>Then open <code>http://SERVER-IP:8080/</code>, follow the setup wizard and paste your licence key. More in the <a href="/docs/self-hosted-install">install guide</a>. With managed hosting you don't need this; we send you a setup link.</p>
+<h2>Laptop app (Windows)</h2>
+<p>Each tech laptop runs the AT SUITE app. Download the <code>Setup</code> .exe from the <a href="https://github.com/{{ s.releases_repo }}/releases/latest" rel="noopener">latest release</a>, install it and enrol the laptop with your server (<a href="/docs/laptop-app">how</a>). After that, laptops update themselves from your server, so they always match it.</p>
+<h2>Release notes</h2>
+<p>Every release and what changed: <a href="https://github.com/{{ s.releases_repo }}/releases" rel="noopener">all releases</a>.</p>
+</div></div>
+{% endblock %}

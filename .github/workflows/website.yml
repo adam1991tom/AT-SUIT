@@ -1,0 +1,26 @@
+name: Website
+
+on:
+  push:
+    branches: [ATSUITE]
+    paths: ["website/**", "tools/licence.py", "server/atsuit/licence.py", ".github/workflows/website.yml"]
+  pull_request:
+    paths: ["website/**", "tools/licence.py", "server/atsuit/licence.py", ".github/workflows/website.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install
+        # The journey tests check keys with the AT SUITE server's own licence code, so its packages too.
+        run: pip install -r website/requirements-dev.txt -r server/requirements.txt
+      - name: Test
+        working-directory: website
+        run: python -m pytest -q
+      - name: Build image
+        run: docker build -t atsuite-shop:ci website

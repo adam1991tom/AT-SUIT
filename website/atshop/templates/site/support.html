@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<p class="eyebrow">Support</p>
+<h1>Get help</h1>
+<div class="grid3" style="margin-top:24px">
+  <div class="card"><h3>Read the docs</h3><p class="muted">Installing, licence keys, the laptop app and billing, step by step.</p><a class="btn small" href="/docs">Documentation</a></div>
+  <div class="card"><h3>Ask in the app</h3><p class="muted">On show day, your techs can use the AI tech guide and the Help button inside AT SUITE.</p></div>
+  <div class="card"><h3>Message us</h3><p class="muted">For anything else, send a message. We reply by email{% if s.support_email %}, or write to <a href="mailto:{{ s.support_email }}">{{ s.support_email }}</a>{% endif %}.</p><a class="btn small primary" href="/contact?kind=support">Contact support</a></div>
+</div>
+<section style="padding-bottom:0">
+<h2>Common jobs</h2>
+<ul class="ticks">
+  <li><a href="/docs/licence-keys">Put in or renew a licence key</a></li>
+  <li><a href="/docs/laptop-app">Install the laptop app and enrol a laptop</a></li>
+  <li><a href="/docs/self-hosted-install">Install AT SUITE on your own server</a></li>
+  <li><a href="/docs/billing">Update your card, change plan or cancel</a></li>
+  <li>Report a bug: use <em>Report a bug</em> on the About tab in AT SUITE, or <a href="/contact?kind=support">message us</a>.</li>
+</ul>
+</section>
+</div></div>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap grid2">
+<div>
+<p class="eyebrow">Checkout</p>
+<h1>AT SUITE {{ plan.name }}</h1>
+{% if active %}
+  <div class="notice warn">You already have a subscription. <a href="/account/plan">Change your plan</a> instead.</div>
+{% elif not billing_ready %}
+  <div class="notice warn">Online checkout isn't switched on yet. <a href="/contact?kind=sales">Message us</a> and we'll set you up.</div>
+{% endif %}
+<form class="stack" method="post" action="/buy">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <input type="hidden" name="kind" value="subscription">
+  <input type="hidden" name="plan" value="{{ plan.key }}">
+  <fieldset class="field" style="border:0;padding:0;margin:0">
+    <legend style="font-weight:600;margin-bottom:6px">Pay</legend>
+    <label class="check"><input type="radio" name="cycle" value="year" {% if cycle == 'year' %}checked{% endif %}> Yearly: {{ money(plan.yearly) }} a year (2 months free)</label>
+    <label class="check"><input type="radio" name="cycle" value="month" {% if cycle == 'month' %}checked{% endif %}> Monthly: {{ money(plan.monthly) }} a month</label>
+  </fieldset>
+  <input type="hidden" name="hosting" value="{{ 1 if hosting else 0 }}">
+  {% if hosting %}
+  <fieldset class="card" style="display:grid;gap:14px">
+    <legend class="brand-font">Managed hosting</legend>
+    <p class="muted small" style="margin:0">+{{ money(cat.hosting.yearly) }} a year or +{{ money(cat.hosting.monthly) }} a month. Pick your venue's address.</p>
+    <div class="field"><label for="venue_slug">Address</label>
+      <input id="venue_slug" name="venue_slug" type="text" required minlength="2" maxlength="32" pattern="[a-z0-9]([a-z0-9\-]*[a-z0-9])?" autocapitalize="off" spellcheck="false" placeholder="grandhall" aria-describedby="slug-hint">
+      <span class="hint" id="slug-hint">Lowercase letters, numbers and dashes. Your server will be at https://<em>address</em>.{{ hosting_domain or 'atsuite.app' }}</span></div>
+    <div class="field"><label for="venue_name">Venue name</label><input id="venue_name" name="venue_name" type="text" maxlength="80" value="{{ acc.organisation }}"></div>
+  </fieldset>
+  {% else %}
+  <p class="small"><a href="/buy?plan={{ plan.key }}&amp;cycle={{ cycle }}&amp;hosting=1">Add managed hosting</a> (we run the server for you)</p>
+  {% endif %}
+  <p class="small muted">Your licence will be made out to <strong>{{ acc.organisation or acc.name or acc.email }}</strong>. <a href="/account/details">Change</a></p>
+  <div><button class="btn primary" type="submit" {% if active or not billing_ready %}disabled{% endif %}>Continue to payment</button></div>
+  <p class="small muted">{{ cat.vat_note }} Payment is taken by Paddle.com, our reseller. Renews automatically; cancel any time from your account. By paying you agree to the <a href="/legal/terms">terms</a>.</p>
+</form>
+</div>
+<div class="card" style="align-self:start">
+  <h3>What you get</h3>
+  <ul class="ticks">
+    <li>Up to {{ plan.laptops }} tech laptops</li><li>Every AT SUITE feature</li><li>Your licence key straight after payment</li>
+    <li>Updates and email support</li>{% if hosting %}<li>Your own hosted server with nightly backups</li>{% endif %}
+  </ul>
+  <p class="muted small">Need more laptops later? Change plan any time and pay only the difference.</p>
+</div>
+</div></div>
+{% endblock %}

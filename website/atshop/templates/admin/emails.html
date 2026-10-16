@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>Emails</h1>
+{% include "admin/_nav.html" %}
+{% if not smtp %}<p class="notice warn">No SMTP_HOST is set, so emails are kept here and not sent.</p>{% endif %}
+<div class="table-wrap"><table><thead><tr><th>When</th><th>To</th><th>Subject</th><th>Status</th></tr></thead><tbody>
+{% for m in rows %}<tr><td>{{ m.created_at | when }}</td><td>{{ m.to_addr }}</td><td><details><summary>{{ m.subject }}</summary><div><pre class="small" style="white-space:pre-wrap">{{ m.body }}</pre></div></details></td><td>{{ m.status }}{% if m.error %}<br><span class="small muted">{{ m.error }}</span>{% endif %}</td></tr>
+{% else %}<tr><td colspan="4" class="muted">None yet.</td></tr>{% endfor %}
+</tbody></table></div>
+</div></div>
+{% endblock %}

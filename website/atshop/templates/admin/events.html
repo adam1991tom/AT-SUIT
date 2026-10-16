@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>Paddle events</h1>
+{% include "admin/_nav.html" %}
+<p class="muted">Every webhook Paddle sent. Each is applied once; duplicates are skipped. Paddle retries failed ones by itself for a few days.</p>
+<div class="table-wrap"><table><thead><tr><th>Received</th><th>Event</th><th>Happened</th><th>Result</th><th></th></tr></thead><tbody>
+{% for e in rows %}<tr><td>{{ e.received_at | when }}</td><td>{{ e.event_type }}<br><span class="small muted">{{ e.event_id }}</span></td><td>{{ e.occurred_at | when }}</td><td>{{ e.status }}{% if e.note %}: {{ e.note }}{% endif %}</td>
+<td>{% if e.status == 'failed' %}<form method="post" action="/admin/events/{{ e.event_id }}/retry"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn small" type="submit">Retry now</button></form>{% endif %}</td></tr>
+{% else %}<tr><td colspan="5" class="muted">None yet.</td></tr>{% endfor %}
+</tbody></table></div>
+</div></div>
+{% endblock %}

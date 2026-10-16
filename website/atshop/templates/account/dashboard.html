@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>Hello{% if acc.name %} {{ acc.name.split()[0] }}{% endif %}</h1>
+{% include "account/_nav.html" %}
+
+{% if orders_open and not current %}<div class="notice" data-order="{{ orders_open[0].ref }}">If you've just paid, your licence key will appear here in a moment.</div>{% endif %}
+{% if active_sub and active_sub.status == 'past_due' %}<div class="notice warn"><strong>Your last payment didn't go through.</strong> Paddle will try again. Please <form class="inline-form" method="post" action="/account/billing/portal"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="go" value="card"><button class="btn small" type="submit">update your card</button></form></div>{% endif %}
+
+<div class="dash">
+  <div class="card">
+    <p class="muted small">Plan</p>
+    {% if active_sub %}
+      {% set p = cat.plans.get(active_sub.plan) %}
+      <p class="stat">{{ p.name if p else active_sub.plan }}</p>
+      <p>{{ 'Yearly' if active_sub.cycle == 'year' else 'Monthly' }}{% if active_sub.hosting %} with managed hosting{% endif %}</p>
+      <p>
+        {% if active_sub.status == 'active' and not active_sub.scheduled_change %}<span class="badge ok">Active</span> Renews {{ active_sub.next_billed_at | day }}
+        {% elif active_sub.scheduled_change %}<span class="badge warn">Ending</span> Ends {{ (active_sub.scheduled_change | fromjson).effective_at | day if active_sub.scheduled_change else '' }}
+        {% elif active_sub.status == 'past_due' %}<span class="badge bad">Payment due</span>
+        {% else %}<span class="badge grey">{{ active_sub.status }}</span>{% endif %}
+      </p>
+      <a class="btn small" href="/account/plan">Change plan</a>
+    {% elif current %}
+      <p class="stat">{{ current[0].edition | capitalize }}</p>
+      <p class="muted">{% if current[0].source == 'trial' %}Free trial{% elif current[0].source == 'event' %}Event pass{% else %}Licence{% endif %}, until {{ current[0].expires | day }}</p>
+      <a class="btn small primary" href="/pricing">Choose a plan</a>
+    {% else %}
+      <p class="stat">None yet</p>
+      <div class="actions">
+        {% if not had_trial %}<form method="post" action="/account/trial"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn primary small" type="submit">Start {{ cat.trial.days }}-day free trial</button></form>{% endif %}
+        <a class="btn small" href="/pricing">See plans</a>
+      </div>
+    {% endif %}
+  </div>
+  <div class="card">
+    <p class="muted small">Laptop allowance</p>
+    <p class="stat">{% if current %}{{ current[0].max_nodes or 'Unlimited' }}{% else %}0{% endif %}</p>
+    <p class="muted">tech laptops can connect</p>
+  </div>
+  <div class="card">
+    <p class="muted small">Licence ends</p>
+    <p class="stat">{% if current %}{{ current[0].expires | day }}{% else %}–{% endif %}</p>
+    <p class="muted small">{% if current and current[0].expires %}Then 14 days of grace. It never locks during a show.{% endif %}</p>
+  </div>
+</div>
+
+<section id="licence" style="padding:40px 0 0">
+<h2>Licence key</h2>
+{% if current %}
+{% for lic in current %}
+<div class="card" style="margin-bottom:16px">
+  <dl class="kv">
+    <dt>Licensed to</dt><dd>{{ lic.licensee }}</dd>
+    <dt>Plan</dt><dd>{{ lic.edition }}</dd>
+    <dt>Laptops</dt><dd>{{ lic.max_nodes or 'Unlimited' }}</dd>
+    <dt>Valid until</dt><dd>{{ lic.expires | day }}</dd>
+    <dt>Serial</dt><dd>{{ lic.serial }}</dd>
+  </dl>
+  <p class="key" id="key-{{ loop.index }}" style="margin-top:14px">{{ lic.key }}</p>
+  <div class="actions">
+    <button class="btn small primary" type="button" data-copy="key-{{ loop.index }}">Copy key</button>
+    <a class="btn small" href="/account/licence/{{ lic.serial }}.txt">Download .txt</a>
+  </div>
+  <p class="small muted" style="margin-top:12px">{% if venues %}We install renewals on your hosted server for you.{% else %}To use it: on your AT SUITE server, sign in as an admin, open <strong>Licence</strong>, paste the key and press Save. Settings and data are kept. <a href="/docs/licence-keys">More help</a>{% endif %}</p>
+</div>
+{% endfor %}
+{% else %}<p class="muted">No licence yet. Start a free trial or choose a plan above.</p>{% endif %}
+</section>
+
+{% if venues %}
+<section style="padding:40px 0 0">
+<h2>Hosted venue</h2>
+{% for v in venues %}
+<div class="card" style="margin-bottom:12px">
+  <h3>{{ v.name }}</h3>
+  <dl class="kv">
+    <dt>Address</dt><dd>{% if address(v.slug) %}<a href="{{ address(v.slug) }}" rel="noopener">{{ address(v.slug) }}</a>{% else %}{{ v.slug }}{% endif %}</dd>
+    <dt>Status</dt><dd>
+      {% if v.status == 'pending' %}<span class="badge warn">Being set up</span> We'll email you the setup link.
+      {% elif v.status == 'suspended' %}<span class="badge bad">Paused</span>
+      {% elif v.status == 'ended' %}<span class="badge grey">Ended</span>
+      {% elif health.get(v.slug, {}).get('up') %}<span class="badge ok">Online</span> version {{ health[v.slug].version }}
+      {% else %}<span class="badge bad">Not responding</span> We're told automatically; <a href="/contact?kind=support">tell us</a> if it's urgent.{% endif %}</dd>
+    {% if v.status == 'active' and v.setup_link and health.get(v.slug, {}).get('setup_complete') == False %}<dt>Setup link</dt><dd><a href="{{ v.setup_link }}">{{ v.setup_link }}</a> (works once)</dd>{% endif %}
+  </dl>
+</div>
+{% endfor %}
+</section>
+{% endif %}
+
+<section style="padding:40px 0 0">
+<h2>Downloads</h2>
+<p><a href="/downloads">Server installer and the Windows laptop app</a>, plus <a href="/docs">setup guides</a>.</p>
+</section>
+
+{% if licences|length > current|length %}
+<section style="padding:40px 0 0">
+<h2>Earlier keys</h2>
+<div class="table-wrap"><table><thead><tr><th>Serial</th><th>Plan</th><th>Laptops</th><th>Ended</th><th>Issued</th></tr></thead><tbody>
+{% for l in licences if l.replaced_by or l.revoked_at %}<tr><td>{{ l.serial }}</td><td>{{ l.edition }}</td><td>{{ l.max_nodes or 'Unlimited' }}</td><td>{{ l.expires | day }}</td><td>{{ l.issued | day }}</td></tr>{% endfor %}
+</tbody></table></div>
+</section>
+{% endif %}
+</div></div>
+{% endblock %}

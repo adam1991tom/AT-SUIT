@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block main %}
+<div class="page"><div class="wrap">
+<h1>#{{ t.id }} {{ t.subject }}</h1>
+{% include "admin/_nav.html" %}
+<p class="muted">{{ t.kind }} from {{ t.name }} &lt;{{ t.email }}&gt;{% if t.organisation %}, {{ t.organisation }}{% endif %}{% if t.account_id %} · <a href="/admin/customers/{{ t.account_id }}">customer</a>{% endif %}</p>
+{% for m in msgs %}<div class="card" style="margin-bottom:12px;{% if m.author == 'staff' %}border-color:var(--orange){% endif %}">
+<p class="small muted" style="margin:0 0 6px">{{ m.author_email }}, {{ m.created_at | when }}</p><p style="white-space:pre-wrap;margin:0">{{ m.body }}</p></div>{% endfor %}
+<form class="stack" method="post" action="/admin/tickets/{{ t.id }}" style="max-width:48rem">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="field"><label for="reply">Reply (emailed to {{ t.email }})</label><textarea id="reply" name="message" maxlength="8000"></textarea></div>
+  <div class="field"><label for="status">Then mark it</label><select id="status" name="status"><option value="answered">answered</option><option value="open">open</option><option value="closed">closed</option></select></div>
+  <div><button class="btn primary" type="submit">Save</button></div>
+</form>
+</div></div>
+{% endblock %}

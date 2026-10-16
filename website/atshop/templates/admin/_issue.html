@@ -1,0 +1,14 @@
+<details><summary>Issue a licence by hand</summary><div>
+<form class="stack" method="post" action="/admin/licences/issue" style="max-width:40rem;padding-top:8px">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <div class="field"><label for="i-email">Customer email</label><input id="i-email" name="email" type="email" required value="{{ email or '' }}"></div>
+  <div class="field"><label for="i-licensee">Licensed to</label><input id="i-licensee" name="licensee" type="text" maxlength="120" value="{{ licensee or '' }}"><span class="hint">Leave empty for the account's organisation or name.</span></div>
+  <div class="field"><label for="i-edition">Plan</label><select id="i-edition" name="edition">{% for e in editions %}<option value="{{ e }}">{{ e }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="i-nodes">Laptops (0 = unlimited)</label><input id="i-nodes" name="nodes" type="number" min="0" value="10"></div>
+  <div class="field"><label for="i-sites">Sites (0 = unlimited)</label><input id="i-sites" name="sites" type="number" min="0" value="1"></div>
+  <div class="field"><label for="i-until">Last day</label><input id="i-until" name="until" type="date"></div>
+  <label class="check"><input type="checkbox" name="never" value="1"> Never ends (owner keys)</label>
+  <div class="field"><label for="i-note">Why (goes in the audit log)</label><input id="i-note" name="note" type="text" required maxlength="300"></div>
+  <label class="check"><input type="checkbox" name="send" value="1" checked> Email the key to the customer</label>
+  <div><button class="btn primary" type="submit">Issue licence</button></div>
+</form></div></details>
