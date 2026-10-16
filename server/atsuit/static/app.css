@@ -299,3 +299,13 @@ body:has(> .center:not(.hidden):not(#boot), > #shell:not(.hidden), > #ws:not(.hi
 .theme-sw b { height: 9px; width: 55%; border-radius: 3px; } .theme-sw u { height: 5px; border-radius: 3px; opacity: .8; } .theme-sw u + u { width: 70%; }
 .seg { display: flex; flex-wrap: wrap; gap: .35rem; }
 .seg button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--panel2)); color: var(--strong); }
+/* Report a bug (bugreport.js): a pop-up window over the page */
+dialog.bugdlg { width: min(34rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); overflow: auto; padding: 1.2rem; background: var(--panel); color: var(--text);
+  border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+dialog.bugdlg::backdrop { background: rgba(1,4,9,.6); }
+dialog.bugdlg summary { cursor: pointer; }
+/* Bug reports page: the report being read */
+.bugrow { cursor: pointer; } .bugrow.on td { background: var(--hover); }
+.bugshot { max-width: 100%; border: 1px solid var(--line); border-radius: var(--radius); }
+.bugpick { background: none; border: 0; padding: 0; min-height: 0; font-weight: 600; color: var(--strong); text-align: left; }
+.bugpick:hover { background: none; text-decoration: underline; }

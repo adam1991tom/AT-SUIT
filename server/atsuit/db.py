@@ -193,6 +193,15 @@ MIGRATIONS: list[str] = [
         question TEXT NOT NULL, answer TEXT NOT NULL, added_by TEXT NOT NULL, created_at TEXT NOT NULL,
         helped INTEGER NOT NULL DEFAULT 1);
     """,
+    # 13: bug reports, sent from the app to the console instead of by email
+    """
+    CREATE TABLE bug_reports(id INTEGER PRIMARY KEY AUTOINCREMENT, title_enc TEXT NOT NULL, description_enc TEXT NOT NULL,
+        reporter TEXT NOT NULL, reporter_kind TEXT NOT NULL, room_name TEXT NOT NULL DEFAULT '', page TEXT NOT NULL DEFAULT '',
+        user_agent TEXT NOT NULL DEFAULT '', app_version TEXT NOT NULL DEFAULT '', system TEXT NOT NULL DEFAULT '{}',
+        screenshot TEXT, screenshot_mime TEXT, status TEXT NOT NULL DEFAULT 'open', created_at TEXT NOT NULL,
+        resolved_at TEXT, resolved_by TEXT, github_url TEXT, github_error TEXT);
+    CREATE INDEX bug_reports_status ON bug_reports(status, id);
+    """,
 ]
 
 
