@@ -28,7 +28,10 @@ cleanup() {
   docker rm -f atcloud-edge >/dev/null 2>&1 || true
   docker volume rm atcloud-edge-data atcloud-restic-cache >/dev/null 2>&1 || true
   docker image rm "$REPO_IMG:e2e-next" "$REPO_IMG:e2e-broken" >/dev/null 2>&1 || true
-  [ -n "${KEEP:-}" ] || rm -rf "$ATCLOUD_ROOT"
+  if [ -z "${KEEP:-}" ] && [ -d "$ATCLOUD_ROOT" ]; then  # restic writes the test repository as root
+    docker run --rm -v "$ATCLOUD_ROOT:/r" alpine:3.20 rm -rf /r/restic-repo >/dev/null 2>&1 || true
+    rm -rf "$ATCLOUD_ROOT"
+  fi
 }
 trap cleanup EXIT
 cleanup

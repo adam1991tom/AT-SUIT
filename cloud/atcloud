@@ -339,8 +339,9 @@ def cmd_edge(a=None) -> None:
         docker("volume", "create", "atcloud-edge-data")
     docker("run", "-d", "--name", EDGE, "--restart", "unless-stopped",
            "-p", f"{c['ATCLOUD_HTTPS_PORT']}:443",
-           "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE", "--security-opt", "no-new-privileges:true",
-           "--log-opt", "max-size=10m", "--log-opt", "max-file=3",
+           # DAC_READ_SEARCH: the certificate key belongs to whoever runs atcloud, not always root
+           "--cap-drop", "ALL", "--cap-add", "NET_BIND_SERVICE", "--cap-add", "DAC_READ_SEARCH",
+           "--security-opt", "no-new-privileges:true", "--log-opt", "max-size=10m", "--log-opt", "max-file=3",
            "-e", f"ATCLOUD_DOMAIN={c['ATCLOUD_DOMAIN']}", "-e", f"ATCLOUD_TRUSTED_PROXIES={c['ATCLOUD_TRUSTED_PROXIES']}",
            "-v", f"{KIT / 'Caddyfile'}:/etc/caddy/Caddyfile:ro", "-v", f"{ROOT / 'sites'}:/etc/caddy/sites:ro",
            "-v", f"{ROOT / 'certs'}:/certs:ro", "-v", "atcloud-edge-data:/data", EDGE_IMAGE)
@@ -352,7 +353,8 @@ def cmd_edge(a=None) -> None:
             break
         time.sleep(0.5)
     else:
-        raise Fail(f"The front door didn't start: {docker('logs', '--tail', '20', EDGE, check=False)}")
+        logs = subprocess.run(["docker", "logs", "--tail", "5", EDGE], capture_output=True, text=True)
+        raise Fail(f"The front door didn't start: {(logs.stdout + logs.stderr).strip()[-800:]}")
     say(f"Front door running on port {c['ATCLOUD_HTTPS_PORT']}.")
 
 
