@@ -139,7 +139,8 @@ function openMain() {
   });
   silence(mainWin);
   keepToServer(mainWin);
-  mainWin.once("ready-to-show", () => mainWin.show());
+  // It opens maximised (not full screen): the workspace wants the whole desktop.
+  mainWin.once("ready-to-show", () => { mainWin.maximize(); mainWin.show(); });
   mainWin.on("close", (e) => {
     // Closing hides to the tray so chat, pop-ups and the captions mic keep going.
     if (!quitting) { e.preventDefault(); mainWin.hide(); }
@@ -501,6 +502,14 @@ function ipc() {
     if (typeof s?.update_on_launch === "boolean") conf.update_on_launch = s.update_on_launch;
     config.save(conf);
     makeTray();
+    return true;
+  });
+  // A tech has just signed in or started the day: back to a maximised window.
+  ipcMain.handle("app:maximise", (e) => {
+    if (!fromMain(e) || !mainWin || mainWin.isDestroyed()) return false;
+    if (mainWin.isMinimized()) mainWin.restore();
+    if (!mainWin.isFullScreen()) mainWin.maximize();
+    mainWin.show();
     return true;
   });
   ipcMain.handle("app:notify", (e, n) => (fromMain(e) ? showPopup(n || {}) : false));

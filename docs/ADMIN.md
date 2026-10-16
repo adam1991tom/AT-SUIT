@@ -103,10 +103,11 @@ and the rest) is a window, like on Windows:
 - Each window can be minimised, maximised (or double-click its title), closed,
   or **popped out** (⧉) into a window of its own for a second monitor. In the
   AT-SUITE app a popped-out window can stay on top of everything.
-- The taskbar along the bottom has a button per window. **Layouts** saves the
-  arrangement under a name (for example Plenary or Captions only) to switch
-  between, and puts everything back where it started.
-- An admin signed in to the workspace can choose **Layouts → Use on every
+- The **Layout** menu in the top bar lists every window: click one to open it,
+  bring it forward or minimise it. It also saves the arrangement under a name
+  (for example Plenary or Captions only) to switch between, and puts
+  everything back where it started.
+- An admin signed in to the workspace can choose **Layout → Use on every
   laptop** to make their arrangement the starting layout for every tech. Techs
   can still change their own.
 - The middle of the top bar shows what's live in the room: the venue time,

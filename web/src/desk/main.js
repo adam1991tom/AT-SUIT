@@ -1,10 +1,11 @@
 // window.ATDesk: the Windows-like workspace. The page registers its parts
 // (plain elements) and the desk lays them out as windows that dock, tab,
-// float, resize, minimise, maximise and pop out, with a taskbar and saved
-// layouts.
+// float, resize, minimise, maximise and pop out, with a Layout menu (in the
+// page's top bar) for the windows and saved layouts.
 //
 //   ATDesk.add(id, element, title)        before start()
-//   ATDesk.start(host, { key, fallback, shared, canShare, onShare })
+//   ATDesk.start(host, { key, fallback, shared, canShare, onShare, menu })
+//                                         menu: where the Layout menu goes (the top bar); the desk's own top otherwise
 //   ATDesk.open(id) / close(id) / available(id, yes) / badge(id, n) / isOpen(id)
 //   ATDesk.flash(id)                      make a window glow for a moment (a new chat message)
 //   ATDesk.find(elementId)                 an element here or in a pop-out
@@ -15,6 +16,7 @@ import { desk, els, configure, start as begin, open, close, isOpen } from "./sto
 import { parking } from "./host.js";
 import { find, popout } from "./popout.js";
 import Desktop from "./Desktop.svelte";
+import Menu from "./Menu.svelte";
 
 let order = 0;
 
@@ -53,7 +55,10 @@ export function start(hostEl, o = {}) {
   configure({ key: o.key || "atsuit_desk2", fallback: o.fallback || T.empty() });
   desk.canShare = !!o.canShare;
   begin(o.shared || null);
-  return mount(Desktop, { target: hostEl, props: { onShare: o.onShare } });
+  let bar = o.menu;
+  if (!bar) { bar = document.createElement("div"); bar.className = "dk-menubar"; hostEl.appendChild(bar); }
+  mount(Menu, { target: bar, props: { onShare: o.onShare } });
+  return mount(Desktop, { target: hostEl });
 }
 
 export const layout = () => desk.layout;

@@ -31,15 +31,15 @@
   padding: .25rem .7rem; font-size: .85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14rem; flex-shrink: 1; }
 .dk-tab.on { background: var(--panel); border-color: var(--line); color: var(--strong); margin-bottom: -1px; }
 .dk-tab:hover { border-color: var(--line); }
-.dk-tab .unread, .dk-item .unread { margin-left: .35rem; }
-/* something new in a window (a chat message): its tab and taskbar button turn the accent colour and pulse until it's read,
+.dk-tab .unread { margin-left: .35rem; }
+/* something new in a window (a chat message): its tab and the Layout menu turn the accent colour and pulse until it's read,
    and the window glows for a moment even when it's already open */
-.dk-tabs .dk-tab.dk-new, .dk-items .dk-item.dk-new { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); animation: dk-pulse 1.4s ease-in-out infinite; }
-.dk-tabs .dk-tab.dk-new .unread, .dk-items .dk-item.dk-new .unread { background: var(--accent-ink); color: var(--accent); font-weight: 800; }
+.dk-tabs .dk-tab.dk-new { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); animation: dk-pulse 1.4s ease-in-out infinite; }
+.dk-tabs .dk-tab.dk-new .unread { background: var(--accent-ink); color: var(--accent); font-weight: 800; }
 .dk-win.dk-flash { animation: dk-glow 1s ease-in-out 3; }
 @keyframes dk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 @keyframes dk-glow { 0%, 100% { box-shadow: none; } 50% { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent), 0 0 28px color-mix(in srgb, var(--accent) 55%, transparent); } }
-@media (prefers-reduced-motion: reduce) { .dk-tab.dk-new, .dk-item.dk-new { animation: none; } .dk-win.dk-flash { animation: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent); } }
+@media (prefers-reduced-motion: reduce) { .dk-tab.dk-new, .dk-start.dk-new { animation: none; } .dk-win.dk-flash { animation: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent); } }
 .dk-btns { display: flex; align-items: center; gap: .1rem; }
 .dk-btns button { min-width: 24px; min-height: 24px; padding: .1rem .45rem; font-size: .85rem; line-height: 1.2; background: transparent; border-color: transparent; color: var(--muted); }
 .dk-btns button:hover { color: var(--strong); border-color: var(--line); }
@@ -78,27 +78,35 @@
 .dk-guide.root.dk-g-left { left: 10px; top: calc(50% - 17px); } .dk-guide.root.dk-g-left::after { left: 5px; top: 5px; bottom: 5px; width: 8px; }
 .dk-guide.root.dk-g-right { right: 10px; top: calc(50% - 17px); } .dk-guide.root.dk-g-right::after { right: 5px; top: 5px; bottom: 5px; width: 8px; }
 
-/* the taskbar */
-.dk-task { display: flex; align-items: center; gap: .4rem; padding: .35rem .5rem; background: var(--panel); border-top: 1px solid var(--line); min-height: 2.6rem; }
-.dk-items { display: flex; gap: .3rem; overflow-x: auto; flex: 1; min-width: 0; scrollbar-width: thin; }
-.dk-item { white-space: nowrap; font-size: .85rem; padding: .3rem .7rem; position: relative; }
-.dk-item.front, .dk-item.open { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); color: var(--strong); }
-.dk-item.front { background: color-mix(in srgb, var(--accent) 25%, var(--panel2)); }
-.dk-item.front::after, .dk-item.open::after, .dk-item.min::after, .dk-item.tab::after, .dk-item.popped::after { content: ""; position: absolute; left: 30%; right: 30%; bottom: 1px; height: 2px; border-radius: 2px; background: var(--accent); }
-.dk-item.min, .dk-item.tab { color: var(--muted); }
-.dk-item.min::after, .dk-item.tab::after { background: var(--muted); }
-.dk-item.closed { color: var(--muted); background: transparent; border-style: dashed; }
-.dk-item.popped::after { background: var(--good); }
-.dk-start { font-weight: 700; white-space: nowrap; font-size: .85rem; }
-.dk-start.on { border-color: var(--accent); }
+/* the Layout menu, in the page's top bar: the windows and the saved layouts */
+.dk-menubar { padding: .35rem .5rem 0; }
 .dk-menuwrap { position: relative; }
-.dk-menu { position: absolute; bottom: calc(100% + .5rem); left: 0; z-index: 1000; width: 300px; max-height: 70vh; overflow: auto; display: flex; flex-direction: column; gap: .3rem;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem; box-shadow: var(--shadow); }
+.dk-start { font-weight: 700; white-space: nowrap; }
+.dk-start.on { border-color: var(--accent); }
+.dk-start .unread, .dk-item .unread { margin-left: .35rem; }
+.dk-start.dk-new { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); animation: dk-pulse 1.4s ease-in-out infinite; }
+.dk-start.dk-new .unread { background: var(--accent-ink); color: var(--accent); font-weight: 800; }
+.dk-menu { position: absolute; top: calc(100% + .4rem); left: 0; z-index: 1000; width: 320px; max-width: 92vw; max-height: 75vh; overflow: auto; display: flex; flex-direction: column; gap: .3rem;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: .6rem; box-shadow: var(--shadow); text-align: left; }
 .dk-menu > button, .dk-mi > button:first-child { text-align: left; justify-content: flex-start; }
 .dk-mi { display: flex; gap: .3rem; } .dk-mi > button:first-child { flex: 1; }
 .dk-mi > button.on { border-color: var(--accent); }
 .dk-menu hr { border: 0; border-top: 1px solid var(--line); width: 100%; margin: .2rem 0; }
 .dk-menu p { margin: .2rem 0; }
+.dk-menu > b { margin-top: .1rem; }
+/* a window's line: a dot for open (filled), minimised or behind a tab (ring), closed (dashed) or popped out */
+.dk-item { display: flex; align-items: center; gap: .45rem; white-space: nowrap; font-size: .9rem; padding: .35rem .6rem; }
+.dk-item .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dk-dot { flex: 0 0 .6rem; height: .6rem; border-radius: 50%; border: 2px solid var(--accent); background: var(--accent); }
+.dk-item.front { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); background: color-mix(in srgb, var(--accent) 22%, var(--panel2)); color: var(--strong); }
+.dk-item.min .dk-dot, .dk-item.tab .dk-dot { background: transparent; border-color: var(--muted); }
+.dk-item.closed { color: var(--muted); background: transparent; border-style: dashed; }
+.dk-item.closed .dk-dot { background: transparent; border-color: var(--muted); border-style: dashed; }
+.dk-item.popped .dk-dot { background: var(--good); border-color: var(--good); border-radius: 2px; }
+.dk-item.dk-new { border-color: var(--accent); }
+.dk-ask { display: flex; flex-direction: column; gap: .35rem; padding: .5rem; border: 1px solid var(--accent); border-radius: var(--ctl-radius); background: var(--panel2); }
+.dk-ask p { margin: 0; }
+.dk-askbtns { display: flex; gap: .3rem; justify-content: flex-end; }
 
 /* phones and narrow windows: one column, nothing floats */
 .dk.narrow .dk-area { overflow: visible; padding: .5rem; }
@@ -109,7 +117,6 @@
   margin-bottom: .6rem; z-index: auto; }
 .dk.narrow .dk-head { cursor: default; }
 .dk.narrow .dk-body { overflow: visible; }
-.dk.narrow .dk-task { position: sticky; bottom: 0; z-index: 50; }
 
 /* a pane in its own window */
 .dk-popbody { margin: 0; display: flex; flex-direction: column; height: 100vh; }
