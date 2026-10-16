@@ -516,10 +516,23 @@ test("the next day the tech starts again, without enrolling again", async () => 
   await start(page, { user: "ben", password: "ben-password-1", room: "CC" });
   await expect(page.locator("#room option:checked")).toHaveText("CC");
   await expect(page.locator("#who")).toHaveText("Ben on TESTLAP1");
+  // The room is the tech's call: Ben moves the laptop to RH from the top bar, then back.
+  for (const room of ["RH", "CC"]) {
+    await page.selectOption("#room", { label: room });
+    await expect(page.locator("#roomAskText")).toHaveText(`Move this laptop to ${room}?`);
+    const reloaded = page.waitForEvent("load"); // the workspace starts over in the new room
+    await page.click("#roomMove");
+    await reloaded;
+    await expect(page.locator("#ws")).toBeVisible();
+    await expect(page.locator("#room option:checked")).toHaveText(room);
+  }
   // Sign out at the end of the day: back to the start screen, and nothing pops up.
   await page.click("#out");
   await expect(page.locator("#start")).toBeVisible();
   expect(conf().popups).toBe(false);
+  // The next tech sees every room, with today's already picked.
+  await expect(page.locator("#startRooms [data-room]")).toHaveCount(3);
+  await expect(page.locator("#startRooms .tile.on")).toHaveText("CC");
 });
 
 // ------------------------------------------------------------- overlay --

@@ -92,10 +92,10 @@ def test_show_day(admin, client, tmp_path):
     # Starting the day signs the laptop's browser in with a cookie: the tech is "Amy", a tech.
     me = lap_a.get("/api/bootstrap").json()["me"]
     assert me["kind"] == "node" and me["name"] == "Amy" and me["role"] == "tech"
-    # Later in the day a laptop can't move itself to another room, by either route.
-    assert lap_a.put("/api/nodes/me/room", headers=ha, json={"room_id": cc}).status_code == 403
-    assert lap_a.post("/api/nodes/me/start", headers=ha, json={"operator": "Amy", "room_id": cc, "mode": "main"}).status_code == 403
-    # ...nor through the console's node edit (that is for accounts: manager or admin).
+    # The room is the tech's call: Amy, signed in, can move her laptop to CC and back herself...
+    assert lap_a.put("/api/nodes/me/room", headers=ha, json={"room_id": cc}).status_code == 200
+    assert lap_a.put("/api/nodes/me/room", headers=ha, json={"room_id": hd}).status_code == 200
+    # ...but not through the console's node edit (that is for accounts: manager or admin).
     assert lap_a.put(f"/api/fleet/nodes/{a['node_id']}", headers=ha, json={"room_id": cc}).status_code == 403
     # The admin moves the backup laptop to CC from the console; the laptop sees it.
     assert admin.put(f"/api/fleet/nodes/{b['node_id']}", json={"room_id": cc}).status_code == 200

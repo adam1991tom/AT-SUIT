@@ -30,7 +30,7 @@ import uuid
 import webbrowser
 from pathlib import Path
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 STATE = Path(__file__).with_name("atsuit_node.json")
 SAMPLE_RATE = 16000
 
@@ -185,7 +185,11 @@ async def mic_loop(args, state) -> None:
     import websockets
 
     room_id = find_room(args.server, state["token"], args.room)
-    url = args.server.replace("http", "ws", 1).rstrip("/") + f"/ws/audio/{room_id}?node_token={state['token']}"
+    # The token goes in a header, never the address, so it can't land in a log.
+    url = args.server.replace("http", "ws", 1).rstrip("/") + f"/ws/audio/{room_id}"
+    auth = {"Authorization": f"Node {state['token']}"}
+    # websockets 14 renamed extra_headers to additional_headers.
+    headers = {"additional_headers": auth} if int(websockets.__version__.split(".")[0]) >= 14 else {"extra_headers": auth}
     device = int(args.device) if args.device and args.device.isdigit() else (args.device or None)
     while True:
         queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=50)
@@ -196,7 +200,7 @@ async def mic_loop(args, state) -> None:
             loop.call_soon_threadsafe(lambda: queue.full() or queue.put_nowait(pcm))
 
         try:
-            async with websockets.connect(url, max_size=None) as ws:
+            async with websockets.connect(url, max_size=None, **headers) as ws:
                 hello = json.loads(await ws.recv())
                 if hello.get("type") != "ready":
                     print("captions:", hello.get("message", hello))

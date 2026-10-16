@@ -173,11 +173,11 @@ Message bodies and overlay tokens are encrypted at rest with a Fernet key in
 |---|---|---|
 | Node enrolment | `POST /api/nodes/enrol {code, name, kind}` → node token | site enrolment code (Laptops & screens → Add laptops) |
 | Heartbeat | `POST /api/nodes/heartbeat` (reply includes today's `room_id`) | node token |
-| Start the day | `GET /api/nodes/me` (room only if picked today), `POST /api/nodes/me/start {operator, room_id, mode: main\|backup}` (sets the `atsuit_node` cookie so the workspace runs as the laptop, named after the tech), `PUT /api/nodes/me/mode`, `POST /api/nodes/me/finish`; `PUT /api/nodes/me/room {room_id}` for agents | node token |
+| Start the day | `GET /api/nodes/me` (room only if picked today), `POST /api/nodes/me/start {operator, room_id, mode: main\|backup}` (sets the `atsuit_node` cookie so the workspace runs as the laptop, named after the tech), `PUT /api/nodes/me/mode`, `POST /api/nodes/me/finish`; `PUT /api/nodes/me/room {room_id}` (the first pick of the day, or a move by the tech signed in on it) | node token |
 | Windows app | `GET /api/nodes/app`, `/api/nodes/app/<file>` (installer and `latest.yml` for self-update); `POST /api/fleet/app` to publish | public download; admin to publish |
 | Commands | `GET /api/nodes/commands` / `POST /api/nodes/commands/<id>/ack` | node token |
-| Audio | `WS /ws/audio/<room_id>?token=` binary frames of 16 kHz mono int16 | node token or tech session |
-| Live updates | `WS /ws?topics=…` | session, node token, or public topics only |
+| Audio | `WS /ws/audio/<room_id>` binary frames of 16 kHz mono int16 | `Authorization: Node <token>` header, a session cookie, or a one-time `?ticket=` from `POST /api/auth/ws-ticket` |
+| Live updates | `WS /ws?topics=…` | session or node cookie, a one-time `?ticket=`, or public topics only |
 | Agent updates | `GET /api/nodes/agent`, `/api/nodes/agent/file` (also offered in every heartbeat reply) | node token |
 | Screens | `PUT /api/nodes/me/screen {room_id, view}` (picked on the screen), `PUT /api/fleet/nodes/<id>/screen` (routed); heartbeat reply has `screen_view` and `screen_agent`; `GET /api/nodes/commands?kinds=` splits page and agent commands; `/screen-agent/install.sh` | node token; tech to route |
 | Ontime feed | `WS /ontime/<room>/ws`, `GET /ontime/<room>/data/runtime` (Ontime v4 runtime shape); `/external/<view>/` serves uploaded views with a shim that points them there | none (read-only, like Ontime) |
@@ -186,9 +186,12 @@ Message bodies and overlay tokens are encrypted at rest with a Fernet key in
 
 **Tech laptops run AT-SUITE Node** (`node-app/`, Electron), which shows the
 server's `/node` workspace in its own window. It enrols once and keeps its
-token encrypted with Windows DPAPI. A tech laptop has no fixed room and no
-password: the tech types their name, picks the room and says main or backup
-PC, and it lapses at 05:00 site time (`node_room_reset_hour`). Pop-ups are the
+token encrypted with Windows DPAPI. A tech laptop has no fixed room: the tech
+signs in (or types their name, with tech passwords off), picks the room and
+says main or backup PC, and it lapses at 05:00 site time (`node_room_reset_hour`).
+Picking the room is the tech's job. The laptop keeps it all day, and only a
+tech signed in on it (or starting the day) moves it; managers and admins can
+also move it from the console. Pop-ups are the
 app's own always-on-top window shown without activation, only on a backup PC
 (a main PC shows nothing, in or out of the window), and the app mutes
 all its audio and refuses web notifications and native dialogs, so it can
@@ -232,6 +235,21 @@ stop-gap for the old Device Suite kiosk agents until they are re-enrolled.
 Every existing kiosk keeps working on day one through the old-agent API, so
 the fleet can be cut over by pointing the agents at AT-SUITE's address and
 port, without reinstalling them.
+
+**No secret ever travels in a web address.** Passwords, node tokens, API keys,
+enrolment, pairing and room sync codes go in a request body or a header
+(`Authorization`, `X-API-Key`, `X-Sync-Code`), because an address ends up in
+browser history, proxy and server logs and the console's laptop list. The
+server never reads who someone is from the query string (`security.resolve`).
+Browsers can't put a header on a WebSocket, so a page swaps its header for a
+one-time ticket (`POST /api/auth/ws-ticket`, good once within a minute) and
+opens the socket with `?ticket=`. Every form is `method="post"` and the
+shared scripts stop the browser from ever sending one by itself. A page
+opened with a secret in its address is redirected to itself without it, and
+the API answers 400. uvicorn's access and WebSocket log lines go through
+`security.redact_url`, which also hides the presenter upload links
+(`/present/<token>`) and the old room sync tool's code. `test_no_secrets_in_urls.py`
+fails if any of this comes back.
 
 ---
 

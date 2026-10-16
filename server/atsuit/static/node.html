@@ -102,7 +102,7 @@
 <body>
 <div id="boot" class="gear-load"><img src="/static/brand/gear-64.png" alt=""><span>Starting AT-SUITE…</span></div>
 <div id="enrol" class="center hidden">
-  <form class="panel card" id="enrolForm">
+  <form class="panel card" id="enrolForm" method="post">
     <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUITE">
     <h1>Set up this laptop</h1>
     <p class="muted">An admin can find the enrolment code in Laptops & screens → Add laptops.</p>
@@ -115,7 +115,7 @@
 </div>
 
 <div id="login" class="center hidden">
-  <form class="panel card" id="loginForm">
+  <form class="panel card" id="loginForm" method="post">
     <h1><span id="nodeName"></span> · sign in</h1>
     <label>Username</label><input name="username" autocomplete="username" required>
     <label>Password</label><input name="password" type="password" autocomplete="current-password" required>
@@ -125,7 +125,7 @@
 </div>
 
 <div id="start" class="center hidden">
-  <form class="panel card" id="startForm" autocomplete="off">
+  <form class="panel card" id="startForm" method="post" autocomplete="off">
     <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUITE">
     <h1>Start on <span id="startNode"></span></h1>
     <p class="muted small" style="margin-top:0">This resets each morning, so the next tech starts fresh.</p>
@@ -149,6 +149,7 @@
     <button class="small ver hidden" id="topVer" title="This app's version. Click for updates."></button>
     <span class="muted" id="who"></span><span class="pill hidden" id="modePill"></span>
     <select id="room" style="width:auto"></select>
+    <span id="roomAsk" class="row hidden" style="gap:.3rem"><span class="small" id="roomAskText"></span><button class="small primary" id="roomMove">Move</button><button class="small" id="roomStay">Cancel</button></span>
     <div class="livebar" id="liveBar"></div>
     <span class="pill" id="conn">connecting</span>
     <div class="drop"><button id="bellBtn" title="Notifications" aria-label="Notifications">🔔<span class="unread hidden" id="bellCount"></span></button>
@@ -382,14 +383,12 @@
       const pw = withPw ? AT.passwordForm(f, $("startErr")) : null;
       if (!withPw) f.operator.value = node.node.operator || "";
       if (node.node.mode) f.querySelector(`[name=mode][value=${node.node.mode}]`).checked = true;
-      // Once a laptop has its room for the day it keeps it, whoever signs in; only an admin moves it.
-      const locked = roomId;
+      // Picking the room is the tech's job: every room is offered, with the laptop's room for today already picked.
       let pick = roomId || null;
       const tiles = () => {
-        const list = locked ? node.rooms.filter((r) => r.id === locked) : node.rooms;
-        $("startRooms").innerHTML = list.map((r) => `<button type="button" class="tile ${r.id === pick ? "on" : ""}" data-room="${r.id}">${esc(r.name)}</button>`).join("") || '<p class="muted">No rooms yet. A manager or admin adds them in the console under Rooms.</p>';
-        if (locked) $("startRooms").insertAdjacentHTML("beforeend", '<p class="muted small" style="grid-column:1/-1;margin:.3rem 0 0">This laptop is in this room today. An admin can move it from the console (Nodes).</p>');
-        else $("startRooms").querySelectorAll("[data-room]").forEach((b) => (b.onclick = () => { pick = +b.dataset.room; tiles(); }));
+        $("startRooms").innerHTML = node.rooms.map((r) => `<button type="button" class="tile ${r.id === pick ? "on" : ""}" data-room="${r.id}">${esc(r.name)}</button>`).join("") || '<p class="muted">No rooms yet. A manager or admin adds them in the console under Rooms.</p>';
+        if (roomId) $("startRooms").insertAdjacentHTML("beforeend", `<p class="muted small" style="grid-column:1/-1;margin:.3rem 0 0">${pick === roomId ? "This laptop's room today. Pick another if you've moved." : "This laptop moves to the room you picked when you start."}</p>`);
+        $("startRooms").querySelectorAll("[data-room]").forEach((b) => (b.onclick = () => { pick = +b.dataset.room; tiles(); }));
       };
       tiles();
       f.onsubmit = async (e) => {
@@ -449,9 +448,21 @@
   const roomName = boot.rooms.find((r) => r.id === roomId)?.name || "";
   $("room").innerHTML = boot.rooms.map((r) => `<option value="${r.id}" ${r.id === roomId ? "selected" : ""}>${esc(r.name)}</option>`).join("");
   if (techLaptop()) {
-    // A tech laptop stays in the room it started the day in; only an admin moves it.
-    $("room").disabled = true;
-    $("room").title = "This laptop's room for today. An admin can move it from the console (Nodes).";
+    // The tech signed in here picks the room. The whole laptop moves with it (chat, timer, captions, overlay).
+    $("room").title = "This laptop's room today. Pick another to move it there.";
+    // Asked in the bar, not a pop-up box (the app has none: they can make a sound).
+    const ask = (on) => { $("roomAsk").classList.toggle("hidden", !on); if (!on) $("room").value = roomId; };
+    $("room").onchange = () => {
+      const to = +$("room").value;
+      if (to === roomId) return ask(false);
+      $("roomAskText").textContent = `Move this laptop to ${boot.rooms.find((r) => r.id === to)?.name || "that room"}?`;
+      ask(true);
+    };
+    $("roomStay").onclick = () => ask(false);
+    $("roomMove").onclick = async () => {
+      try { await api("/api/nodes/me/room", { method: "PUT", headers: nodeHdr(), body: { room_id: +$("room").value } }); location.reload(); }
+      catch (e) { ask(false); toast(e.message, "bad"); }
+    };
   } else $("room").onchange = () => { try { localStorage.setItem("atsuit_room", $("room").value); } catch (_) {} location.reload(); };
   // The console is for admins. On a tech laptop an admin signs in there for a short session (30 minutes, ends with the browser).
   if (techLaptop()) { $("consoleBtn").textContent = "Admin"; $("consoleBtn").href = "/?shared=1#/dashboard"; $("consoleBtn").title = "For admins: sign in to the console"; $("consoleBtn").classList.remove("hidden"); }
@@ -1082,8 +1093,14 @@
     }
     // The link to the server for this mic. Captions made on this laptop keep going when it drops:
     // what is said meanwhile is held here and sent when the server is back.
+    // The laptop's token never goes in the address: it's swapped for a ticket that works once, for a minute.
     function connect() {
-      const q = new URLSearchParams(nodeToken ? { node_token: nodeToken } : {});
+      const pending = ws = { readyState: 0, close() { this.readyState = 3; } }; // stands in while the ticket comes
+      api("/api/auth/ws-ticket", { method: "POST", headers: nodeHdr() }).then((r) => r.ticket, () => "")
+        .then((ticket) => { if (ws === pending) open(ticket); });
+    }
+    function open(ticket) {
+      const q = new URLSearchParams(ticket ? { ticket } : {});
       if (local) q.set("mode", "local");
       const sock = ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/audio/${roomId}${q.size ? "?" + q : ""}`);
       ws.binaryType = "arraybuffer";

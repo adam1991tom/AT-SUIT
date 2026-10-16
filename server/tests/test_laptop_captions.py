@@ -72,7 +72,7 @@ def test_a_laptop_sends_text_and_the_screens_get_captions(admin):
     admin.put(f"/api/captions/{rid}/settings", json={"gain_db": 4})
     with admin.websocket_connect(f"/ws?topics=captions:{rid}") as viewer:
         assert viewer.receive_json()["type"] == "hello"
-        with admin.websocket_connect(f"/ws/audio/{rid}?node_token={tok}&mode=local") as mic:
+        with admin.websocket_connect(f"/ws/audio/{rid}?mode=local", headers={"Authorization": f"Node {tok}"}) as mic:
             ready = mic.receive_json()
             assert ready["type"] == "ready" and ready["mode"] == "local"
             assert ready["audio"]["gain_db"] == 4 and len(ready["audio"]["eq_bands_hz"]) == len(ready["audio"]["eq_band_gains_db"])
@@ -111,13 +111,13 @@ def test_caption_text_stays_on_the_laptops(admin):
     assert me["captions_private"] is True and me["transcript_keep_hours"] == 12
 
     # Nothing falls back to the server: it won't take audio, and won't start a transcript.
-    with admin.websocket_connect(f"/ws/audio/{rid}?node_token={tok}") as mic:
+    with admin.websocket_connect(f"/ws/audio/{rid}", headers=hdr) as mic:
         assert mic.receive_json() == {"type": "error", "message": "Captions here are made on the laptops: use the AT-SUITE app"}
     assert admin.post(f"/api/captions/{rid}/transcript/start").status_code == 409
 
     with admin.websocket_connect(f"/ws?topics=captions:{rid}") as viewer:
         assert viewer.receive_json()["type"] == "hello"
-        with admin.websocket_connect(f"/ws/audio/{rid}?node_token={tok}&mode=local") as mic:
+        with admin.websocket_connect(f"/ws/audio/{rid}?mode=local", headers=hdr) as mic:
             ready = mic.receive_json()
             assert ready["type"] == "ready" and ready["private"] is True
             assert viewer.receive_json()["data"]["live"]

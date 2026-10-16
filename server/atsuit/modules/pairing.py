@@ -133,9 +133,24 @@ def pair_request(body: PairRequest, request: Request):
             "expires_in": int(p.expires - time.time()), "poll_seconds": 2}
 
 
-@router.get("/api/screens/pair/status")
-def pair_status(secret: str):
-    """Public, by the screen's secret: still waiting, or paired (with the token)."""
+class PairStatusIn(BaseModel):
+    secret: str = Field(min_length=1, max_length=100)
+
+
+@router.post("/api/screens/pair/status")
+def pair_status(body: PairStatusIn):
+    """Public, by the screen's secret (in the body, never the address): still
+    waiting, or paired (with the token)."""
+    return _pair_status(body.secret)
+
+
+@router.get("/api/screens/pair/status", include_in_schema=False)
+def pair_status_legacy(secret: str):
+    """Screen agents before 0.4.0 ask this way. The secret is wiped from the logs."""
+    return _pair_status(secret)
+
+
+def _pair_status(secret: str):
     p = lookup_secret(secret)
     if not p:
         raise HTTPException(404, "That code has run out; ask for a new one")
