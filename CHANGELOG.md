@@ -5,6 +5,26 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.10.2
+
+AT SUITE meets WCAG 2.2 level AA: the console, the tech workspace, the stage and caption screens, the guides and the laptop app's own windows. An automated check (axe-core) of 35 pages in all six looks went from 570 failures to none.
+
+**Colour and contrast**
+- Links and orange text are a darker orange on the light looks, so they're readable on white. If an admin picks their own accent colour, a readable shade of it is worked out for text.
+- Delete and Remove buttons, the stage timer's small labels, the room name on the stage timer and the backstage STANDBY lamp all have enough contrast now.
+- Status dots don't rely on colour alone. Offline and not working are hollow rings, wants a look is a diamond, and a screen reader says what each one means.
+
+**Screen readers**
+- Every field and drop-down has a name a screen reader reads out, including the ones in tables (People, Rooms and similar), which take their column's heading.
+- Pop-up notes are read out when they appear.
+
+**Keyboard and pointer**
+- Everything that takes the keyboard shows a clear focus outline.
+- Workspace window tabs can be switched from the keyboard.
+- The bars between docked windows can be moved with the arrow keys, or double-clicked to share the space evenly, so nothing needs dragging.
+- The window buttons and tick boxes are at least 24 pixels.
+- The overtime blink on the console clock stops when Windows is set to reduce motion. The stage screens' flashing stays well under three flashes a second.
+
 ## 1.10.1
 
 A security fix, and the tech picks their own room.

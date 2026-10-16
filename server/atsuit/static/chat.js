@@ -43,7 +43,7 @@ const Chat = (() => {
           <div class="row" style="justify-content:space-between;margin-bottom:.4rem"><h2 class="title" style="margin:0"></h2><span class="muted small typing"></span></div>
           <div class="list"></div>
           <form class="compose">
-            <select name="priority" style="width:auto"><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select>
+            <select name="priority" aria-label="Priority" style="width:auto"><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select>
             <input name="body" class="grow" placeholder="Message" autocomplete="off">
             <button type="button" data-emoji title="Emoji">😊</button>
             <label class="btn" style="margin:0" title="Attach files (or paste or drop them here)">📎<input type="file" name="file" class="hidden" multiple></label>

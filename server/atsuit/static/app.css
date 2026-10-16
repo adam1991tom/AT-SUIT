@@ -12,15 +12,21 @@
   --shadow: 0 8px 24px rgba(1,4,9,.75); --ctl-radius: 6px; --ctl-h: 2rem;
   --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
   --num-font: inherit; --gap: 1rem; --pad: 1rem; --fs: 14px;
+  /* the accent as text (links, outlined buttons): common.js works out a shade that is readable on this theme */
+  --accent-text: var(--accent-on-dark, #FF7A1A);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: var(--fs)/1.45 var(--ui-font); }
-a { color: var(--accent); }
+a { color: var(--accent-text); }
 ::selection { background: var(--accent); color: var(--navy); }
 h1, h2, h3 { margin: 0 0 .6rem; font-weight: 600; color: var(--strong); }
 h1 { font-size: 1.6rem; } h2 { font-size: 1.15rem; } h3 { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* Everything else that takes the keyboard shows where it is too (WCAG 2.4.7). */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Read out but not shown */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
 * { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
 button, .btn { background: var(--btn); color: var(--text); border: 1px solid var(--line); border-radius: var(--ctl-radius); padding: .3rem .9rem; min-height: var(--ctl-h);
@@ -31,8 +37,8 @@ button:active, .btn:active { box-shadow: inset 0 1px 2px rgba(0,0,0,.2); }
 button.primary { background: var(--accent); border-color: color-mix(in srgb, var(--accent) 80%, #000); color: var(--accent-ink); font-weight: 600; }
 button.primary:hover { background: color-mix(in srgb, var(--accent) 88%, #fff); border-color: var(--accent); }
 button.primary:active { background: var(--ember); border-color: var(--ember); color: #fff; }
-button.danger { color: var(--bad); }
-button.danger:hover { background: var(--bad); border-color: var(--bad); color: #fff; }
+button.danger { color: var(--bad-ink); }
+button.danger:hover { background: #b42318; border-color: #b42318; color: #fff; }
 button.lit { background: var(--warn); border-color: var(--warn); color: #111; font-weight: 700; }
 /* Something live on stage (a running timer, a message, the clock, blink, blackout): the button glows and pulses. */
 button.lit, button.live { animation: btn-live 1.6s ease-in-out infinite; }
@@ -41,7 +47,7 @@ button.lit, button.live { animation: btn-live 1.6s ease-in-out infinite; }
 button.small { padding: .15rem .55rem; font-size: .85rem; min-height: calc(var(--ctl-h) - .4rem); }
 button:disabled { opacity: .5; cursor: default; }
 input, select, textarea { background: var(--input); color: var(--text); border: 1px solid var(--line); border-radius: var(--ctl-radius); padding: .3rem .7rem; min-height: var(--ctl-h); font: inherit; width: 100%; }
-input[type=checkbox], input[type=radio] { min-height: 0; accent-color: var(--accent); }
+input[type=checkbox], input[type=radio] { min-height: 0; accent-color: var(--accent); width: 18px; height: 18px; margin: 3px; }
 input[type=color] { padding: .15rem; }
 textarea { resize: vertical; min-height: 4rem; }
 label { display: block; font-size: .875rem; font-weight: 600; color: var(--text); margin: .8rem 0 .3rem; }
@@ -58,6 +64,9 @@ label:not(.opt) > input[type=checkbox], label:not(.opt) > input[type=radio] { ma
 .pill.good { border-color: var(--good); color: var(--good-ink); } .pill.bad { border-color: var(--bad); color: var(--bad-ink); } .pill.warn { border-color: var(--warn); color: var(--warn-ink); }
 .dot { width: .6rem; height: .6rem; border-radius: 50%; display: inline-block; background: var(--muted); }
 .dot.on { background: var(--good); } .dot.off { background: var(--bad); }
+/* Not only colour (WCAG 1.4.1): off and not working are hollow rings, wants a look is a diamond. */
+.dot.off, .pre.bad .dot { background: transparent !important; box-shadow: inset 0 0 0 2px var(--bad); }
+.pre.warn .dot { border-radius: 1px; transform: rotate(45deg) scale(.9); }
 /* pre-show check (dashboard) */
 .pre-sum { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
 .pre-room h3 { margin: 0 0 .4rem; }
@@ -125,6 +134,7 @@ tr:hover > td { background: color-mix(in srgb, var(--hover) 50%, transparent); }
 /* timer */
 .clock { font-variant-numeric: tabular-nums; font-weight: 700; letter-spacing: .02em; }
 .clock.warn { color: var(--warn); } .clock.danger { color: var(--bad); } .clock.over { color: var(--bad); animation: blink 1s steps(2) infinite; }
+@media (prefers-reduced-motion: reduce) { .clock.over { animation: none; } }
 @keyframes blink { 50% { opacity: .35; } }
 /* A help call nobody has answered yet: the Help button flashes until someone says "On my way". */
 @keyframes help-alarm { 0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .9); filter: none; } 50% { box-shadow: 0 0 0 7px rgba(239, 68, 68, 0); filter: brightness(1.45); } }
@@ -227,6 +237,7 @@ body:has(> .center:not(.hidden):not(#boot), > #shell:not(.hidden), > #ws:not(.hi
    One look for the whole site (Admin → General → Appearance). theme.js puts
    data-theme, data-density, data-corners, data-font and data-motion on <html>. */
 :root[data-theme="light"] {
+  --accent-text: var(--accent-on-light, #A84800);
   --bg: #f6f8fa; --panel: #ffffff; --panel2: #f6f8fa; --line: #d1d9e0; --text: #1f2328; --muted: #59636e; --strong: #1f2328;
   --good: #1a7f37; --warn: #9a6700; --bad: #d1242f; --good-ink: #1a7f37; --bad-ink: #d1242f; --warn-ink: #9a6700; --banner: #fff8c5;
   --side: #ffffff; --hover: rgba(208,215,222,.32); --btn: #f6f8fa; --btn-hover: #eff2f5; --input: #ffffff;
@@ -235,6 +246,7 @@ body:has(> .center:not(.hidden):not(#boot), > #shell:not(.hidden), > #ws:not(.hi
 /* "Match Windows": light or dark as the laptop is set */
 @media (prefers-color-scheme: light) {
   :root[data-theme="auto"] {
+    --accent-text: var(--accent-on-light, #A84800);
     --bg: #f6f8fa; --panel: #ffffff; --panel2: #f6f8fa; --line: #d1d9e0; --text: #1f2328; --muted: #59636e; --strong: #1f2328;
     --good: #1a7f37; --warn: #9a6700; --bad: #d1242f; --good-ink: #1a7f37; --bad-ink: #d1242f; --warn-ink: #9a6700; --banner: #fff8c5;
     --side: #ffffff; --hover: rgba(208,215,222,.32); --btn: #f6f8fa; --btn-hover: #eff2f5; --input: #ffffff;

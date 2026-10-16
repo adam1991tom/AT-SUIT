@@ -28,10 +28,10 @@ var TimerPanel = (() => { // var: cuelist.js looks for window.TimerPanel
       body .tp-h input[type=checkbox] { width: auto; }
       body .tp-q { display: grid; grid-template-columns: repeat(auto-fill, minmax(3.1rem, 1fr)); gap: .3rem; }
       body .tp-q button { justify-content: center; padding: .45rem 0; font-weight: 700; font-variant-numeric: tabular-nums; }
-      body .tp-q button.cur { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent); }
+      body .tp-q button.cur { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent-text); }
       body .tp-q button.cur.live { background: var(--accent); color: var(--accent-ink); --glow: color-mix(in srgb, var(--accent) 70%, transparent); }
       body .tp-clock { grid-column: span 3; font-size: 1.05rem; letter-spacing: .03em; }
-      body .tp-clock:not(.lit) { border-color: var(--accent); color: var(--accent); }
+      body .tp-clock:not(.lit) { border-color: var(--accent); color: var(--accent-text); }
       body .tp-m { display: flex; flex-wrap: wrap; gap: .3rem; }
       body .tp-m button { padding: .35rem .6rem; font-size: .88rem; }
       body .tp-m button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; --glow: color-mix(in srgb, var(--accent) 70%, transparent); }

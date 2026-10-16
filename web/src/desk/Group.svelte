@@ -37,7 +37,7 @@
     <div class="dk-tabs" role="tablist">
       {#each tabs as id (id)}
         <button type="button" role="tab" class="dk-tab" class:on={id === active} class:dk-new={!!desk.panes[id].badge} aria-selected={id === active}
-          onpointerdown={(e) => { e.stopPropagation(); tabDown(e, id); }}>
+          onpointerdown={(e) => { e.stopPropagation(); tabDown(e, id); }} onclick={() => id !== active && set(T.activate(desk.layout, id))}>
           {desk.panes[id].title}{#if desk.panes[id].badge}<span class="unread">{desk.panes[id].badge}</span>{/if}
         </button>
       {/each}

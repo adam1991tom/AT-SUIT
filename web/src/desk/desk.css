@@ -41,7 +41,7 @@
 @keyframes dk-glow { 0%, 100% { box-shadow: none; } 50% { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent), 0 0 28px color-mix(in srgb, var(--accent) 55%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .dk-tab.dk-new, .dk-item.dk-new { animation: none; } .dk-win.dk-flash { animation: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent); } }
 .dk-btns { display: flex; align-items: center; gap: .1rem; }
-.dk-btns button { padding: .1rem .45rem; font-size: .85rem; line-height: 1.2; background: transparent; border-color: transparent; color: var(--muted); }
+.dk-btns button { min-width: 24px; min-height: 24px; padding: .1rem .45rem; font-size: .85rem; line-height: 1.2; background: transparent; border-color: transparent; color: var(--muted); }
 .dk-btns button:hover { color: var(--strong); border-color: var(--line); }
 .dk-body { flex: 1; min-height: 0; overflow: auto; }
 .dk-pane { padding: .75rem; min-height: 100%; container-type: inline-size; }
