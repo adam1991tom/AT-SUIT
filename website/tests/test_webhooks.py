@@ -1,11 +1,12 @@
 """Paddle webhooks: signatures, duplicates and the order events arrive in."""
 from __future__ import annotations
 
+import json
 import time
 
 from atshop import paddle
 
-from conftest import WEBHOOK_SECRET, sub_data, txn_data
+from conftest import WEBHOOK_SECRET, Harness, sub_data, txn_data
 
 
 def test_signature_checks():
@@ -31,6 +32,27 @@ def test_unsigned_or_stale_webhooks_are_refused(h):
     c = h.client()
     assert c.post("/webhooks/paddle", content=b"{}").status_code == 401
     assert h.shop.db.one("SELECT COUNT(*) n FROM webhook_events")["n"] == 0
+
+
+def test_webhooks_only_from_paddles_published_addresses(tmp_path, vendor):
+    h = Harness(tmp_path, vendor, paddle_webhook_ip_check=True)
+    c = h.client()
+
+    def send_from(addr):
+        ev = h.event("customer.updated", {"id": "ctm_nobody", "email": "x@example.com"})
+        raw = json.dumps(ev).encode()
+        return c.post("/webhooks/paddle", content=raw, headers={
+            "Paddle-Signature": paddle.sign(raw, WEBHOOK_SECRET), "X-Forwarded-For": addr})
+
+    h.paddle.ips = None  # Paddle's /ips can't be read yet: hold the event so Paddle retries
+    assert send_from("34.237.3.244").status_code == 503
+    h.paddle.ips = ["34.237.3.244/32", "52.11.166.252/32"]
+    assert send_from("34.237.3.244").status_code == 200
+    assert send_from("203.0.113.9").status_code == 403  # correctly signed, but not from Paddle
+    assert send_from("not-an-ip").status_code == 403
+    h.paddle.ips = None  # a later outage keeps the list already read
+    assert send_from("52.11.166.252").status_code == 200
+    assert sum(1 for m, p, _ in h.paddle.calls if p == "/ips") == 2
 
 
 def _customer(h, email="buyer@example.com"):

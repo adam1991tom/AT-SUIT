@@ -7,11 +7,14 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
+import threading
 import time
 
 import httpx
 
 SIGNATURE_TOLERANCE_S = 300
+WEBHOOK_IPS_TTL_S = 3600
 
 
 class PaddleError(RuntimeError):
@@ -55,6 +58,9 @@ class Paddle:
             base_url=settings.paddle_base, timeout=20, transport=transport,
             headers={"Authorization": f"Bearer {settings.paddle_api_key}", "Paddle-Version": "1",
                      "Content-Type": "application/json"})
+        self._ips: list = []
+        self._ips_at = 0.0
+        self._ips_lock = threading.Lock()
 
     def _call(self, method: str, path: str, **kw) -> dict:
         if not self.s.paddle_api_key:
@@ -140,3 +146,43 @@ class Paddle:
 
     def archive_price(self, price_id: str) -> None:
         self._call("PATCH", f"/prices/{price_id}", json={"status": "archived"})
+
+    def list_prices(self) -> list[dict]:
+        """Every active price in the account (read only), following Paddle's pages."""
+        out, params, path = [], {"status": "active", "per_page": 200}, "/prices"
+        while path:
+            page = self._call("GET", path, params=params)
+            out += page["data"]
+            nxt = (page.get("meta") or {}).get("pagination", {})
+            path = nxt.get("next") if nxt.get("has_more") else None
+            params = None  # the next link carries its own query
+        return out
+
+    # ------------------------------------------------------------- webhooks --
+    def webhook_ips(self) -> list:
+        """The addresses Paddle sends webhooks from, read from Paddle's own /ips (live or sandbox,
+        to match PADDLE_ENV) and kept for an hour. If Paddle can't be reached the last list is kept;
+        an empty list means we don't know yet, and the webhook asks Paddle to retry."""
+        with self._ips_lock:
+            if self._ips and time.time() - self._ips_at < WEBHOOK_IPS_TTL_S:
+                return self._ips
+            try:
+                r = self._client.get("/ips")
+                r.raise_for_status()
+                nets = [ipaddress.ip_network(c) for c in r.json()["data"]["ipv4_cidrs"]]
+                if nets:
+                    self._ips, self._ips_at = nets, time.time()
+            except (httpx.HTTPError, ValueError, KeyError, TypeError):
+                pass
+            return self._ips
+
+    def is_webhook_ip(self, addr: str) -> bool | None:
+        """True or False, or None when Paddle's list couldn't be read."""
+        nets = self.webhook_ips()
+        if not nets:
+            return None
+        try:
+            a = ipaddress.ip_address(addr)
+        except ValueError:
+            return False
+        return any(a in n for n in nets)

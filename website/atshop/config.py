@@ -38,6 +38,8 @@ class Settings:
     paddle_client_token: str = ""
     paddle_webhook_secret: str = ""
     paddle_api_url: str = ""
+    # Only accept webhooks from the addresses Paddle publishes at <api>/ips (as well as checking the signature).
+    paddle_webhook_ip_check: bool = True
     allow_live: bool = False
     # The vendor private key that signs AT SUITE licence keys (a file, mode 600, never in git).
     signing_key_file: str = ""
@@ -85,10 +87,15 @@ class Settings:
         if self.paddle_env == "production" and not self.allow_live:
             raise ConfigError("PADDLE_ENV=production takes real money. Set SHOP_ALLOW_LIVE=yes only once "
                               "live billing has been approved.")
-        if self.paddle_env == "production" and self.paddle_client_token.startswith("test_"):
-            raise ConfigError("PADDLE_CLIENT_TOKEN is a sandbox token but PADDLE_ENV=production")
+        if self.paddle_env == "production" and self.paddle_client_token and not self.paddle_client_token.startswith("live_"):
+            raise ConfigError("PADDLE_ENV=production needs a live client-side token (starts live_)")
         if self.paddle_env == "sandbox" and self.paddle_client_token.startswith("live_"):
             raise ConfigError("PADDLE_CLIENT_TOKEN is a live token but PADDLE_ENV=sandbox")
+        # Paddle API keys say which account they belong to: pdl_live_apikey_... or pdl_sdbx_apikey_...
+        if self.paddle_env == "production" and self.paddle_api_key.startswith("pdl_sdbx_"):
+            raise ConfigError("PADDLE_API_KEY is a sandbox key but PADDLE_ENV=production")
+        if self.paddle_env == "sandbox" and self.paddle_api_key.startswith("pdl_live_"):
+            raise ConfigError("PADDLE_API_KEY is a live key but PADDLE_ENV=sandbox")
         if not self.dev and len(self.secret) < 32:
             raise ConfigError("SHOP_SECRET must be at least 32 random characters (python -c \"import secrets; "
                               "print(secrets.token_urlsafe(48))\")")
@@ -110,6 +117,7 @@ def load() -> Settings:
         paddle_client_token=e("PADDLE_CLIENT_TOKEN", "").strip(),
         paddle_webhook_secret=_secret("PADDLE_WEBHOOK_SECRET"),
         paddle_api_url=e("PADDLE_API_URL", ""),
+        paddle_webhook_ip_check=_bool(e("PADDLE_WEBHOOK_IP_CHECK"), True),
         allow_live=_bool(e("SHOP_ALLOW_LIVE")),
         signing_key_file=e("LICENCE_SIGNING_KEY_FILE", ""),
         admin_emails={a.strip().lower() for a in e("ADMIN_EMAILS", "").split(",") if a.strip()},

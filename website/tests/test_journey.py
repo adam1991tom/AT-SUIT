@@ -35,6 +35,9 @@ def buy(h, c, plan="venue", cycle="year", hosting=False, slug=""):
     assert r.status_code == 200, r.text
     assert 'id="checkout"' in r.text and "cdn.paddle.com" in r.text
     order = h.shop.db.one("SELECT * FROM orders ORDER BY id DESC LIMIT 1")
+    # Paddle Retain is given the customer's Paddle id (ctm_...), not our account id or email.
+    cust = h.shop.db.one("SELECT paddle_customer_id FROM accounts WHERE id=?", order["account_id"])["paddle_customer_id"]
+    assert cust.startswith("ctm_") and f'data-customer="{cust}"' in r.text
     return order
 
 
