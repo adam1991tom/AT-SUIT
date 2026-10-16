@@ -40,8 +40,8 @@ const CueList = (() => {
         <form class="cueform" data-form>
           <input name="cue" placeholder="Cue" style="width:4.5rem"><input name="title" placeholder="Title" class="grow" required>
           <input name="duration" placeholder="mm:ss" style="width:5.5rem" required><input name="time_start" placeholder="Start hh:mm" style="width:6.5rem">
-          <select name="end_action" style="width:auto">${Object.entries(END).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
-          <select name="timer_type" style="width:auto">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+          <select name="end_action" aria-label="At zero" style="width:auto">${Object.entries(END).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+          <select name="timer_type" aria-label="Timer type" style="width:auto">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
           <input name="note" placeholder="Note" class="grow">
           <input name="colour" type="color" value="#3b82f6" title="Colour" style="width:2.6rem;padding:0">
           <label class="small" style="display:flex;gap:.3rem;align-items:center;margin:0"><input type="checkbox" name="skip" style="width:auto">Skip</label>

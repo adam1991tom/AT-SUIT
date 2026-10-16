@@ -169,11 +169,30 @@ const AT = (() => {
     const n = parseInt(m[1], 16), [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255];
     return 0.299 * r + 0.587 * g + 0.114 * b > 140 ? "#0B1020" : "#ffffff";
   }
+  // The accent as text that stays readable (WCAG 1.4.3, 4.5:1) whatever accent an admin picks:
+  // lightened until it reads on the dark themes' panels, darkened until it reads on the light ones.
+  function lum(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  function readable(hex, bg, towards) {
+    if (!/^#[0-9a-f]{6}$/i.test(hex || "")) return null;
+    const n = parseInt(hex.slice(1), 16), from = [n >> 16, (n >> 8) & 255, n & 255], to = towards === "white" ? 255 : 0;
+    for (let t = 0; t <= 1.0001; t += 0.05) {
+      const c = "#" + from.map((v) => Math.round(v + (to - v) * t).toString(16).padStart(2, "0")).join("");
+      if (contrast(c, bg) >= 4.6) return c;
+    }
+    return towards === "white" ? "#ffffff" : "#000000";
+  }
   async function branding() {
     try {
       const b = await api("/api/public/branding");
       document.documentElement.style.setProperty("--accent", b.accent || "#FF7A1A");
       document.documentElement.style.setProperty("--accent-ink", ink(b.accent || "#FF7A1A"));
+      document.documentElement.style.setProperty("--accent-on-dark", readable(b.accent || "#FF7A1A", "#2a313c", "white"));
+      document.documentElement.style.setProperty("--accent-on-light", readable(b.accent || "#FF7A1A", "#eff2f5", "black"));
       document.querySelectorAll("[data-product]").forEach((el) => (el.textContent = b.product_name));
       if (window.ATTheme && b.appearance) { ATTheme.apply(b.appearance); ATTheme.remember(b.appearance); }
       return b;
@@ -245,4 +264,70 @@ const AT = (() => {
   }
 
   return { esc, api, post, put, del, upload, socket, toast, guard, fmtTime, stamp, ticker, timerClock, timerDisplay, when, branding, h, detach, q, qa, passwordForm };
+})();
+
+// Accessibility (WCAG 2.2 AA) for every page that loads this file, including parts drawn later:
+// - each field is tied to the label written just before it, or named from its table column,
+//   placeholder or tooltip, so a screen reader says what it is;
+// - status dots say what they mean (they also differ in shape, see app.css), not only in colour;
+// - pop-up notes are read out.
+(() => {
+  if (window.__atA11y) return;
+  window.__atA11y = true;
+  const FIELD = "input:not([type=hidden]), select, textarea";
+  let seq = 0;
+  const id = (el) => el.id || (el.id = `at-f${++seq}`);
+  const named = (el) => el.labels?.length || el.hasAttribute("aria-label") || el.hasAttribute("aria-labelledby");
+  const text = (el) => (el?.textContent || "").replace(/\s+/g, " ").trim();
+
+  function nameField(el) {
+    if (named(el)) return;
+    // <label>Organisation</label><input>: the label written just before the field
+    const prev = el.previousElementSibling;
+    if (prev && prev.tagName === "LABEL" && !prev.htmlFor && !prev.querySelector(FIELD)) { prev.htmlFor = id(el); return; }
+    // a field in a table: its column's heading
+    const cell = el.closest("td");
+    if (cell) {
+      const table = cell.closest("table");
+      const head = table?.querySelector("thead tr, tr:first-child");
+      const th = head?.children[cell.cellIndex];
+      const t = th && th.tagName === "TH" ? text(th) : "";
+      if (t) { el.setAttribute("aria-label", t); return; }
+    }
+    const hint = el.getAttribute("placeholder") || el.getAttribute("title") || el.dataset.label;
+    if (hint) { el.setAttribute("aria-label", hint); return; }
+    if (el.type === "file") el.setAttribute("aria-label", "Choose a file");
+  }
+
+  const DOT = { on: "Online", off: "Offline" };
+  const PRE = { good: "Ready", warn: "Wants a look", bad: "Not working", off: "Off" };
+  function nameDot(d) {
+    const pre = d.closest(".pre");
+    const state = pre ? Object.keys(PRE).find((k) => pre.classList.contains(k)) : Object.keys(DOT).find((k) => d.classList.contains(k));
+    const label = pre ? PRE[state] : DOT[state] || "Off";
+    if (d.getAttribute("aria-label") !== label) { d.setAttribute("role", "img"); d.setAttribute("aria-label", label); }
+  }
+
+  function fix(root) {
+    if (root.nodeType !== 1) return;
+    if (root.matches(FIELD)) nameField(root);
+    if (root.matches(".dot")) nameDot(root);
+    if (root.matches(".pre")) root.querySelectorAll(".dot").forEach(nameDot);
+    root.querySelectorAll(FIELD).forEach(nameField);
+    root.querySelectorAll(".dot").forEach(nameDot);
+    const toasts = root.id === "toasts" ? root : root.querySelector("#toasts");
+    if (toasts && !toasts.hasAttribute("role")) { toasts.setAttribute("role", "status"); toasts.setAttribute("aria-live", "polite"); }
+  }
+
+  // Only what was added or changed is looked at, so a ticking timer costs nothing here.
+  const start = () => {
+    fix(document.body);
+    new MutationObserver((list) => {
+      for (const m of list) {
+        if (m.type === "attributes") fix(m.target);
+        else m.addedNodes.forEach(fix);
+      }
+    }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
+  };
+  if (document.body) start(); else document.addEventListener("DOMContentLoaded", start);
 })();

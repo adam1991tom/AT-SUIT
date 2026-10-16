@@ -29,9 +29,9 @@
   #tod { display: none; font-variant-numeric: tabular-nums; font-weight: 700; color: #94a3b8; }
   .logo { display: none; object-fit: contain; }
   /* the room, small in the bottom-left corner and only just visible against the background */
-  #room { position: fixed; left: 1vw; bottom: calc(var(--barh) + .6vh); color: color-mix(in srgb, var(--tfg) 16%, var(--tbg)); font-size: clamp(10px, .85vw, 18px); font-weight: 600; letter-spacing: .04em; z-index: 4; pointer-events: none; }
+  #room { position: fixed; left: 1vw; bottom: calc(var(--barh) + .6vh); color: color-mix(in srgb, var(--tfg) 56%, var(--tbg)); font-size: clamp(10px, .85vw, 18px); font-weight: 600; letter-spacing: .04em; z-index: 4; pointer-events: none; }
   /* the status bar along the bottom, like Ontime's: time of day, state, cue, started, expected end, elapsed */
-  :root { --barh: 1.2vh; --sbh: clamp(38px, 5.4vh, 76px); --sbfg: color-mix(in srgb, var(--tfg) 78%, var(--tbg)); --sblabel: color-mix(in srgb, var(--tfg) 42%, var(--tbg)); }
+  :root { --barh: 1.2vh; --sbh: clamp(38px, 5.4vh, 76px); --sbfg: color-mix(in srgb, var(--tfg) 78%, var(--tbg)); --sblabel: color-mix(in srgb, var(--tfg) 56%, var(--tbg)); }
   #status { display: none; position: fixed; left: 0; right: 0; bottom: var(--barh); height: var(--sbh); z-index: 3; box-sizing: border-box; padding: 0 1.4vw 0 calc(1.4vw + var(--roomw, 0px));
     align-items: center; gap: 2.6vw; border-top: 1px solid color-mix(in srgb, var(--tfg) 12%, var(--tbg)); background: color-mix(in srgb, var(--tfg) 4%, var(--tbg)); font-variant-numeric: tabular-nums; overflow: hidden; }
   .has-status #status { display: flex; }

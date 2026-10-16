@@ -396,7 +396,7 @@
             <div class="small">${bdngView ? boot.rooms.slice(0, 4).map((r) => `<a target="_blank" href="/room/${r.id}/external/bdng/">${esc(r.name)} ↗</a>`).join(" · ") : '<span class="muted">Not imported yet: screens set to BDNG show the Standard view.</span>'}</div>
             <div class="small" style="margin-top:.3rem">${isAdmin ? `<button class="small${bdngView ? "" : " primary"}" data-impbdng>${bdngView ? "Import again" : "Import BDNG view"}</button> ` : ""}<a href="/api/timers-views/samples/bdng.html" download>Download bdng.html</a></div></td>
             <td>${logoCell("bdng", "top", bdng.logos.top, "Top logo")}${logoCell("bdng", "bottom", bdng.logos.bottom, "Bottom logo")}
-            <div class="row small" style="gap:.4rem;margin-top:.3rem"><span style="min-width:6.5rem">Bottom text</span><input data-btext value="${esc(bdng.options.bottom_text || "")}" ${isAdmin ? "" : "disabled"} class="grow">${isAdmin ? '<button class="small" data-savetext>Save</button>' : ""}</div></td></tr></table>
+            <div class="row small" style="gap:.4rem;margin-top:.3rem"><span style="min-width:6.5rem">Bottom text</span><input data-btext aria-label="Bottom text" value="${esc(bdng.options.bottom_text || "")}" ${isAdmin ? "" : "disabled"} class="grow">${isAdmin ? '<button class="small" data-savetext>Save</button>' : ""}</div></td></tr></table>
         <p class="small muted">BDNG is the client's view exactly as it was built in Ontime (the original HTML, run unchanged on AT-SUITE's Ontime feed). It is an uploaded view like the ones below; the logos and bottom text here are read by it.</p>
         <h3 style="margin-top:1rem">Your own views</h3>
         <table>${designs.map((d) => `<tr><td><b>${esc(d.name)}</b><div class="small">${links(d.id)}</div></td>
@@ -855,7 +855,7 @@
       <div class="panel"><h2>Limits</h2>${kv([["Sites", lim("sites")], ["Nodes", lim("nodes")], ["Rooms", `${l.usage.rooms} (no limit)`]])}
       <h2 style="margin-top:1rem">Check</h2>${kv([["Signature", l.installed ? (l.signature_valid ? '<span class="pill good">valid</span>' : '<span class="pill bad">not valid</span>') : "no key installed"],
         ["Vendor key", `<code>${esc(l.vendor_key_id || "none")}</code> <span class="muted small">${esc(l.vendor_key_source)}</span>`], ["Stored in", `<span class="small">${esc(l.stored_in)}</span>`]])}</div></div>
-      <div class="panel" style="margin-top:1rem"><h2>Licence key</h2>${l.raw ? `<textarea rows="3" readonly id="raw">${esc(l.raw)}</textarea><div class="row" style="margin-top:.4rem"><button class="small" id="copyKey">Copy key</button><button class="small danger" id="rmKey">Remove licence</button></div>` : '<p class="muted small">No key installed. AT-SUITE needs a licence key to work.</p>'}
+      <div class="panel" style="margin-top:1rem"><h2>Licence key</h2>${l.raw ? `<textarea rows="3" readonly id="raw" aria-label="Licence key">${esc(l.raw)}</textarea><div class="row" style="margin-top:.4rem"><button class="small" id="copyKey">Copy key</button><button class="small danger" id="rmKey">Remove licence</button></div>` : '<p class="muted small">No key installed. AT-SUITE needs a licence key to work.</p>'}
       <label style="margin-top:1rem">Install a new key</label><textarea id="key" rows="3" placeholder="Paste the key from your supplier"></textarea><div class="row" style="margin-top:.6rem"><button class="primary" id="save">Install licence</button></div></div>`;
     a.querySelector("#copyKey") && (a.querySelector("#copyKey").onclick = () => copyText(l.raw, "Key copied"));
     a.querySelector("#save").onclick = () => {
@@ -870,7 +870,7 @@
     const sites = await api("/api/admin/sites");
     boot = await api("/api/bootstrap");
     a.innerHTML = sites.map((s) => `<div class="panel" style="margin-bottom:1rem" data-site="${s.id}">
-      ${isAdminRole ? `<div class="row"><input data-sn value="${esc(s.name)}" class="grow"><input data-tz value="${esc(s.timezone)}" list="zones" style="width:12rem"><button class="small" data-save>Save</button>${sites.length > 1 ? '<button class="small danger" data-delsite>Delete site</button>' : ""}</div>` : `<h2>${esc(s.name)}</h2>`}
+      ${isAdminRole ? `<div class="row"><input data-sn aria-label="Site name" value="${esc(s.name)}" class="grow"><input data-tz aria-label="Time zone" value="${esc(s.timezone)}" list="zones" style="width:12rem"><button class="small" data-save>Save</button>${sites.length > 1 ? '<button class="small danger" data-delsite>Delete site</button>' : ""}</div>` : `<h2>${esc(s.name)}</h2>`}
       <table style="margin-top:.6rem"><tr><th>Order</th><th>Room</th><th>Short name</th><th>On</th><th></th></tr>
       ${boot.rooms.filter((r) => r.site_id === s.id).map((r) => `<tr data-r="${r.id}"><td><input data-sort type="number" value="${r.sort}" style="width:4.5rem"></td><td><input data-name value="${esc(r.name)}"></td><td><input data-short value="${esc(r.short_name)}" style="width:7rem"></td>
         <td><input type="checkbox" data-en ${r.enabled ? "checked" : ""} style="width:auto"></td><td class="row"><button class="small" data-rsave>Save</button><button class="small danger" data-rdel>Delete</button></td></tr>`).join("")}
@@ -1017,7 +1017,7 @@
       <table>${targets.map((t) => `<tr><td><b>${esc(t.name)}</b></td><td class="small">${esc(t.base_url)}</td><td>${esc(t.room || "No room")}</td><td><button class="small danger" data-del="${t.id}">Remove</button></td></tr>`).join("") || '<tr><td class="muted">None yet.</td></tr>'}</table>
       <form class="row" id="addT" style="margin-top:.6rem;flex-wrap:wrap"><input name="name" placeholder="Name, e.g. CC Lectern" required style="width:12rem">
         <input name="base_url" placeholder="http://10.100.70.88:8765" required class="grow"><input name="token" placeholder="API token" style="width:14rem">
-        <select name="room_id" style="width:10rem">${roomOptions(null)}</select><button class="primary">Add</button></form></div>`;
+        <select name="room_id" aria-label="Room" style="width:10rem">${roomOptions(null)}</select><button class="primary">Add</button></form></div>`;
     const f = a.querySelector("#addT");
     f.onsubmit = (e) => { e.preventDefault(); const b = Object.fromEntries(new FormData(f)); b.room_id = b.room_id ? +b.room_id : null; guard(() => post("/api/overlays/targets", b)).then(() => admOverlays(a)); };
     a.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => confirm("Remove this overlay laptop?") && guard(() => del(`/api/overlays/targets/${b.dataset.del}`)).then(() => admOverlays(a)));

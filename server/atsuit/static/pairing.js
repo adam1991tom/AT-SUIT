@@ -10,7 +10,7 @@
   .pair-mini .pair-code::placeholder { color: #3a4559; letter-spacing: .18em; }
   .pair-mini label.small { display: block; margin: .5rem 0 .2rem; color: var(--muted); font-size: .8rem; }
   .pair-mini .pair-done { margin-top: .5rem; font-size: .9rem; }
-  .pair-mini .pair-done b { color: var(--accent); }`;
+  .pair-mini .pair-done b { color: var(--accent-text); }`;
 
   function addStyle() {
     if (document.getElementById("pairCss")) return;

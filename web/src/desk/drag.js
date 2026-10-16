@@ -137,3 +137,15 @@ export function startSplit(e, path, i, sizes, visible, container) {
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", up);
 }
+
+// The same without dragging (WCAG 2.1.1 and 2.5.7): arrow keys on a focused bar move it by a
+// twentieth, and a double-click shares the room evenly between the two windows.
+export function nudgeSplit(path, i, sizes, visible, by) {
+  const a = visible[i - 1], b = visible[i];
+  const sumVisible = visible.reduce((s, k) => s + sizes[k], 0);
+  const min = 0.06 * sumVisible, pair = sizes[a] + sizes[b];
+  const next = [...sizes];
+  next[a] = by === "even" ? pair / 2 : Math.max(min, Math.min(pair - min, sizes[a] + by * sumVisible));
+  next[b] = pair - next[a];
+  set(T.resize(desk.layout, path, next));
+}
