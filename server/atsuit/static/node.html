@@ -100,10 +100,10 @@
 </style>
 </head>
 <body>
-<div id="boot" class="gear-load"><img src="/static/brand/gear-64.png" alt=""><span>Starting AT-SUIT…</span></div>
+<div id="boot" class="gear-load"><img src="/static/brand/gear-64.png" alt=""><span>Starting AT-SUITE…</span></div>
 <div id="enrol" class="center hidden">
   <form class="panel card" id="enrolForm">
-    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
+    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUITE">
     <h1>Set up this laptop</h1>
     <p class="muted">An admin can find the enrolment code in Laptops & screens → Add laptops.</p>
     <label>Laptop name</label><input name="name" required placeholder="e.g. ATLAP3">
@@ -126,7 +126,7 @@
 
 <div id="start" class="center hidden">
   <form class="panel card" id="startForm" autocomplete="off">
-    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
+    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUITE">
     <h1>Start on <span id="startNode"></span></h1>
     <p class="muted small" style="margin-top:0">This resets each morning, so the next tech starts fresh.</p>
     <div id="startName"><label>Your name</label><input name="operator" maxlength="60" placeholder="e.g. Adam"></div>
@@ -145,7 +145,7 @@
 
 <div id="ws" class="hidden">
   <div class="top">
-    <img class="brand-mark" src="/static/brand/icon-96.png" alt=""><b data-product>AT-SUIT</b>
+    <img class="brand-mark" src="/static/brand/icon-96.png" alt=""><b data-product>AT-SUITE</b>
     <button class="small ver hidden" id="topVer" title="This app's version. Click for updates."></button>
     <span class="muted" id="who"></span><span class="pill hidden" id="modePill"></span>
     <select id="room" style="width:auto"></select>
@@ -256,7 +256,7 @@
 (async () => {
   const { esc, api, post, guard, toast } = AT;
   const $ = (id) => ATDesk.find(id); // here, or in a window popped out of the workspace
-  // Inside the AT-SUIT Node Windows app the app owns enrolment and pop-ups.
+  // Inside the AT-SUITE Node Windows app the app owns enrolment and pop-ups.
   const APP = window.atsuitApp || null;
   const VERSION = APP ? `app-${await APP.version()}` : "web-0.1.0";
   let nodeToken = null, node = null, boot = null, roomId = null, sock = null, chat = null, notes = null;
@@ -321,7 +321,7 @@
       else if (c.kind === "overlay") {
         // The AT Overlay window over this laptop's screen (sent from any laptop in the room).
         if (APP && APP.overlay) { const r = await APP.overlay(c.payload).catch((e) => ({ ok: false, error: String(e) })); ok = !!r.ok; detail = r.error || ""; }
-        else { ok = false; detail = "Only the AT-SUIT Node app has an overlay"; }
+        else { ok = false; detail = "Only the AT-SUITE Node app has an overlay"; }
       }
       else ok = false; // reboot/shutdown/update need the node agent
       await api(`/api/nodes/commands/${c.id}/ack`, { method: "POST", headers: nodeHdr(), body: { ok, detail: detail || (ok ? "" : "Browser nodes can't do that; run the node agent") } }).catch(() => {});
@@ -486,7 +486,7 @@
   // app, and Check / Update now in This laptop. Older apps without the update calls show the version only.
   if (APP) {
     const ver = await APP.version();
-    $("appVer").textContent = `AT-SUIT Node ${ver}`;
+    $("appVer").textContent = `AT-SUITE Node ${ver}`;
     $("topVer").textContent = `v${ver}`; $("topVer").classList.remove("hidden");
     $("topVer").onclick = () => { if (!$("laptopBtn").classList.contains("hidden")) $("laptop").classList.remove("hidden"); $("laptop").scrollIntoView({ block: "nearest" }); };
     const hhmm = (t) => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -511,7 +511,7 @@
       $("updLaunch").checked = u.on_launch !== false;
       $("topVer").textContent = ready ? `v${u.current} · update ready` : `v${u.current}`;
       $("topVer").classList.toggle("ready", ready);
-      if (u.state === "installing" && lastState !== "installing") toast(`Updating AT-SUIT to ${u.version}. The app restarts in a moment.`, "good");
+      if (u.state === "installing" && lastState !== "installing") toast(`Updating AT-SUITE to ${u.version}. The app restarts in a moment.`, "good");
       lastState = u.state;
     };
     if (APP.updateState) {
@@ -548,8 +548,8 @@
   sock = AT.socket(topics, onEvent, (up) => {
     $("conn").textContent = up ? "live" : "reconnecting"; $("conn").className = "pill " + (up ? "good" : "bad");
     clearTimeout(downTimer);
-    if (up) { if (wasDown) alerts.add("good", "Connected to AT-SUIT again"); wasDown = false; }
-    else downTimer = setTimeout(() => { wasDown = true; problem("Lost connection to AT-SUIT", APP ? "Chat stops until it's back. The timer and captions keep running on this laptop." : "Chat and captions stop until it's back. The timer keeps running here."); }, 8000);
+    if (up) { if (wasDown) alerts.add("good", "Connected to AT-SUITE again"); wasDown = false; }
+    else downTimer = setTimeout(() => { wasDown = true; problem("Lost connection to AT-SUITE", APP ? "Chat stops until it's back. The timer and captions keep running on this laptop." : "Chat and captions stop until it's back. The timer keeps running here."); }, 8000);
   });
 
   // timer and cue list: the main thing on screen
@@ -633,7 +633,7 @@
   function ovNote(r, w, st, on) {
     const name = (k) => (OV_POS.find(([x]) => x === k) || [k, k])[1].toLowerCase();
     if (r.app && r.app_version && w.position === "top-center" && older(r.app_version, "0.6.0"))
-      return `<p class="small" style="color:var(--warn);margin:.4rem 0 0">This laptop's AT-SUIT app (${esc(r.app_version)}) is too old for top centre and puts the overlay ${name(st?.position || "bottom-right")}. Quit the app from its tray icon and start it again to finish its update, or install it again from Laptops & screens → Add laptops.</p>`;
+      return `<p class="small" style="color:var(--warn);margin:.4rem 0 0">This laptop's AT-SUITE app (${esc(r.app_version)}) is too old for top centre and puts the overlay ${name(st?.position || "bottom-right")}. Quit the app from its tray icon and start it again to finish its update, or install it again from Laptops & screens → Add laptops.</p>`;
     if (on && st?.position && st.position !== w.position)
       return `<p class="small" style="color:var(--warn);margin:.4rem 0 0">Asked for ${name(w.position)}, the laptop is showing it ${name(st.position)}. Press Apply to send it again.</p>`;
     return "";
@@ -668,7 +668,7 @@
         await api(`/api/fleet/nodes/${id}/overlay`, { method: "PUT", body: body(extra) });
         if (id === meId && APP && APP.overlay) await APP.overlay(body(extra)); // this laptop: straight away
         // Only say "sent" when that laptop can actually show it.
-        if (row && (!row.online || !row.app)) toast(`Saved. ${row.online ? "That laptop doesn't have the AT-SUIT app" : "That laptop is offline"}, so it shows when the app is running there.`);
+        if (row && (!row.online || !row.app)) toast(`Saved. ${row.online ? "That laptop doesn't have the AT-SUITE app" : "That laptop is offline"}, so it shows when the app is running there.`);
         else toast(extra.on === false ? "Overlay off" : "Overlay sent", "good");
       }).then(() => setTimeout(renderAtOverlay, 1500), () => {});
       card.querySelectorAll("[data-on]").forEach((b) => (b.onclick = () => send({ on: b.dataset.on === "1" })));
@@ -961,7 +961,7 @@
     }
   }
 
-  // This laptop's own feed for the room's caption and timer screens (the AT-SUIT app, bubble.js).
+  // This laptop's own feed for the room's caption and timer screens (the AT-SUITE app, bubble.js).
   async function setupFeed() {
     if (!APP?.screens) return;
     const box = $("feedBox"), on = $("feedOn"), note = $("feedNote");
@@ -980,12 +980,12 @@
 
   async function setupMic() {
     const btn = $("micBtn"), note = $("micNote"), sel = $("mic");
-    // Caption text stays on the laptops (Settings → General → Privacy): only the AT-SUIT app makes
+    // Caption text stays on the laptops (Settings → General → Privacy): only the AT-SUITE app makes
     // captions, on the laptop, and only the mic level and "live" go to the server.
     const PRIVATE = !!node?.captions_private;
     if (PRIVATE && !(APP?.captions && APP?.bubble)) {
       btn.disabled = true; sel.classList.add("hidden");
-      note.textContent = "Captions here are made in the AT-SUIT app on a laptop, and the text stays on it.";
+      note.textContent = "Captions here are made in the AT-SUITE app on a laptop, and the text stays on it.";
       return;
     }
     if (!window.isSecureContext || !navigator.mediaDevices) {
@@ -1000,7 +1000,7 @@
     }
     await listMics();
     let ctx = null, stream = null, ws = null, local = false, started = false, held = [], retry = null;
-    // Captions made on this laptop (the AT-SUIT app): only the text goes to the server.
+    // Captions made on this laptop (the AT-SUITE app): only the text goes to the server.
     // Anything in the way (an older app, no model yet) and the server listens instead.
     const LOCAL = APP?.captions && (node?.captions_on_laptops || PRIVATE);
     // How this room's captions are tidied, for the laptop's own screen feed and transcript (bubble.js).

@@ -112,7 +112,7 @@ def test_caption_text_stays_on_the_laptops(admin):
 
     # Nothing falls back to the server: it won't take audio, and won't start a transcript.
     with admin.websocket_connect(f"/ws/audio/{rid}?node_token={tok}") as mic:
-        assert mic.receive_json() == {"type": "error", "message": "Captions here are made on the laptops: use the AT-SUIT app"}
+        assert mic.receive_json() == {"type": "error", "message": "Captions here are made on the laptops: use the AT-SUITE app"}
     assert admin.post(f"/api/captions/{rid}/transcript/start").status_code == 409
 
     with admin.websocket_connect(f"/ws?topics=captions:{rid}") as viewer:

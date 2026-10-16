@@ -1,4 +1,4 @@
-<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUIT" width="200">
+<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUITE" width="200">
 
 # Setup guide
 
@@ -15,7 +15,7 @@ to install.
   [helper servers](INSTALL.md#helper-servers) for more rooms.
 - **A fixed address** for it (a DHCP reservation is fine), for example
   `10.0.0.10`.
-- **Tech laptops** with Windows 10 or 11 for the AT-SUIT app. Any other
+- **Tech laptops** with Windows 10 or 11 for the AT-SUITE app. Any other
   computer, tablet or phone can use the workspace in a browser.
 - **Screens** (optional): Linux laptops or all-in-ones for stage timers and
   signage, or any browser pointed at a timer page.
@@ -25,10 +25,10 @@ to install.
 On the server:
 
 ```sh
-curl -fsSL https://github.com/adam1991tom/AT-SUIT-releases/releases/latest/download/get.sh | sudo bash
+curl -fsSL https://github.com/adam1991tom/AT-SUITE-releases/releases/latest/download/get.sh | sudo bash
 ```
 
-It installs Docker if it's missing, puts AT-SUIT in `/opt/at-suit` and starts
+It installs Docker if it's missing, puts AT-SUITE in `/opt/at-suit` and starts
 it on port 8080. Options go after `-s --`, for example
 `... | sudo bash -s -- --port 8180 --tls` (`--tls` adds https, which browsers
 need before they'll share a microphone; the Windows app doesn't).
@@ -37,7 +37,7 @@ need before they'll share a microphone; the Windows app doesn't).
 
 Open `http://SERVER:8080/` in a browser. The setup wizard asks for the
 organisation, the venue, the rooms (one per line) and the first admin
-account, then the licence key. AT-SUIT works once a valid key is in. You can
+account, then the licence key. AT-SUITE works once a valid key is in. You can
 finish setup without one and paste it later in **Licence**, but until you do,
 only the Licence page works.
 

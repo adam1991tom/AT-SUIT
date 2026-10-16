@@ -25,8 +25,11 @@ def test_vendor_key(monkeypatch):
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("ATSUIT_DATA", str(tmp_path))
     monkeypatch.setenv("ATSUIT_ASR", os.getenv("TEST_ASR", "0"))
-    from atsuit import config, security
+    from atsuit import config, licence, security
 
+    async def no_watch():  # tests call licence.enforce themselves; the start-up check would race them
+        pass
+    monkeypatch.setattr(licence, "watch", no_watch)
     config.reload()
     security.reset_keys()
     from fastapi.testclient import TestClient

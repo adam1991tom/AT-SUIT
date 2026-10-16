@@ -1,11 +1,11 @@
-AT-SUIT Licence
+AT-SUITE Licence
 
 Copyright (c) 2026 AT NET. All rights reserved.
 
-AT-SUIT (the server, the AT-SUIT Node app, the agents, the Companion module, the
+AT-SUITE (the server, the AT-SUITE Node app, the agents, the Companion module, the
 documentation and the branding, together "the Software") is licensed, not sold.
 
-1. Use. You may install and use the Software only while you hold a valid AT-SUIT
+1. Use. You may install and use the Software only while you hold a valid AT-SUITE
    licence key or subscription issued by AT NET, and only within the limits that
    key sets (venues, laptops, modules and dates). A trial or event key may be used
    only for its stated purpose and period.
@@ -41,6 +41,6 @@ documentation and the branding, together "the Software") is licensed, not sold.
    using the Software.
 
 Earlier copies of this repository were published under the MIT licence; this
-licence applies to every version from AT-SUIT 1.0.4 on.
+licence applies to every version from AT-SUITE 1.0.4 on.
 
 Licensing and sales: AT NET.

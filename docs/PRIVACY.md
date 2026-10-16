@@ -1,22 +1,22 @@
 # Privacy and data protection
 
-This page is for venues and their clients: what AT-SUIT keeps, where it goes, and
+This page is for venues and their clients: what AT-SUITE keeps, where it goes, and
 how long it stays. It describes the software as shipped. Each venue that runs it
 is the data controller for what its staff put into it.
 
 ## Where everything runs
 
-AT-SUIT runs on the venue's own server, on the venue's network. The tech laptops,
+AT-SUITE runs on the venue's own server, on the venue's network. The tech laptops,
 stage screens and caption sources talk to that server and to nothing else. There
-is no AT-SUIT cloud service: nothing about a show, a room or a person is sent to
-the AT-SUIT team.
+is no AT-SUITE cloud service: nothing about a show, a room or a person is sent to
+the AT-SUITE team.
 
 The server only connects out to the internet for these things, and you can block
 all of them without breaking a show:
 
 | What | Where to | What is sent | When |
 |---|---|---|---|
-| Updates | github.com (AT-SUIT releases) | Nothing but the request for the latest version | Every 30 minutes, or never with updates turned off (Settings → Updates) |
+| Updates | github.com (AT-SUITE releases) | Nothing but the request for the latest version | Every 30 minutes, or never with updates turned off (Settings → Updates) |
 | Speech model | github.com (k2-fsa) | Nothing but the download request | Once, when captions are first set up |
 | Venue weather | open-meteo.com | The latitude and longitude of the town an admin picked | Every 15 minutes, only once a town is set |
 | Schedule AI (optional) | The Ollama server an admin sets up | The schedule file being imported | Only when someone imports a schedule that needs it |
@@ -27,7 +27,7 @@ all of them without breaking a show:
 ## Captions
 
 - Speech is turned into text by an offline speech model (sherpa-onnx), **on the
-  tech's laptop** when it runs the AT-SUIT app, so only the text goes to the
+  tech's laptop** when it runs the AT-SUITE app, so only the text goes to the
   venue's server and the audio never leaves the laptop. The app gets the model
   from the venue's own server, not the internet. Browsers, older apps, or a venue
   that turns this off (Settings → General) send the audio to the venue's server
@@ -48,7 +48,7 @@ An admin can turn on **Caption text stays on the laptops** (Settings → General
 Privacy). Then:
 
 - The server never hears the audio and never sees the captions, not even as a
-  fallback. Only the AT-SUIT app can caption, on the laptop. The server only knows
+  fallback. Only the AT-SUITE app can caption, on the laptop. The server only knows
   that captions are live in a room, and the mic level.
 - The laptop can feed the room's caption and timer screens itself, over the venue
   network ("Feed this room's screens from this laptop" in its Captions window).

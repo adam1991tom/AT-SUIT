@@ -39,7 +39,7 @@ MAX_LINES_SAFETY_CAP = 20
 SURFACES = ("audience", "overlay", "bar")
 FONT_STACK = "'Saira', 'Segoe UI', system-ui, -apple-system, sans-serif"
 
-# LiveCaption's appearance defaults; "bar" is the subtitle bar AT-SUIT adds
+# LiveCaption's appearance defaults; "bar" is the subtitle bar AT-SUITE adds
 # for LED strips and under-stage screens. font_size is in px on a 1920-wide
 # screen and scales with the screen's width.
 APPEARANCE_DEFAULTS: dict[str, dict] = {
@@ -364,7 +364,7 @@ async def audio_in(ws: WebSocket, room_id: int):
     st = apply_room_config(room_id, cfg)
     local = ws.query_params.get("mode") == "local"
     if private and not local:  # no listening here, not even as a fallback
-        await ws.send_json({"type": "error", "message": "Captions here are made on the laptops: use the AT-SUIT app"})
+        await ws.send_json({"type": "error", "message": "Captions here are made on the laptops: use the AT-SUITE app"})
         await ws.close(code=4003)
         return
     session = None

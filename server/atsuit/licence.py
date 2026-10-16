@@ -5,7 +5,7 @@ the vendor's private key (see tools/licence.py). The matching public key ships
 in `vendor_pubkey.txt` inside the image and is the only key trusted. Keys are
 checked offline, so a venue server needs no internet.
 
-AT-SUIT doesn't work until a valid key is installed. A subscription key carries
+AT-SUITE doesn't work until a valid key is installed. A subscription key carries
 its end date:
   - WARN_ADMIN_DAYS before it ends admins see a warning; WARN_ALL_DAYS before, everyone does;
   - when it ends there are GRACE_DAYS of grace, with everything still working;
@@ -336,29 +336,29 @@ def notice(c, role: str) -> dict | None:
     if lic.state == "expiring":
         days = math.ceil((lic.expires - now) / DAY)
         if admin:
-            return {"level": "warn", "admin": True, "text": f"Your AT-SUIT {what} ends on {_day(lic.expires, tz)} "
+            return {"level": "warn", "admin": True, "text": f"Your AT-SUITE {what} ends on {_day(lic.expires, tz)} "
                     f"({days} day{'s' if days != 1 else ''}). Paste the renewal key in Licence."}
         if days <= WARN_ALL_DAYS:
-            return {"level": "warn", "admin": False, "text": f"This venue's AT-SUIT {what} ends on {_day(lic.expires, tz)}. "
+            return {"level": "warn", "admin": False, "text": f"This venue's AT-SUITE {what} ends on {_day(lic.expires, tz)}. "
                     "Ask your admin to renew it."}
         return None
     if lic.state == "grace" and not lic.expires:  # an upgraded install that has never had a key
         if admin:
-            return {"level": "warn", "admin": True, "text": f"AT-SUIT now needs a licence key. Add one in Licence by "
+            return {"level": "warn", "admin": True, "text": f"AT-SUITE now needs a licence key. Add one in Licence by "
                     f"{_day(lic.grace_until, tz)}; after that it locks (never during a show)."}
         if lic.grace_until - now <= WARN_ALL_DAYS * DAY:
-            return {"level": "warn", "admin": False, "text": f"AT-SUIT on this server needs a licence key by "
+            return {"level": "warn", "admin": False, "text": f"AT-SUITE on this server needs a licence key by "
                     f"{_day(lic.grace_until, tz)}. Ask your admin."}
         return None
     if lic.state == "grace":
         if admin:
-            return {"level": "bad", "admin": True, "text": f"Your AT-SUIT {what} ended on {_day(lic.expires, tz)}. It keeps "
+            return {"level": "bad", "admin": True, "text": f"Your AT-SUITE {what} ended on {_day(lic.expires, tz)}. It keeps "
                     f"working until {_day(lic.grace_until, tz)}, then locks. Paste the renewal key in Licence."}
-        return {"level": "bad", "admin": False, "text": f"This venue's AT-SUIT {what} has ended. It keeps working until "
+        return {"level": "bad", "admin": False, "text": f"This venue's AT-SUITE {what} has ended. It keeps working until "
                 f"{_day(lic.grace_until, tz)}. Ask your admin to renew it."}
     if not lic.valid and not locked(c):  # due to lock at the next quiet moment
         if admin:
-            return {"level": "bad", "admin": True, "text": "Your AT-SUIT licence has run out. It locks tonight, once no show "
+            return {"level": "bad", "admin": True, "text": "Your AT-SUITE licence has run out. It locks tonight, once no show "
                     "is on. Paste a new key in Licence."}
-        return {"level": "bad", "admin": False, "text": "This venue's AT-SUIT licence has run out. Ask your admin to renew it."}
+        return {"level": "bad", "admin": False, "text": "This venue's AT-SUITE licence has run out. Ask your admin to renew it."}
     return None

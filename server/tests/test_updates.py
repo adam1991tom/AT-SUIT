@@ -25,7 +25,7 @@ def test_versions_compare_as_numbers():
 
 def test_settings_and_check(admin, monkeypatch):
     st = admin.get("/api/admin/updates").json()
-    assert st["current"] == VERSION and st["mode"] == "auto" and st["repo"] == "adam1991tom/AT-SUIT-releases" and not st["has_token"]
+    assert st["current"] == VERSION and st["mode"] == "auto" and st["repo"] == updates.REPO_DEFAULT and not st["has_token"]
     assert st["latest"] is None and not st["available"] and not st["host_updater"]
     seen = {}
 
@@ -183,3 +183,50 @@ def test_releases_come_from_the_releases_repository(admin, monkeypatch):
     with db.tx() as c:
         db.set_setting(c, "updates", {"mode": "auto", "repo": "adam1991tom/AT-SUIT"})
     assert admin.get("/api/admin/updates").json()["repo"] == updates.REPO_DEFAULT
+
+
+def test_the_rename_to_at_suite(admin, monkeypatch):
+    """The repositories become AT-SUITE and AT-SUITE-releases. Until they're renamed the new names
+    aren't there and the old ones are asked; after, the new names answer (and an old name still
+    works, because GitHub redirects it)."""
+    renamed = set()
+    asked = []
+
+    def handler(request):
+        path = request.url.path
+        asked.append(path)
+        if path == "/repositories/42/releases/latest":
+            return httpx.Response(200, json={"tag_name": "v9.9.9", "assets": []})
+        for new in renamed:
+            old = updates.RENAMED[new]
+            if path == f"/repos/{old}/releases/latest":
+                return httpx.Response(301, headers={"location": "https://api.github.com/repositories/42/releases/latest"})
+            if path == f"/repos/{new}/releases/latest":
+                return httpx.Response(200, json={"tag_name": "v9.9.9", "assets": []})
+        if path == f"/repos/{updates.RENAMED[updates.REPO_SOURCE]}/releases/latest" and not renamed:
+            return httpx.Response(200, json={"tag_name": "v9.9.8", "assets": []})
+        return httpx.Response(404, json={"message": "Not Found"})
+    monkeypatch.setattr(httpx, "get", lambda url, **kw: httpx.Client(transport=httpx.MockTransport(handler)).get(url, **kw))
+
+    # before the rename: only the old source repository has releases
+    st = admin.post("/api/admin/updates/check").json()
+    assert st["latest"]["version"] == "9.9.8" and st["error"] == ""
+    assert asked == [f"/repos/{r}/releases/latest" for r in (updates.REPO_DEFAULT, updates.RENAMED[updates.REPO_DEFAULT],
+                                                             updates.REPO_SOURCE, updates.RENAMED[updates.REPO_SOURCE])]
+    assert plan()["REPO"] == "adam1991tom/AT-SUIT"  # update.sh downloads from where it was found
+
+    # after: the new name answers first time
+    renamed.add(updates.REPO_DEFAULT)
+    renamed.add(updates.REPO_SOURCE)
+    asked.clear()
+    st = admin.post("/api/admin/updates/check").json()
+    assert st["latest"]["version"] == "9.9.9" and asked == [f"/repos/{updates.REPO_DEFAULT}/releases/latest"]
+    # an old name (what update.sh and older servers still use) follows GitHub's redirect
+    assert updates.fetch_latest("adam1991tom/AT-SUIT", "")["version"] == "9.9.9"
+    assert asked[-2:] == ["/repos/adam1991tom/AT-SUIT/releases/latest", "/repositories/42/releases/latest"]
+
+    # a server that saved an old name in Settings → Updates moves to the new one
+    for old, new in (("adam1991tom/AT-SUIT-releases", updates.REPO_DEFAULT), ("ADAM1991TOM/at-suit", updates.REPO_DEFAULT)):
+        with db.tx() as c:
+            db.set_setting(c, "updates", {"mode": "auto", "repo": old})
+        assert admin.get("/api/admin/updates").json()["repo"] == new

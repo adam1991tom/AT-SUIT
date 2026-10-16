@@ -1,4 +1,4 @@
-"""Helper servers. One AT-SUIT server is the main one: it holds the database,
+"""Helper servers. One AT-SUITE server is the main one: it holds the database,
 the rooms and every screen. Any other machine running the same image with
 ATSUIT_ROLE=helper can join it with a one-time code and take work off it.
 

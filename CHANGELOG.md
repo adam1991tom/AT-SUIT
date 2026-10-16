@@ -1,7 +1,7 @@
 # Changelog
 
 Versions follow [semantic versioning](https://semver.org). To release, set
-`VERSION`, add a section here, merge to `ATSUIT`, then push a tag `vX.Y.Z` (or
+`VERSION`, add a section here, merge to `ATSUITE`, then push a tag `vX.Y.Z` (or
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
@@ -10,7 +10,7 @@ the GitHub release.
 The laptop bubble: captions can stay on the laptop, and the laptop can run the room's screens itself.
 
 **Caption text can stay on the laptops**
-- New in Settings → General → Privacy: **Caption text stays on the laptops** (off by default). When it's on, the server never hears the audio or sees the captions, not even as a fallback. The AT-SUIT app makes them on the laptop and tidies them exactly as the server would (acronyms, [MUSIC], sentence case and the room's vocabulary).
+- New in Settings → General → Privacy: **Caption text stays on the laptops** (off by default). When it's on, the server never hears the audio or sees the captions, not even as a fallback. The AT-SUITE app makes them on the laptop and tidies them exactly as the server would (acronyms, [MUSIC], sentence case and the room's vocabulary).
 - The server still shows that captions are live in the room and the mic level. Browsers can't send a mic in this mode.
 - The transcript is kept on that laptop and deleted after the venue's hours (12 by default). **Save the transcript** in the Captions window saves it for the client. The server won't record one.
 
@@ -20,7 +20,20 @@ The laptop bubble: captions can stay on the laptop, and the laptop can run the r
 - Only the screens' own pages and public readings are passed on, never anyone's sign-in. The first time it's turned on, Windows may ask to allow the app on the network.
 
 **Hosted servers hand out the speech model**
-- A server that doesn't caption itself can still give laptops the speech model (`ATSUIT_LAPTOP_MODELS=1`), so laptops caption on a hosted AT-SUIT too.
+- A server that doesn't caption itself can still give laptops the speech model (`ATSUIT_LAPTOP_MODELS=1`), so laptops caption on a hosted AT-SUITE too.
+
+## 1.8.3
+
+**AT SUIT is now AT SUITE**
+- The new name everywhere you see it: the console, the tech workspace, the laptop app's windows and tray, screens, setup, show reports, the Companion module, the docs, and the logo (wordmark and stacked logo now read AT SUITE).
+- A server whose branding still says AT-SUIT (the old default) shows AT-SUITE. A product name an admin set themselves stays as it is.
+- Kept as they were, so nothing has to be reinstalled: the laptop app's installed name and settings folder, the Docker image, volume and folder names, the `ATSUIT_*` settings, and licence keys.
+
+**Ready for the new GitHub names**
+- Updates look for releases under the new GitHub names (`AT-SUITE-releases`, then `AT-SUITE`) and fall back to the old `AT-SUIT` names until the repositories are renamed. Servers and laptops keep updating before, during and after the rename.
+- A server that saved one of the old repository names in Settings → Updates moves to the new one by itself.
+- The release workflow builds from the renamed `ATSUITE` branch and publishes to whichever releases repository exists.
+- The install one-liner uses `AT-SUITE-releases`, and a server installed from a git copy points it at `AT-SUITE` at its next update.
 
 ## 1.8.0
 

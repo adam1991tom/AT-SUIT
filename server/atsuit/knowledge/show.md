@@ -7,7 +7,7 @@ Keywords: pre show, checklist, before doors, line check, tech check, start of da
 3. Check every screen, the confidence monitor and the speaker's timer.
 4. Open every presentation and play every video with sound.
 5. Test comms with the stage manager and the rest of the crew.
-6. Run the AT-SUIT pre-show check on the console and fix anything it flags.
+6. Run the AT-SUITE pre-show check on the console and fix anything it flags.
 
 ## Comms between crew
 Keywords: comms, radio, headset, intercom, clear-com, channel, walkie talkie, calling cues
@@ -15,7 +15,7 @@ Keywords: comms, radio, headset, intercom, clear-com, channel, walkie talkie, ca
 2. Answer with "go ahead" when called, and confirm cues back.
 3. Agree who calls the cues (usually the stage manager) and use standby and go.
 4. Keep the show channel clear; use another channel for anything else.
-5. Use AT-SUIT room chat for anything that doesn't need to be said out loud.
+5. Use AT-SUITE room chat for anything that doesn't need to be said out loud.
 
 ## Calling cues
 Keywords: cue, standby, go, running order, script, cue sheet, caller
@@ -25,7 +25,7 @@ Keywords: cue, standby, go, running order, script, cue sheet, caller
 
 ## Running order and timings
 Keywords: running order, rundown, schedule, agenda, timing, cue list, ontime
-1. Build the running order in the AT-SUIT timer as a cue list, with each session's duration.
+1. Build the running order in the AT-SUITE timer as a cue list, with each session's duration.
 2. Set an end action on each cue (stop, load next or play next) to match how the show runs.
 3. Note real start and end times as you go; the show report keeps the timer runs.
 
@@ -49,10 +49,10 @@ Keywords: rehearsal, tech run, dry run, stagger through
 ## Backups
 Keywords: backup, redundancy, spare, plan b, failover
 1. Have a backup for everything the show can't run without: a second playback laptop with the same files, a spare mic, spare cables and adapters, spare batteries.
-2. Mark which AT-SUIT laptop is the Main PC and which is the Backup PC in each room.
+2. Mark which AT-SUITE laptop is the Main PC and which is the Backup PC in each room.
 3. Know how you will switch to the backup, and practise it.
 
 ## Show report
 Keywords: show report, incident report, notes, end of day, handover
 1. Write down what went wrong, what was done, and anything the next crew needs to know.
-2. AT-SUIT's show report collects timer runs, help calls and stage messages for each room; add handover notes for the next shift.
+2. AT-SUITE's show report collects timer runs, help calls and stage messages for each room; add handover notes for the next shift.

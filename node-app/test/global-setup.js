@@ -1,4 +1,4 @@
-// Start a throwaway AT-SUIT server with a site, rooms and two tech accounts.
+// Start a throwaway AT-SUITE server with a site, rooms and two tech accounts.
 const { spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
@@ -12,7 +12,7 @@ async function waitUp() {
     try { if ((await fetch(`${BASE}/api/health`)).ok) return; } catch (_) {}
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error("AT-SUIT server did not start");
+  throw new Error("AT-SUITE server did not start");
 }
 
 async function call(method, url, body, cookie) {
@@ -31,7 +31,7 @@ module.exports = async () => {
   // With ATSUIT_TEST_MODELS (a folder holding the speech model) the laptop captions test runs too.
   if (process.env.ATSUIT_TEST_MODELS) fs.symlinkSync(path.resolve(process.env.ATSUIT_TEST_MODELS), path.join(data, "models"), "junction");
   const python = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
-  // licensed_server.py: AT-SUIT trusting a throwaway vendor key, with a matching licence in the data folder.
+  // licensed_server.py: AT-SUITE trusting a throwaway vendor key, with a matching licence in the data folder.
   const server = spawn(python, ["tests/licensed_server.py", "--host", "127.0.0.1", "--port", PORT], {
     cwd: path.join(__dirname, "..", "..", "server"),
     env: { ...process.env, ATSUIT_DATA: data, ATSUIT_ASR: "0" },
