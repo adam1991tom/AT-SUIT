@@ -23,6 +23,8 @@ import httpx
 
 from .db import audit, now
 
+# atcloud prints the venue's one-time setup link as https://<venue>/setup#code=… (?code= before 1.10.1).
+SETUP_LINK_RE = re.compile(r"https://\S+/setup[#?]code=[\w-]+")
 SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$")
 # Same list as cloud/atcloud, plus the shop's own names.
 RESERVED = {"www", "admin", "api", "app", "mail", "smtp", "status", "help", "kb", "docs", "cloud", "edge", "portal",
@@ -118,7 +120,8 @@ def run_pending(db, settings, runner=None) -> int:
 def apply_done(c, settings, job, h, output: str = "") -> None:
     """What a finished job means for the venue's record."""
     if job["action"] == "new":
-        link = next((ln.strip() for ln in output.splitlines() if "/setup?code=" in ln), "")
+        m = SETUP_LINK_RE.search(output or "")
+        link = m.group(0) if m else ""
         c.execute("UPDATE hosting SET status='active', setup_link=COALESCE(NULLIF(?, ''), setup_link) WHERE id=?",
                   (link, h["id"]))
     elif job["action"] == "suspend":

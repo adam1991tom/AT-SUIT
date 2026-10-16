@@ -88,7 +88,10 @@ def test_sign_in_links_work_once_and_expire(h):
     c = h.client()
     c.post("/register", data={"email": "new@example.com", "name": "New", "terms": "1"})
     token = re.search(r"token=([\w-]+)", h.last_link("new@example.com")).group(1)
-    assert c.get(f"/login/confirm?token={token}").status_code == 200  # a GET (email scanner) uses nothing up
+    link = h.last_link("new@example.com")
+    assert link.split("#")[0] == "/login/confirm" and "?token" not in link  # the token stays out of the address
+    page = c.get("/login/confirm")  # what an email scanner or the browser fetches: uses nothing up
+    assert page.status_code == 200 and token not in page.text and 'id="link-token"' in page.text
     assert c.post("/login/confirm", data={"token": token}).status_code == 303
     assert h.client().post("/login/confirm", data={"token": token}).status_code == 400  # used
     c.post("/login", data={"email": "new@example.com"})
@@ -153,7 +156,7 @@ def test_hosting_ssh_mode_runs_atcloud_with_the_key_on_stdin(tmp_path, vendor):
     assert argv == ["atcloud", "new", "grand-hall", "--name", "Grand Hall", "--licence", "/dev/stdin"]
     assert stdin == lic["key"]  # never on the command line
     venue = h.shop.db.one("SELECT * FROM hosting WHERE slug='grand-hall'")
-    assert venue["status"] == "active" and "setup?code=ABC123" in venue["setup_link"]
+    assert venue["status"] == "active" and "setup#code=ABC123" in venue["setup_link"]
     # A renewal sends the new key to the venue.
     h.send(h.event("transaction.completed", txn_data("txn_2", acc["paddle_customer_id"], prices, sub_id="sub_h",
                                                      start="2027-10-15T12:00:00Z", end="2028-10-15T12:00:00Z")))

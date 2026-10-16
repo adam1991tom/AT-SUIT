@@ -40,6 +40,15 @@
     });
   });
 
+  // Sign-in link: the token is after "#" so it stays out of web addresses servers see. Move it into the
+  // form and wipe it from the address bar and history.
+  const linkToken = document.getElementById("link-token");
+  if (linkToken) {
+    const t = new URLSearchParams(location.hash.slice(1)).get("token") || "";
+    linkToken.value = t;
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  }
+
   // Forms: stop a second click sending twice.
   document.querySelectorAll("form").forEach((f) => {
     f.addEventListener("submit", (e) => {

@@ -188,9 +188,9 @@ async def register_send(request: Request):
 
 
 @router.get("/login/confirm")
-def login_confirm(request: Request, token: str = "", next: str = ""):
+def login_confirm(request: Request, next: str = ""):
     # A button rather than signing in on GET, so email scanners that open links can't use them up.
-    return render(request, "site/confirm.html", {"title": "Sign in", "token": token, "next": safe_next(next)})
+    return render(request, "site/confirm.html", {"title": "Sign in", "next": safe_next(next)})
 
 
 @router.post("/login/confirm")
