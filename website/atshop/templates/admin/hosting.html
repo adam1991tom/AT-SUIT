@@ -5,7 +5,7 @@
 {% include "admin/_nav.html" %}
 <p class="muted">{% if mode == 'ssh' %}Jobs run by themselves on the hosting server over SSH. Failed ones can be retried.{% else %}Manual mode: run each job's command on the hosting server, then mark it done. For a key job, download the key first and save it as the file the command names. To run them automatically, set HOSTING_MODE=ssh.{% endif %}</p>
 <h2>Jobs</h2>
-<div class="table-wrap"><table><thead><tr><th>#</th><th>Venue</th><th>Job</th><th>Status</th><th>Command</th><th></th></tr></thead><tbody>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Venue</th><th>Job</th><th>Status</th><th>Command</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
 {% for j in jobs %}<tr>
   <td>{{ j.id }}</td><td>{{ j.slug }}</td><td>{{ j.action }}</td>
   <td>{% if j.status == 'done' %}<span class="badge ok">done</span>{% elif j.status == 'failed' %}<span class="badge bad">failed</span>{% else %}<span class="badge warn">to do</span>{% endif %}<br><span class="small muted">{{ j.created_at | when }}</span></td>
@@ -23,7 +23,7 @@
 </tbody></table></div>
 
 <h2 style="margin-top:32px">Venues</h2>
-<div class="table-wrap"><table><thead><tr><th>Address</th><th>Name</th><th>Customer</th><th>Status</th><th>Subscription</th><th></th></tr></thead><tbody>
+<div class="table-wrap"><table><thead><tr><th>Address</th><th>Name</th><th>Customer</th><th>Status</th><th>Subscription</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
 {% for v in venues %}<tr>
   <td>{% if address(v.slug) %}<a href="{{ address(v.slug) }}" rel="noopener">{{ v.slug }}</a>{% else %}{{ v.slug }}{% endif %}</td><td>{{ v.name }}</td>
   <td><a href="/admin/customers/{{ v.account_id }}">{{ v.email }}</a></td><td>{{ v.status }}</td><td>{{ v.sub_status or '–' }}</td>

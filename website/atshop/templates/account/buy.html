@@ -15,8 +15,8 @@
   <input type="hidden" name="plan" value="{{ plan.key }}">
   <fieldset class="field" style="border:0;padding:0;margin:0">
     <legend style="font-weight:600;margin-bottom:6px">Pay</legend>
-    <label class="check"><input type="radio" name="cycle" value="year" {% if cycle == 'year' %}checked{% endif %}> Yearly: {{ money(plan.yearly) }} a year (2 months free)</label>
-    <label class="check"><input type="radio" name="cycle" value="month" {% if cycle == 'month' %}checked{% endif %}> Monthly: {{ money(plan.monthly) }} a month</label>
+    <label class="check"><input type="radio" name="cycle" value="year" {% if cycle == 'year' %}checked{% endif %}> <span>Yearly: {{ money(plan.yearly) }} a year (2 months free)</span></label>
+    <label class="check"><input type="radio" name="cycle" value="month" {% if cycle == 'month' %}checked{% endif %}> <span>Monthly: {{ money(plan.monthly) }} a month</span></label>
   </fieldset>
   <input type="hidden" name="hosting" value="{{ 1 if hosting else 0 }}">
   {% if hosting %}
@@ -37,7 +37,7 @@
 </form>
 </div>
 <div class="card" style="align-self:start">
-  <h3>What you get</h3>
+  <h2 class="h3">What you get</h2>
   <ul class="ticks">
     <li>Up to {{ plan.laptops }} tech laptops</li><li>Every AT SUITE feature</li><li>Your licence key straight after payment</li>
     <li>Updates and email support</li>{% if hosting %}<li>Your own hosted server with nightly backups</li>{% endif %}

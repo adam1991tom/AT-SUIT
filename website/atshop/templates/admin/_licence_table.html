@@ -1,4 +1,4 @@
-<div class="table-wrap"><table><thead><tr><th>Serial</th>{% if show_email %}<th>Customer</th>{% endif %}<th>Source</th><th>Plan</th><th>Laptops</th><th>Ends</th><th>Issued</th><th>State</th><th></th></tr></thead><tbody>
+<div class="table-wrap"><table><thead><tr><th>Serial</th>{% if show_email %}<th>Customer</th>{% endif %}<th>Source</th><th>Plan</th><th>Laptops</th><th>Ends</th><th>Issued</th><th>State</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
 {% for l in (rows if show_email else licences) %}<tr>
 <td>{{ l.serial }}</td>{% if show_email %}<td><a href="/admin/customers/{{ l.account_id }}">{{ l.email }}</a></td>{% endif %}
 <td>{{ l.source }}</td><td>{{ l.edition }}</td><td>{{ l.max_nodes or 'unlimited' }}</td><td>{{ l.expires | day }}</td><td>{{ l.issued | when }}</td>

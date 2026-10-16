@@ -16,7 +16,7 @@
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
-{% if s.paddle_env == 'sandbox' and s.billing_ready %}<div class="sandbox-bar">Test mode: payments use Paddle's sandbox, no real money is taken.</div>{% endif %}
+{% if s.paddle_env == 'sandbox' and s.billing_ready %}<div class="sandbox-bar" role="region" aria-label="Test mode">Test mode: payments use Paddle's sandbox, no real money is taken.</div>{% endif %}
 <header class="top">
   <div class="wrap">
     <a class="logo" href="/" aria-label="AT SUITE home"><img src="/static/img/wordmark-640.png" alt="AT SUITE" width="90" height="34"></a>
@@ -46,20 +46,21 @@
         <p>Show control for live events: timers, crew chat, captions, screens and laptops in one place.</p>
         <p class="small">AT SUITE is sold by our reseller Paddle.com, who handle payment, invoices and VAT.</p>
       </div>
-      <div><h4>Product</h4><ul>
+      <nav aria-label="Product"><h2 class="foot-h">Product</h2><ul>
         <li><a href="/features">Features</a></li><li><a href="/how-it-works">How it works</a></li>
-        <li><a href="/pricing">Pricing</a></li><li><a href="/hosting">Hosting</a></li><li><a href="/downloads">Downloads</a></li></ul></div>
-      <div><h4>Help</h4><ul>
+        <li><a href="/pricing">Pricing</a></li><li><a href="/hosting">Hosting</a></li><li><a href="/downloads">Downloads</a></li></ul></nav>
+      <nav aria-label="Help"><h2 class="foot-h">Help</h2><ul>
         <li><a href="/docs">Documentation</a></li><li><a href="/faq">Questions</a></li>
-        <li><a href="/support">Support</a></li><li><a href="/contact">Contact sales</a></li></ul></div>
-      <div><h4>Legal</h4><ul>
+        <li><a href="/support">Support</a></li><li><a href="/contact">Contact sales</a></li></ul></nav>
+      <nav aria-label="Legal"><h2 class="foot-h">Legal</h2><ul>
         <li><a href="/legal/terms">Terms</a></li><li><a href="/legal/privacy">Privacy</a></li>
         <li><a href="/legal/dpa">Data processing</a></li><li><a href="/legal/billing">Billing and refunds</a></li>
-        <li><a href="/legal/acceptable-use">Acceptable use</a></li></ul></div>
+        <li><a href="/legal/acceptable-use">Acceptable use</a></li></ul></nav>
     </div>
     <p class="small" style="margin-top:32px">© {{ s.company_name }}. AT SUITE is part of the AT family.</p>
   </div>
 </footer>
+<div id="announce" class="sr-only" role="status" aria-live="polite"></div>
 <script src="/static/js/site.js?v={{ version }}" defer></script>
 {% block scripts %}{% endblock %}
 </body>
