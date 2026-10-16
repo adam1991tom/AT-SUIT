@@ -31,8 +31,8 @@ def test_laptops_get_the_model_and_vocabulary(admin, monkeypatch):
     assert admin.get("/api/nodes/captions/model").status_code in (401, 403)  # people can't, laptops can
 
     # No model on the server yet: it starts fetching it and the laptop waits.
-    assert admin.get("/api/nodes/captions/model", headers=hdr).json()["state"] == "off"  # not while captions are off here
-    monkeypatch.setattr(config.cfg, "asr_enabled", True)
+    assert admin.get("/api/nodes/captions/model", headers=hdr).json()["state"] == "off"  # this server hands out no model
+    monkeypatch.setattr(config.cfg, "laptop_models", True)  # e.g. hosted: it never listens, but laptops get the model
     started = []
     monkeypatch.setattr(captions.asr, "download_model", lambda *a, **k: started.append(a))
     r = admin.get("/api/nodes/captions/model", headers=hdr).json()
@@ -72,7 +72,7 @@ def test_a_laptop_sends_text_and_the_screens_get_captions(admin):
     admin.put(f"/api/captions/{rid}/settings", json={"gain_db": 4})
     with admin.websocket_connect(f"/ws?topics=captions:{rid}") as viewer:
         assert viewer.receive_json()["type"] == "hello"
-        with admin.websocket_connect(f"/ws/audio/{rid}?node_token={tok}&mode=local") as mic:
+        with admin.websocket_connect(f"/ws/audio/{rid}?mode=local", headers={"Authorization": f"Node {tok}"}) as mic:
             ready = mic.receive_json()
             assert ready["type"] == "ready" and ready["mode"] == "local"
             assert ready["audio"]["gain_db"] == 4 and len(ready["audio"]["eq_bands_hz"]) == len(ready["audio"]["eq_band_gains_db"])
@@ -100,3 +100,33 @@ def test_a_laptop_sends_text_and_the_screens_get_captions(admin):
         assert evt["type"] == "status" and not evt["data"]["live"]
     assert not captions.rooms[rid].local
     assert "hello world" in captions.rooms[rid].finals[-1].lower()
+
+
+def test_caption_text_stays_on_the_laptops(admin):
+    tok, hdr = _laptop(admin)
+    rid = _rid(admin)
+    admin.put(f"/api/captions/{rid}/settings", json={"record": True})
+    assert admin.put("/api/admin/settings", json={"captions_private": True, "captions_on_laptops": False}).status_code == 200
+    me = admin.get("/api/nodes/me", headers=hdr).json()
+    assert me["captions_private"] is True and me["transcript_keep_hours"] == 12
+
+    # Nothing falls back to the server: it won't take audio, and won't start a transcript.
+    with admin.websocket_connect(f"/ws/audio/{rid}", headers=hdr) as mic:
+        assert mic.receive_json() == {"type": "error", "message": "Captions here are made on the laptops: use the AT-SUITE app"}
+    assert admin.post(f"/api/captions/{rid}/transcript/start").status_code == 409
+
+    with admin.websocket_connect(f"/ws?topics=captions:{rid}") as viewer:
+        assert viewer.receive_json()["type"] == "hello"
+        with admin.websocket_connect(f"/ws/audio/{rid}?mode=local", headers=hdr) as mic:
+            ready = mic.receive_json()
+            assert ready["type"] == "ready" and ready["private"] is True
+            assert viewer.receive_json()["data"]["live"]
+            # Text the laptop sends anyway is dropped unread; the level still shows on the console.
+            mic.send_text(json.dumps({"type": "final", "text": "SECRET PLANS", "tokens": [], "ys_probs": []}))
+            mic.send_text(json.dumps({"type": "level", "db": -20, "rta": []}))
+            evt = viewer.receive_json()
+            assert evt["type"] == "level"
+        assert not viewer.receive_json()["data"]["live"]
+    st = captions.rooms[rid]
+    assert not any("SECRET" in f for f in st.finals) and st.transcript is None
+    assert "SECRET" not in str(admin.get(f"/api/captions/{rid}/recent").json())

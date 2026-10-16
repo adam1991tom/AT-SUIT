@@ -71,7 +71,7 @@ def test_a_helper_runs_a_rooms_captions_and_the_room_moves_when_it_drops(admin, 
 
         with client.websocket_connect(f"/ws?topics=captions:{rid}") as viewer:
             assert viewer.receive_json()["type"] == "hello"
-            with client.websocket_connect(f"/ws/audio/{rid}?node_token={tok}") as mic:
+            with client.websocket_connect(f"/ws/audio/{rid}", headers={"Authorization": f"Node {tok}"}) as mic:
                 assert mic.receive_json()["type"] == "ready"
                 opened = helper.receive_json()
                 assert opened["t"] == "open" and opened["options"]["music_label"] is True

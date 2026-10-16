@@ -97,6 +97,8 @@ jobs:
           pip install -r server/requirements.txt
           cd node-app
           npm ci
+          # Electron fetches its binary on first use: fetch it here, not inside the first test's time limit.
+          node node_modules/electron/install.js
       - name: Cache speech model
         id: model
         uses: actions/cache@v4

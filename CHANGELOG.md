@@ -5,6 +5,40 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.10.1
+
+A security fix, and the tech picks their own room.
+
+**No password ever goes in the web address**
+- A sign-in form could end up putting the username and password in the address bar (and so in browser history and the server's logs). Every form is now sent only by AT SUITE itself, never by the browser, and a page opened with a password, key or code in its address is sent straight on to the same page without it.
+- Nothing signs in through the address any more. The laptop's captions mic used its laptop key in the address; it now uses a pass that works once, for a minute. The node agent sends its key in a header, the Linux screen agent sends its pairing secret in the request, and the room sync tool sends the room code in a header.
+- The server's logs never show a password, key, code or presenter upload link, even from older agents.
+- Laptops and screens can't report an address with a password or key in it to the console.
+- Also tightened: sign-in cookies are marked secure when AT SUITE is reached over https, sign-in pages aren't cached, no page passes its address on to other sites, changing your password signs you out everywhere else, and sign-in fields have a size limit.
+- The Linux screen agent (0.4.0) and node agent (0.2.0) update themselves from the server as usual.
+
+**The tech picks their room**
+- Picking the room is the tech's job. On the start screen every room is offered, with the laptop's room for today already picked, and the tech can pick another.
+- Once signed in, the tech can move the laptop from the room list in the top bar of the workspace. Chat, the timer, captions and the overlay follow it.
+- The laptop still keeps its room all day: with nobody signed in it can't change, and signing out leaves it where it is. Managers and admins can still move it from the console, and every move is in the audit log.
+
+## 1.10.0
+
+The laptop bubble: captions can stay on the laptop, and the laptop can run the room's screens itself.
+
+**Caption text can stay on the laptops**
+- New in Settings → General → Privacy: **Caption text stays on the laptops** (off by default). When it's on, the server never hears the audio or sees the captions, not even as a fallback. The AT-SUITE app makes them on the laptop and tidies them exactly as the server would (acronyms, [MUSIC], sentence case and the room's vocabulary).
+- The server still shows that captions are live in the room and the mic level. Browsers can't send a mic in this mode.
+- The transcript is kept on that laptop and deleted after the venue's hours (12 by default). **Save the transcript** in the Captions window saves it for the client. The server won't record one.
+
+**The laptop can feed the room's screens**
+- In the Captions window, **Feed this room's screens from this laptop** shows the room's caption and timer screens straight from the laptop, over the venue network. It shows the addresses to point the screens at.
+- Those screens keep working when the server can't be reached, and with caption text kept on the laptops it's how the room's caption screens get their captions.
+- Only the screens' own pages and public readings are passed on, never anyone's sign-in. The first time it's turned on, Windows may ask to allow the app on the network.
+
+**Hosted servers hand out the speech model**
+- A server that doesn't caption itself can still give laptops the speech model (`ATSUIT_LAPTOP_MODELS=1`), so laptops caption on a hosted AT-SUITE too.
+
 ## 1.8.3
 
 **AT SUIT is now AT SUITE**

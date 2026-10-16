@@ -180,7 +180,8 @@ def test_room_sync_tool_keeps_the_folder(admin, client, tmp_path):
             super().__init__(r.content)
 
     sync = rs.Sync({"server": "http://testserver", "code": code, "dir": str(tmp_path), "cafile": ""})
-    sync.get = lambda url, timeout=20: Resp(client.get(url))
+    sync.get = lambda url, timeout=20: Resp(client.get(url, headers=sync.headers))
+    assert "?" not in sync.base and code not in sync.base and sync.headers["X-Sync-Code"] == code
     client.cookies.clear()
     assert sync.once() == ("CC", 2)
     files = sorted(p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*") if p.is_file() and not p.name.startswith("."))

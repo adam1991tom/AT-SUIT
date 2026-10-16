@@ -43,7 +43,7 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 HOME = Path(os.environ.get("ATSUIT_SCREEN_HOME", Path.home() / ".config" / "atsuit-screen"))
 CONFIG = HOME / "config.json"
 INTERNAL = re.compile(r"^(eDP|LVDS|DSI)", re.I)
@@ -278,7 +278,12 @@ class Pairing:
             self.request()
             return None
         try:
-            r = http(self.server, "GET", f"/api/screens/pair/status?secret={urllib.parse.quote(self.secret)}")
+            try:  # the secret goes in the body, never the address
+                r = http(self.server, "POST", "/api/screens/pair/status", {"secret": self.secret})
+            except RuntimeError as e:
+                if not str(e).startswith("405"):
+                    raise
+                r = http(self.server, "GET", f"/api/screens/pair/status?secret={urllib.parse.quote(self.secret)}")  # an older server
         except RuntimeError as e:
             if str(e).startswith("404"):
                 self.request()

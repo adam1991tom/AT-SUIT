@@ -31,6 +31,7 @@ from ..security import (
     Principal,
     create_session,
     hash_password,
+    issue_ticket,
     new_token,
     require_manager,
     principal,
@@ -182,7 +183,7 @@ def setup_status():
 
 
 @router.post("/api/setup")
-def setup(body: SetupIn, response: Response):
+def setup(body: SetupIn, request: Request, response: Response):
     lic = licence.parse(body.licence_key) if body.licence_key.strip() else None
     if lic and not lic.valid:
         raise HTTPException(400, lic.reason)
@@ -205,14 +206,14 @@ def setup(body: SetupIn, response: Response):
             licence.installed(c, lic, body.admin_username.strip())
         db.audit(c, body.admin_username, "setup.complete", body.site_name)
         token = create_session(c, cur.lastrowid)
-    _set_cookie(response, token)
+    _set_cookie(response, token, request=request)
     return {"ok": True, "token": token}
 
 
 # -------------------------------------------------------------------- auth --
 class LoginIn(BaseModel):
-    username: str
-    password: str
+    username: str = Field(max_length=64)
+    password: str = Field(max_length=256)
     shared: bool = False  # signing in on a tech laptop: a short session that ends with the browser
     new_password: str | None = Field(None, max_length=256)  # when the password must be changed first
 
@@ -220,8 +221,10 @@ class LoginIn(BaseModel):
 SHARED_MINUTES = 30
 
 
-def _set_cookie(response: Response, token: str, shared: bool = False) -> None:
+def _set_cookie(response: Response, token: str, shared: bool = False, request: Request | None = None) -> None:
+    # Over https (directly or behind a proxy that says so) the cookie is never sent over plain http.
     response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax",
+                        secure=bool(request and request.url.scheme == "https"),
                         max_age=None if shared else config.cfg.session_hours * 3600)
 
 
@@ -291,7 +294,7 @@ def login(body: LoginIn, request: Request, response: Response):
     with db.tx() as c:
         token = create_session(c, a["id"], minutes=SHARED_MINUTES if body.shared else None)
         db.audit(c, a["username"], "auth.login", "shared computer" if body.shared else "")
-    _set_cookie(response, token, body.shared)
+    _set_cookie(response, token, body.shared, request)
     return {"ok": True, "token": token}
 
 
@@ -305,6 +308,13 @@ def logout(request: Request, response: Response):
     return {"ok": True}
 
 
+@router.post("/api/auth/ws-ticket")
+def ws_ticket(p: Principal = Depends(require_user)):
+    """A one-time ticket for opening a WebSocket (a browser can't send a header
+    there): good once, for a minute. See security.ws_principal."""
+    return {"ticket": issue_ticket(p), "expires_in": 60}
+
+
 @router.get("/api/auth/me")
 def me(request: Request):
     p = principal(request)
@@ -314,12 +324,12 @@ def me(request: Request):
 
 
 class PasswordIn(BaseModel):
-    current: str
+    current: str = Field(max_length=256)
     new: str = Field(min_length=8, max_length=256)
 
 
 @router.post("/api/auth/password")
-def change_password(body: PasswordIn, p: Principal = Depends(require_user)):
+def change_password(body: PasswordIn, request: Request, p: Principal = Depends(require_user)):
     if p.kind != "account":
         raise HTTPException(400, "Only accounts have passwords")
     with db.tx() as c:
@@ -328,6 +338,9 @@ def change_password(body: PasswordIn, p: Principal = Depends(require_user)):
             raise HTTPException(400, "Current password is wrong")
         check_new_password(body.new, a["username"], a["password_hash"])
         c.execute("UPDATE accounts SET password_hash=?, must_change=0, reset_asked_at=NULL WHERE id=?", (hash_password(body.new), p.id))
+        # A new password signs this account out everywhere else.
+        c.execute("DELETE FROM sessions WHERE account_id=? AND token_hash!=?", (p.id, token_hash(request.cookies.get(SESSION_COOKIE, ""))))
+        db.audit(c, a["username"], "auth.password_changed", "")
     return {"ok": True}
 
 
@@ -453,6 +466,7 @@ def get_settings(p: Principal = Depends(require_admin)):
             "help_escalate_minutes": db.get_setting(c, "help_escalate_minutes", 2),
             "laptop_snapshots": db.get_setting(c, "laptop_snapshots", False),
             "captions_on_laptops": db.get_setting(c, "captions_on_laptops", True),
+            "captions_private": db.get_setting(c, "captions_private", False),
             "licence": lic.public(),
         }
 
@@ -469,6 +483,7 @@ class SettingsIn(BaseModel):
     help_escalate_minutes: float | None = Field(default=None, ge=0, le=60)
     laptop_snapshots: bool | None = None
     captions_on_laptops: bool | None = None
+    captions_private: bool | None = None
 
 
 @router.put("/api/admin/settings")
@@ -489,7 +504,8 @@ def put_settings(body: SettingsIn, p: Principal = Depends(require_admin)):
             db.set_setting(c, "legacy_fleet_api", body.legacy_fleet_api)
         if body.message_retention_days is not None:
             db.set_setting(c, "message_retention_days", max(0, body.message_retention_days))
-        for key in ("tech_passwords", "forgot_resets_at_once", "transcript_keep_hours", "laptop_snapshots", "captions_on_laptops"):
+        for key in ("tech_passwords", "forgot_resets_at_once", "transcript_keep_hours", "laptop_snapshots", "captions_on_laptops",
+                    "captions_private"):
             if getattr(body, key) is not None:
                 db.set_setting(c, key, getattr(body, key))
         if body.help_escalate_minutes is not None:

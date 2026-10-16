@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from . import VERSION, asr, config, db, hosted, licence, updates
 from .hub import can_subscribe, hub
 from .modules import aihelper, captions, cluster, comms, core, dashboard, fleet, imports, notes, overlays, pairing, preshow, presenter, reports, timers, weather
-from .security import ws_principal
+from .security import redact_logs, secret_params, strip_secrets, ws_principal
 
 STATIC = Path(__file__).parent / "static"
 
@@ -49,6 +49,57 @@ class LicenceGate:
         await send({"type": "http.response.body", "body": body})
 
 
+# Old agents in the field still ask this way; the value never reaches a log (security.redact_url).
+LEGACY_SECRET_GETS = {("/api/screens/pair/status", frozenset({"secret"}))}
+
+
+class SecretsOutOfAddresses:
+    """No password, token, key or code travels in a web address. A page opened
+    with one (a form the browser sent by itself, or a pasted link) is sent on to
+    the same page without it, the API refuses one, and every response says not to
+    pass the address on to other sites. Sign-in pages and answers aren't cached."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            return await self.app(scope, receive, send)
+        if scope["type"] == "websocket":  # sockets only take a one-time ticket from the address (security.ws_principal)
+            return await self.app(scope, receive, send)
+        path, query = scope["path"], scope.get("query_string", b"").decode("latin-1")
+        found = secret_params(query) if query else set()
+        if found and (path, frozenset(found)) not in LEGACY_SECRET_GETS:
+            if scope["method"] in ("GET", "HEAD") and not path.startswith("/api/"):
+                clean = strip_secrets(query)
+                return await _answer(send, 303, b"", [(b"location", (path + ("?" + clean if clean else "")).encode("latin-1"))])
+            body = json.dumps({"detail": "Passwords, keys and codes go in the request body or a header, never in the address."}).encode()
+            return await _answer(send, 400, body, [(b"content-type", b"application/json")])
+        no_store = path.startswith(("/api/auth/", "/api/setup", "/api/nodes/enrol", "/api/screens/pair", "/api/present/", "/present/"))
+        referrer = b"no-referrer" if path.startswith(("/present/", "/api/present/")) else b"same-origin"
+
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                have = {k.lower() for k, _ in headers}
+                extra = [(b"referrer-policy", referrer), (b"x-content-type-options", b"nosniff")]
+                if no_store:
+                    headers = [(k, v) for k, v in headers if k.lower() != b"cache-control"]
+                    extra.append((b"cache-control", b"no-store"))
+                headers += [(k, v) for k, v in extra if k not in have or k == b"cache-control"]
+                message = {**message, "headers": headers}
+            await send(message)
+
+        return await self.app(scope, receive, send_with_headers)
+
+
+async def _answer(send, status: int, body: bytes, headers: list) -> None:
+    await send({"type": "http.response.start", "status": status,
+                "headers": headers + [(b"content-length", str(len(body)).encode()), (b"cache-control", b"no-store"),
+                                      (b"referrer-policy", b"no-referrer")]})
+    await send({"type": "http.response.body", "body": body})
+
+
 async def housekeeping() -> None:
     while True:
         try:
@@ -71,6 +122,7 @@ async def housekeeping() -> None:
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    redact_logs()
     db.migrate()
     with db.tx() as c:
         licence.prepare(c)
@@ -111,6 +163,8 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
     app.add_middleware(LicenceGate)
     app.add_middleware(hosted.SetupGate)
+    app.add_middleware(SecretsOutOfAddresses)
+    redact_logs()
 
     @app.get("/api/licence/status", include_in_schema=False)
     def licence_status():

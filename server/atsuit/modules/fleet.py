@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from .. import config, db, licence
 from ..hub import hub
-from ..security import NODE_COOKIE, Principal, new_token, require_admin, require_manager, require_node, require_tech, token_hash
+from ..security import NODE_COOKIE, Principal, clean_url, new_token, require_admin, require_manager, require_node, require_tech, token_hash
 from .core import require_module, site_ok
 
 router = APIRouter(dependencies=[Depends(require_module("fleet"))])
@@ -231,7 +231,7 @@ async def heartbeat(body: HeartbeatIn, request: Request, p: Principal = Depends(
         c.execute(
             "UPDATE nodes SET ip=?, mac=?, version=?, current_url=COALESCE(NULLIF(?,''),current_url), info_json=?, last_seen=? "
             "WHERE id=?",
-            (ip[:64], (body.mac or old["mac"] or "")[:64], version[:32], body.current_url[:1000], json.dumps(info)[:8000],
+            (ip[:64], (body.mac or old["mac"] or "")[:64], version[:32], clean_url(body.current_url)[:1000], json.dumps(info)[:8000],
              time.time(), p.id))
         pending = c.execute("SELECT COUNT(*) FROM node_commands WHERE node_id=? AND status='queued'", (p.id,)).fetchone()[0]
         n = c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone()
@@ -436,6 +436,8 @@ def node_me(p: Principal = Depends(require_node)):
         return {"node": node_out(n, c), "room": dict(room) if room else None, "rooms": rooms,
                 "tech_passwords": bool(db.get_setting(c, "tech_passwords", True)),
                 "captions_on_laptops": bool(db.get_setting(c, "captions_on_laptops", True)),
+                "captions_private": bool(db.get_setting(c, "captions_private", False)),
+                "transcript_keep_hours": int(db.get_setting(c, "transcript_keep_hours", 12) or 12),
                 "day": work_day(c, n["site_id"]), "views": list_views(c, tests=True) + caption_views()}
 
 
@@ -504,29 +506,41 @@ class RoomPick(BaseModel):
 
 
 def room_locked(c, n, room_id) -> None:
-    """A tech laptop keeps the room it was given for the whole working day, even if
-    the tech signs out and in again. Only an admin moves it (Nodes in the console)."""
+    """Picking the room is the tech's job. A tech laptop keeps its room for the
+    working day, so it never drifts to another room by itself: changing it needs
+    a tech signed in on the laptop (or starting the day, which signs them in).
+    Managers and admins can still move it from the console."""
     if n["kind"] != "tech":
         return
     now = current_room_id(c, n)
-    if now and room_id != now:
+    if now and room_id != now and not n["operator"]:
         room = c.execute("SELECT name FROM rooms WHERE id=?", (now,)).fetchone()
-        raise HTTPException(403, f"This laptop is in {room['name'] if room else 'its room'} today. Ask an admin to move it.")
+        raise HTTPException(403, f"This laptop is in {room['name'] if room else 'its room'} today. Sign in on it to pick another room.")
 
 
 @router.put("/api/nodes/me/room")
 async def node_pick_room(body: RoomPick, p: Principal = Depends(require_node)):
-    """The tech says which room this laptop is in today (once: after that only an admin moves it)."""
+    """The tech says which room this laptop is in today, or moves it to another
+    room while signed in on it."""
     with db.tx() as c:
         n = c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone()
         room_locked(c, n, body.room_id)
+        room = None
         if body.room_id is not None:
-            room = c.execute("SELECT * FROM rooms WHERE id=?", (body.room_id,)).fetchone()
+            room = c.execute("SELECT * FROM rooms WHERE id=? AND enabled=1", (body.room_id,)).fetchone()
             if not room or (n["site_id"] and room["site_id"] != n["site_id"]):
                 raise HTTPException(404, "Room not found")
+        was = current_room_id(c, n)
         c.execute("UPDATE nodes SET room_id=?, room_day=? WHERE id=?", (body.room_id, work_day(c, n["site_id"]), p.id))
+        if was != body.room_id:
+            db.audit(c, p.name, "node.room", f"{n['name']}: {room['name'] if room else 'no room'}")
     await hub.publish("fleet", "node.changed", {"id": p.id})
     return {"ok": True, "room_id": body.room_id}
+
+
+def _room_name(c, room_id) -> str:
+    r = c.execute("SELECT name FROM rooms WHERE id=?", (room_id,)).fetchone()
+    return r["name"] if r else "another room"
 
 
 class StartIn(BaseModel):
@@ -577,14 +591,17 @@ async def node_start(body: StartIn, request: Request, response: Response, p: Pri
         n = c.execute("SELECT * FROM nodes WHERE id=?", (p.id,)).fetchone()
         if n["kind"] != "tech":
             raise HTTPException(400, "Only tech laptops start a day")
-        room_locked(c, n, body.room_id)
+        # The tech picks the room as they start: any open room at this laptop's site.
         room = c.execute("SELECT * FROM rooms WHERE id=? AND enabled=1", (body.room_id,)).fetchone()
         if not room or (n["site_id"] and room["site_id"] != n["site_id"]):
             raise HTTPException(404, "Room not found")
+        was = current_room_id(c, n)
         c.execute("UPDATE nodes SET operator=?, operator_account_id=?, mode=?, room_id=?, room_day=? WHERE id=?",
                   (operator, account_id, body.mode, body.room_id, work_day(c, n["site_id"]), p.id))
-        db.audit(c, operator, "node.start", f"{n['name']}: {room['name']}, {body.mode}")
-    response.set_cookie(NODE_COOKIE, _node_token(request), httponly=True, samesite="lax", max_age=400 * 86400)
+        moved = f" (moved from {_room_name(c, was)})" if was and was != body.room_id else ""
+        db.audit(c, operator, "node.start", f"{n['name']}: {room['name']}, {body.mode}{moved}")
+    response.set_cookie(NODE_COOKIE, _node_token(request), httponly=True, samesite="lax", secure=request.url.scheme == "https",
+                        max_age=400 * 86400)
     await hub.publish("fleet", "node.changed", {"id": p.id})
     return {"ok": True}
 
@@ -813,7 +830,7 @@ async def legacy_heartbeat(request: Request):
                       (host, site["id"] if site else None, "kiosk", 1, db.now_iso()))
         c.execute("UPDATE nodes SET ip=?, mac=?, version=?, current_url=COALESCE(NULLIF(?,''),current_url), info_json=?, last_seen=? WHERE name=?",
                   (str(data.get("ip") or "")[:64], str(data.get("mac") or "")[:64], str(data.get("version") or "")[:32],
-                   str(data.get("current_url") or "")[:1000], json.dumps(info), time.time(), host))
+                   clean_url(str(data.get("current_url") or ""))[:1000], json.dumps(info), time.time(), host))
     await hub.publish("fleet", "node.heartbeat", {"name": host})
     return PlainTextResponse("OK")
 

@@ -18,11 +18,12 @@
 //     focusable and shown without activating, so it can't take the keyboard
 const path = require("path");
 const os = require("os");
-const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, net, screen, session, shell } = require("electron");
+const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, net, screen, session, shell } = require("electron");
 const config = require("./config");
 const health = require("./health");
 const captions = require("./captions");
 const offlineCopy = require("./offline-copy");
+const bubble = require("./bubble");
 
 if (process.env.ATSUIT_NODE_USERDATA) app.setPath("userData", process.env.ATSUIT_NODE_USERDATA);
 
@@ -69,6 +70,7 @@ function boot() {
       startUpdates();
       // An overlay left on comes back where it was, without waiting for the page.
       if (conf.overlay && conf.overlay.on) applyOverlay({}).catch(() => {});
+      if (conf.screens) bubble.startScreens(fetchPublic).catch(() => {});
       setInterval(followRoom, 60 * 1000);
       return;
     }
@@ -199,6 +201,7 @@ function keepToServer(win) {
   });
 }
 
+let setupPrefill = {};
 function openSetup(message = "") {
   if (setupWin && !setupWin.isDestroyed()) { setupWin.show(); setupWin.focus(); return; }
   setupWin = new BrowserWindow({
@@ -213,9 +216,9 @@ function openSetup(message = "") {
   silence(setupWin);
   setupWin.on("closed", () => { setupWin = null; });
   const pre = config.preset();
-  setupWin.loadFile(path.join(__dirname, "setup.html"), {
-    query: { server: conf.server || pre.server, code: pre.enrol_code, name: conf.name || pre.name || os.hostname(), message },
-  });
+  // Handed over by IPC, not in the page address: the enrolment code is a key.
+  setupPrefill = { server: conf.server || pre.server, code: pre.enrol_code, name: conf.name || pre.name || os.hostname(), message };
+  setupWin.loadFile(path.join(__dirname, "setup.html"));
 }
 
 // -------------------------------------------------------------- pop-ups --
@@ -473,6 +476,13 @@ async function followRoom() {
   if (room && room !== c.room_id) applyOverlay({ room_id: room }).catch(() => {});
 }
 
+// A public page or reading from the venue server for this laptop's screen feed, never with the
+// tech's sign-in. It goes through the laptop's copy (offline-copy.js), so it works with the server down.
+async function fetchPublic(p) {
+  const r = await session.defaultSession.fetch(`${conf.server}${p}`, { credentials: "omit", cache: "no-store" });
+  return { status: r.status, type: r.headers.get("content-type") || "", body: Buffer.from(await r.arrayBuffer()) };
+}
+
 // ----------------------------------------------------------------- ipc --
 function fromMain(e) {
   return mainWin && !mainWin.isDestroyed() && e.sender === mainWin.webContents && new URL(e.senderFrame.url).origin === origin();
@@ -502,10 +512,16 @@ function ipc() {
   }) : null));
   ipcMain.handle("app:snapshot", (e) => (fromMain(e) ? health.snapshot() : []));
   // Captions made on this laptop: the page sends the mic, the engine sends back what it heard.
-  captions.setListener((m) => { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send("captions:event", m); });
+  captions.setListener((m) => {
+    if (!mainWin || mainWin.isDestroyed()) return;
+    mainWin.webContents.send("captions:event", m);
+    // Tidied here as the server would, for the workspace, this laptop's screen feed and transcript.
+    const shown = bubble.heard(m);
+    if (shown) mainWin.webContents.send("captions:event", { type: "shown", kind: shown.type, text: shown.text });
+  });
   ipcMain.handle("captions:prepare", (e) => (fromMain(e) ? captions.prepare(conf.server, config.getToken(conf)) : { ok: false }));
   ipcMain.handle("captions:state", (e) => (fromMain(e) ? captions.state() : {}));
-  ipcMain.on("captions:start", (e, audio) => { if (fromMain(e)) captions.start(audio); });
+  ipcMain.on("captions:start", (e, audio) => { if (fromMain(e)) { captions.start(audio); bubble.setLive(true); } });
   ipcMain.on("captions:audio", (e, audio) => { if (fromMain(e)) captions.audio(audio); });
   ipcMain.on("captions:feed", (e, pcm) => { if (fromMain(e)) captions.feed(pcm); });
   // The timer as the workspace worked it out offline (offline-timer.js): the overlay shows it too.
@@ -517,7 +533,30 @@ function ipc() {
     const detail = JSON.stringify(state).replace(/</g, "\\u003c");
     overlayWin.webContents.executeJavaScript(`document.dispatchEvent(new CustomEvent("atsuit:timer", { detail: ${detail} }))`).catch(() => {});
   });
-  ipcMain.on("captions:stop", (e) => { if (fromMain(e)) captions.stop(); });
+  ipcMain.on("captions:stop", (e) => { if (fromMain(e)) { captions.stop(); bubble.setLive(false); } });
+  // The laptop bubble (bubble.js): how this room's captions are tidied and kept, the timer for
+  // this laptop's screen feed, and the transcript kept on this laptop.
+  ipcMain.on("bubble:configure", (e, c) => { if (fromMain(e) && c && typeof c === "object") bubble.configure(c); });
+  ipcMain.on("bubble:timer", (e, state) => { if (fromMain(e) && state && typeof state === "object") bubble.timer(state); });
+  ipcMain.on("bubble:clear", (e) => { if (fromMain(e)) bubble.clear(); });
+  ipcMain.handle("bubble:transcript", (e) => { if (!fromMain(e)) return null; const t = bubble.transcript(); return t ? { name: t.name, lines: t.text.split("\n").filter(Boolean).length } : null; });
+  ipcMain.handle("bubble:save-transcript", async (e) => {
+    if (!fromMain(e)) return false;
+    const t = bubble.transcript();
+    if (!t) return false;
+    const r = await dialog.showSaveDialog(mainWin, { title: "Save the captions transcript", defaultPath: t.name, filters: [{ name: "Text", extensions: ["txt"] }] });
+    if (r.canceled || !r.filePath) return false;
+    require("fs").writeFileSync(r.filePath, t.text);
+    return true;
+  });
+  ipcMain.handle("screens:state", (e) => (fromMain(e) ? bubble.screensState() : {}));
+  ipcMain.handle("screens:set", async (e, on) => {
+    if (!fromMain(e)) return {};
+    conf.screens = !!on;
+    config.save(conf);
+    try { return await (on ? bubble.startScreens(fetchPublic) : bubble.stopScreens()); }
+    catch (err) { conf.screens = false; config.save(conf); return { ...bubble.screensState(), error: String(err.message || err) }; }
+  });
   ipcMain.handle("app:popout-top", (e, name, on) => {
     const w = fromMain(e) && pops.get(String(name));
     if (!w || w.isDestroyed()) return false;
@@ -540,6 +579,7 @@ function ipc() {
     openMain();
   });
   ipcMain.on("popup:dismiss", (e) => closePopup(BrowserWindow.fromWebContents(e.sender)));
+  ipcMain.handle("setup:prefill", (e) => (setupWin && e.sender === setupWin.webContents ? setupPrefill : {}));
   ipcMain.handle("setup:enrol", (e, form) => (setupWin && e.sender === setupWin.webContents ? enrol(form || {}) : { ok: false }));
 }
 

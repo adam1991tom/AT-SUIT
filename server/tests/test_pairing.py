@@ -30,9 +30,11 @@ def test_screen_pairs_with_a_code(admin, client):
     anon = client.__class__(client.app)
     r = anon.post("/api/screens/pair/request", json={"name": "hd-stage-1", "info": {"screen": "1920x1080"}}).json()
     assert re.fullmatch(r"[1-9]\d{5}", r["code"]) and r["display"] == f"{r['code'][:3]} {r['code'][3:]}"
-    st = anon.get(f"/api/screens/pair/status?secret={r['secret']}").json()
+    st = anon.post("/api/screens/pair/status", json={"secret": r["secret"]}).json()
     assert st == {"state": "waiting", "code": r["code"], "display": r["display"], "expires_in": st["expires_in"]}
-    assert anon.get("/api/screens/pair/status?secret=nope").status_code == 404
+    assert anon.post("/api/screens/pair/status", json={"secret": "nope"}).status_code == 404
+    # Screen agents before 0.4.0 still ask with the secret in the address.
+    assert anon.get(f"/api/screens/pair/status?secret={r['secret']}").json()["state"] == "waiting"
     # Only techs can pair; nobody can pair a code that isn't showing.
     assert anon.post("/api/screens/pair", json={"code": r["code"], "room_id": rooms["HD"], "view": "stage"}).status_code == 401
     assert tech.post("/api/screens/pair", json={"code": "999999", "room_id": rooms["HD"], "view": "stage"}).status_code == 404
@@ -44,7 +46,7 @@ def test_screen_pairs_with_a_code(admin, client):
     assert out["name"] == "HD-STAGE-1" and out["room_id"] == rooms["HD"] and out["view"] == "captions:bar"
     # The code is used up; the screen collects its token with its secret.
     assert tech.post("/api/screens/pair", json={"code": r["code"], "room_id": rooms["HD"], "view": "stage"}).status_code == 404
-    st = anon.get(f"/api/screens/pair/status?secret={r['secret']}").json()
+    st = anon.post("/api/screens/pair/status", json={"secret": r["secret"]}).json()
     assert st["state"] == "paired" and st["token"].startswith("atn_") and st["view"] == "captions:bar"
     hdr = {"Authorization": f"Node {st['token']}"}
     me = anon.get("/api/nodes/me", headers=hdr).json()
@@ -159,7 +161,7 @@ def test_screen_agent_pairs_without_an_enrolment_code(tmp_path):
                     break
                 time.sleep(0.2)
             assert secret, "the agent should open the pairing page"
-            code = call("GET", f"/api/screens/pair/status?secret={secret}")["code"]
+            code = call("POST", "/api/screens/pair/status", {"secret": secret})["code"]
             out = call("POST", "/api/screens/pair", {"code": code, "room_id": rid, "view": "captions:overlay"}, headers={"Cookie": cookie})
             assert out["name"] == "AIO-2"
             node = None

@@ -361,6 +361,76 @@ test("captions are made on the laptop, and carry on through a network drop", asy
   await page.evaluate(() => document.getElementById("micBtn").click());
 });
 
+test("caption text can stay on the laptop, which feeds the room's screens and keeps the transcript", async () => {
+  test.setTimeout(240000);
+  const models = process.env.ATSUIT_TEST_MODELS;
+  const sample = models && fs.readdirSync(models).map((d) => path.join(models, d, "test_wavs", "0.wav")).find((f) => fs.existsSync(f));
+  const login = await fetch(`${env.base}/api/auth/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: "admin", password: "correct-horse" }),
+  });
+  const Cookie = login.headers.get("set-cookie").split(";")[0];
+  const as = (method, url, body) => fetch(`${env.base}${url}`, { method, headers: { "Content-Type": "application/json", Cookie }, body: body && JSON.stringify(body) }).then((r) => r.json());
+  const hd = (await as("GET", "/api/bootstrap")).rooms.find((r) => r.name === "HD").id;
+  await as("PUT", "/api/admin/settings", { captions_private: true });
+  await as("POST", `/api/timers/${hd}/stop`);
+  try {
+    const extra = sample ? ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-audio-capture=${path.join(userData, "mic.wav")}`] : [];
+    app = await launch(extra);
+    const page = await mainPage(app);
+    await expect(page.locator("#ws")).toBeVisible();
+    await expect(page.locator("#capSave")).not.toHaveClass(/hidden/); // in the Captions window
+
+    // The tech turns on this laptop's screen feed, and a screen on the venue network connects to it.
+    const feedSwitch = (on) => page.evaluate((v) => { const b = document.getElementById("feedOn"); b.checked = v; b.dispatchEvent(new Event("change")); }, on);
+    await feedSwitch(true);
+    await expect(page.locator("#feedNote")).toContainText(`/captions/${hd}`);
+    const { port } = await page.evaluate(() => window.atsuitApp.screens());
+    const feed = `http://127.0.0.1:${port}`;
+    const capPage = await fetch(`${feed}/captions/${hd}`);
+    expect(capPage.status).toBe(200);
+    expect(await capPage.text()).toContain("<title>Captions</title>");
+    expect((await fetch(`${feed}/timer/${hd}`)).status).toBe(200);
+    expect((await fetch(`${feed}/api/auth/me`)).status).toBe(404); // nothing but the screens' public readings
+    expect((await (await fetch(`${feed}/api/captions/${hd}/recent`)).json()).finals).toEqual([]);
+    const events = [];
+    const screen = new WebSocket(`ws://127.0.0.1:${port}/ws?topics=timer:${hd},captions:${hd}`);
+    screen.onmessage = (e) => events.push(JSON.parse(e.data));
+    await expect.poll(() => events.some((e) => e.type === "hello")).toBe(true);
+
+    // The timer on that screen follows the room's timer.
+    await as("POST", `/api/timers/${hd}/preset/5`);
+    await expect.poll(() => events.filter((e) => e.type === "timer" && e.data.duration_ms === 300000).length, { timeout: 10000 }).toBeGreaterThan(0);
+
+    if (sample) {
+      // The mic is captioned on this laptop: the screen gets the captions, the server never sees them.
+      await expect.poll(() => page.evaluate(() => window.atsuitApp.captions.state().then((s) => s.state)), { timeout: 120000, intervals: [1000] }).toBe("ready");
+      await page.reload();
+      await expect(page.locator("#mic option").first()).toBeAttached();
+      const t0 = (await as("GET", `/api/captions/${hd}/recent`)).now;
+      await page.evaluate(() => document.getElementById("micBtn").click());
+      await expect(page.locator("#micNote")).toContainText("The text stays here", { timeout: 15000 });
+      await expect.poll(() => events.filter((e) => e.type === "final").map((e) => e.data.text).join(" ").toUpperCase(), { timeout: 60000, intervals: [1000] }).toContain("YELLOW LAMBS");
+      await expect(page.locator("#capText")).toContainText(/yellow lambs/i);
+      const recent = await as("GET", `/api/captions/${hd}/recent`);
+      expect(recent.live).toBe(true);
+      expect((recent.finals_at || []).filter((x) => x > t0)).toEqual([]); // nothing new reached the server
+      expect(recent.partial).toBe("");
+      expect((await (await fetch(`${feed}/api/captions/${hd}/recent`)).json()).finals.join(" ").toUpperCase()).toContain("YELLOW LAMBS");
+      const t = await page.evaluate(() => window.atsuitApp.bubble.transcript());
+      expect(t.lines).toBeGreaterThan(0);
+      const files = fs.readdirSync(path.join(userData, "transcripts"));
+      expect(fs.readFileSync(path.join(userData, "transcripts", files[files.length - 1]), "utf8").toUpperCase()).toContain("YELLOW LAMBS");
+      await page.evaluate(() => document.getElementById("micBtn").click());
+    }
+    screen.close();
+    await feedSwitch(false);
+    await expect.poll(() => fetch(`${feed}/timer/${hd}`).then(() => "up", () => "down")).toBe("down");
+  } finally {
+    await as("PUT", "/api/admin/settings", { captions_private: false });
+    await as("POST", `/api/timers/${hd}/stop`);
+  }
+});
+
 test("the backup PC: pop-ups are silent, on top and never take focus", async () => {
   app = await launch();
   const page = await mainPage(app);
@@ -446,10 +516,23 @@ test("the next day the tech starts again, without enrolling again", async () => 
   await start(page, { user: "ben", password: "ben-password-1", room: "CC" });
   await expect(page.locator("#room option:checked")).toHaveText("CC");
   await expect(page.locator("#who")).toHaveText("Ben on TESTLAP1");
+  // The room is the tech's call: Ben moves the laptop to RH from the top bar, then back.
+  for (const room of ["RH", "CC"]) {
+    await page.selectOption("#room", { label: room });
+    await expect(page.locator("#roomAskText")).toHaveText(`Move this laptop to ${room}?`);
+    const reloaded = page.waitForEvent("load"); // the workspace starts over in the new room
+    await page.click("#roomMove");
+    await reloaded;
+    await expect(page.locator("#ws")).toBeVisible();
+    await expect(page.locator("#room option:checked")).toHaveText(room);
+  }
   // Sign out at the end of the day: back to the start screen, and nothing pops up.
   await page.click("#out");
   await expect(page.locator("#start")).toBeVisible();
   expect(conf().popups).toBe(false);
+  // The next tech sees every room, with today's already picked.
+  await expect(page.locator("#startRooms [data-room]")).toHaveCount(3);
+  await expect(page.locator("#startRooms .tile.on")).toHaveText("CC");
 });
 
 // ------------------------------------------------------------- overlay --

@@ -102,7 +102,7 @@
 <body>
 <div id="boot" class="gear-load"><img src="/static/brand/gear-64.png" alt=""><span>Starting AT-SUITE…</span></div>
 <div id="enrol" class="center hidden">
-  <form class="panel card" id="enrolForm">
+  <form class="panel card" id="enrolForm" method="post">
     <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUITE">
     <h1>Set up this laptop</h1>
     <p class="muted">An admin can find the enrolment code in Laptops & screens → Add laptops.</p>
@@ -115,7 +115,7 @@
 </div>
 
 <div id="login" class="center hidden">
-  <form class="panel card" id="loginForm">
+  <form class="panel card" id="loginForm" method="post">
     <h1><span id="nodeName"></span> · sign in</h1>
     <label>Username</label><input name="username" autocomplete="username" required>
     <label>Password</label><input name="password" type="password" autocomplete="current-password" required>
@@ -125,7 +125,7 @@
 </div>
 
 <div id="start" class="center hidden">
-  <form class="panel card" id="startForm" autocomplete="off">
+  <form class="panel card" id="startForm" method="post" autocomplete="off">
     <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUITE">
     <h1>Start on <span id="startNode"></span></h1>
     <p class="muted small" style="margin-top:0">This resets each morning, so the next tech starts fresh.</p>
@@ -149,6 +149,7 @@
     <button class="small ver hidden" id="topVer" title="This app's version. Click for updates."></button>
     <span class="muted" id="who"></span><span class="pill hidden" id="modePill"></span>
     <select id="room" style="width:auto"></select>
+    <span id="roomAsk" class="row hidden" style="gap:.3rem"><span class="small" id="roomAskText"></span><button class="small primary" id="roomMove">Move</button><button class="small" id="roomStay">Cancel</button></span>
     <div class="livebar" id="liveBar"></div>
     <span class="pill" id="conn">connecting</span>
     <div class="drop"><button id="bellBtn" title="Notifications" aria-label="Notifications">🔔<span class="unread hidden" id="bellCount"></span></button>
@@ -210,6 +211,11 @@
       <a class="small" id="capScreen" target="_blank">Caption screen</a>
       <a class="small" id="capOverlay" target="_blank">Overlay (for a video mixer)</a>
       <a class="small hidden" id="capScript" target="_blank">Latest transcript</a>
+      <button class="small hidden" id="capSave">Save the transcript</button>
+    </div>
+    <div class="hidden" id="feedBox" style="margin-top:.6rem">
+      <label><input type="checkbox" id="feedOn" style="width:auto"> Feed this room's screens from this laptop</label>
+      <p class="muted small" id="feedNote" style="margin:.2rem 0 0">Caption and timer screens on the venue network can show this laptop's captions and timer, even when the server can't be reached.</p>
     </div>
     <p class="muted small" id="capEngine"></p>
   </section>
@@ -377,14 +383,12 @@
       const pw = withPw ? AT.passwordForm(f, $("startErr")) : null;
       if (!withPw) f.operator.value = node.node.operator || "";
       if (node.node.mode) f.querySelector(`[name=mode][value=${node.node.mode}]`).checked = true;
-      // Once a laptop has its room for the day it keeps it, whoever signs in; only an admin moves it.
-      const locked = roomId;
+      // Picking the room is the tech's job: every room is offered, with the laptop's room for today already picked.
       let pick = roomId || null;
       const tiles = () => {
-        const list = locked ? node.rooms.filter((r) => r.id === locked) : node.rooms;
-        $("startRooms").innerHTML = list.map((r) => `<button type="button" class="tile ${r.id === pick ? "on" : ""}" data-room="${r.id}">${esc(r.name)}</button>`).join("") || '<p class="muted">No rooms yet. A manager or admin adds them in the console under Rooms.</p>';
-        if (locked) $("startRooms").insertAdjacentHTML("beforeend", '<p class="muted small" style="grid-column:1/-1;margin:.3rem 0 0">This laptop is in this room today. An admin can move it from the console (Nodes).</p>');
-        else $("startRooms").querySelectorAll("[data-room]").forEach((b) => (b.onclick = () => { pick = +b.dataset.room; tiles(); }));
+        $("startRooms").innerHTML = node.rooms.map((r) => `<button type="button" class="tile ${r.id === pick ? "on" : ""}" data-room="${r.id}">${esc(r.name)}</button>`).join("") || '<p class="muted">No rooms yet. A manager or admin adds them in the console under Rooms.</p>';
+        if (roomId) $("startRooms").insertAdjacentHTML("beforeend", `<p class="muted small" style="grid-column:1/-1;margin:.3rem 0 0">${pick === roomId ? "This laptop's room today. Pick another if you've moved." : "This laptop moves to the room you picked when you start."}</p>`);
+        $("startRooms").querySelectorAll("[data-room]").forEach((b) => (b.onclick = () => { pick = +b.dataset.room; tiles(); }));
       };
       tiles();
       f.onsubmit = async (e) => {
@@ -444,9 +448,21 @@
   const roomName = boot.rooms.find((r) => r.id === roomId)?.name || "";
   $("room").innerHTML = boot.rooms.map((r) => `<option value="${r.id}" ${r.id === roomId ? "selected" : ""}>${esc(r.name)}</option>`).join("");
   if (techLaptop()) {
-    // A tech laptop stays in the room it started the day in; only an admin moves it.
-    $("room").disabled = true;
-    $("room").title = "This laptop's room for today. An admin can move it from the console (Nodes).";
+    // The tech signed in here picks the room. The whole laptop moves with it (chat, timer, captions, overlay).
+    $("room").title = "This laptop's room today. Pick another to move it there.";
+    // Asked in the bar, not a pop-up box (the app has none: they can make a sound).
+    const ask = (on) => { $("roomAsk").classList.toggle("hidden", !on); if (!on) $("room").value = roomId; };
+    $("room").onchange = () => {
+      const to = +$("room").value;
+      if (to === roomId) return ask(false);
+      $("roomAskText").textContent = `Move this laptop to ${boot.rooms.find((r) => r.id === to)?.name || "that room"}?`;
+      ask(true);
+    };
+    $("roomStay").onclick = () => ask(false);
+    $("roomMove").onclick = async () => {
+      try { await api("/api/nodes/me/room", { method: "PUT", headers: nodeHdr(), body: { room_id: +$("room").value } }); location.reload(); }
+      catch (e) { ask(false); toast(e.message, "bad"); }
+    };
   } else $("room").onchange = () => { try { localStorage.setItem("atsuit_room", $("room").value); } catch (_) {} location.reload(); };
   // The console is for admins. On a tech laptop an admin signs in there for a short session (30 minutes, ends with the browser).
   if (techLaptop()) { $("consoleBtn").textContent = "Admin"; $("consoleBtn").href = "/?shared=1#/dashboard"; $("consoleBtn").title = "For admins: sign in to the console"; $("consoleBtn").classList.remove("hidden"); }
@@ -598,9 +614,9 @@
   // The timer reaching its warning, danger and overtime is worth a note.
   let tstate = null, tphase = "", trun = "";
   if (boot.modules.timers) {
-    api(`/api/timers/${roomId}`).then((s) => { tstate = s; liveBar.timer(s); }).catch(() => {});
+    api(`/api/timers/${roomId}`).then((s) => { tstate = s; liveBar.timer(s); APP?.bubble?.timer({ ...s, room_id: roomId }); }).catch(() => {});
     // Presses worked out on this laptop while the server is out of reach (offline-timer.js).
-    document.addEventListener("atsuit:timer", (e) => { if (e.detail?._local && e.detail.room_id === roomId) { tstate = e.detail; liveBar.timer(tstate); } });
+    document.addEventListener("atsuit:timer", (e) => { if (e.detail?._local && e.detail.room_id === roomId) { tstate = e.detail; liveBar.timer(tstate); APP?.bubble?.timer(e.detail); } });
     setInterval(() => {
       if (!tstate || tstate.playback !== "play") return;
       const run = `${tstate.cue?.id || ""}:${tstate.started_at || tstate.first_started_at || ""}:${tstate.duration_ms}`;
@@ -910,9 +926,10 @@
     setupMic();
     $("capScreen").href = `/captions/${roomId}`; $("capOverlay").href = `/captions/${roomId}/overlay`;
     $("capTest").onclick = () => guard(() => post(`/api/captions/${roomId}/test`, { text: "Test caption: can everyone read this?", final: true }));
-    $("capClear").onclick = () => guard(() => post(`/api/captions/${roomId}/clear`));
+    $("capClear").onclick = () => { APP?.bubble?.clear(); return guard(() => post(`/api/captions/${roomId}/clear`)); };
+    setupFeed();
     api("/api/captions/status").then((st) => { const e = st.engine || {}; $("capEngine").textContent = e.state === "ready" ? "Caption engine ready." : e.state === "off" ? "Caption engine is off. Ask an admin to turn it on." : `Caption engine: ${e.state}${e.detail ? " (" + e.detail + ")" : ""}`; }).catch(() => {});
-    api("/api/captions/transcripts").then((ts) => { const t = ts.find((x) => x.room_id === roomId); if (t) { $("capScript").href = `/api/captions/transcripts/${t.id}`; $("capScript").classList.remove("hidden"); } }).catch(() => {});
+    if (!node?.captions_private) api("/api/captions/transcripts").then((ts) => { const t = ts.find((x) => x.room_id === roomId); if (t) { $("capScript").href = `/api/captions/transcripts/${t.id}`; $("capScript").classList.remove("hidden"); } }).catch(() => {});
   }
 
   function onEvent(evt) {
@@ -942,7 +959,7 @@
       if (h.room_id === roomId && h.status === "acknowledged" && h.assigned_to !== boot.me.name) alerts.add("good", `${h.assigned_to || "Someone"} is on the way`, what(h));
     }
     cuelist && cuelist.onEvent(evt);
-    if (evt.topic === `timer:${roomId}` && evt.type === "timer") { tstate = evt.data; liveBar.timer(tstate); }
+    if (evt.topic === `timer:${roomId}` && evt.type === "timer") { tstate = evt.data; liveBar.timer(tstate); APP?.bubble?.timer({ ...evt.data, room_id: roomId }); }
     notes && notes.onEvent(evt);
     if ((evt.type === "overlay.changed" || evt.type === "node.changed") && evt.topic === `room:${roomId}`) { clearTimeout(atOvTimer); atOvTimer = setTimeout(renderAtOverlay, 400); }
     if (evt.type === "presenter.changed" && evt.topic === `room:${roomId}` && boot.modules.presenter) { clearTimeout(sessTimer); sessTimer = setTimeout(renderSessions, 300); }
@@ -955,8 +972,33 @@
     }
   }
 
+  // This laptop's own feed for the room's caption and timer screens (the AT-SUITE app, bubble.js).
+  async function setupFeed() {
+    if (!APP?.screens) return;
+    const box = $("feedBox"), on = $("feedOn"), note = $("feedNote");
+    const show = (st) => {
+      on.checked = !!st.on;
+      if (st.error) note.textContent = `The feed didn't start: ${st.error}`;
+      else if (st.on) {
+        const host = (st.addresses || [])[0] || "this-laptop";
+        note.innerHTML = `On. Point the room's screens at <b>http://${esc(host)}:${st.port}/captions/${roomId}</b> (captions) or <b>http://${esc(host)}:${st.port}/timer/${roomId}</b> (timer).`;
+      } else note.textContent = "Caption and timer screens on the venue network can show this laptop's captions and timer, even when the server can't be reached.";
+    };
+    box.classList.remove("hidden");
+    show(await APP.screens());
+    on.onchange = async () => show(await APP.setScreens(on.checked));
+  }
+
   async function setupMic() {
     const btn = $("micBtn"), note = $("micNote"), sel = $("mic");
+    // Caption text stays on the laptops (Settings → General → Privacy): only the AT-SUITE app makes
+    // captions, on the laptop, and only the mic level and "live" go to the server.
+    const PRIVATE = !!node?.captions_private;
+    if (PRIVATE && !(APP?.captions && APP?.bubble)) {
+      btn.disabled = true; sel.classList.add("hidden");
+      note.textContent = "Captions here are made in the AT-SUITE app on a laptop, and the text stays on it.";
+      return;
+    }
     if (!window.isSecureContext || !navigator.mediaDevices) {
       btn.disabled = true; sel.classList.add("hidden");
       note.textContent = "Browsers only allow the microphone over https. Open this page through the server's https address, or run the node agent for captions.";
@@ -971,9 +1013,38 @@
     let ctx = null, stream = null, ws = null, local = false, started = false, held = [], retry = null;
     // Captions made on this laptop (the AT-SUITE app): only the text goes to the server.
     // Anything in the way (an older app, no model yet) and the server listens instead.
-    const LOCAL = APP?.captions && node?.captions_on_laptops;
+    const LOCAL = APP?.captions && (node?.captions_on_laptops || PRIVATE);
+    // How this room's captions are tidied, for the laptop's own screen feed and transcript (bubble.js).
+    let capCfg = null;
+    async function configureBubble() {
+      if (!APP?.bubble) return;
+      const c = await api(`/api/captions/${roomId}/settings`).catch(() => null);
+      if (!c) return;
+      capCfg = c;
+      APP.bubble.configure({ room_id: roomId, private: PRIVATE, vocabulary: String(c.vocabulary || "").split("\n"), keep_hours: node?.transcript_keep_hours || 12,
+        options: { join_acronyms: c.join_acronyms, sentence_case: c.sentence_case, music_label: c.music_label } });
+    }
+    if (LOCAL) configureBubble();
+    if (PRIVATE) {
+      $("capSave").classList.remove("hidden");
+      $("capSave").onclick = () => guard(async () => {
+        if (!(await APP.bubble.transcript())) return toast("Nothing to save yet: the transcript starts when your mic does.");
+        if (await APP.bubble.saveTranscript()) toast("Transcript saved.", "good");
+      });
+    }
     if (LOCAL) APP.captions.onEvent((m) => {
-      if (!local || !ws) return;
+      if (!local) return;
+      if (PRIVATE) {
+        // The text never goes to the server: the workspace shows what this laptop heard, and only the level is sent.
+        if (m.type === "shown") { if (m.kind === "final") { finals.push(m.text); partial = ""; } else partial = m.text; renderCaps(); }
+        else if (m.type === "level") {
+          $("meter").style.width = Math.max(0, Math.min(100, (m.db + 60) / 60 * 100)) + "%";
+          if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: "level", db: m.db, rta: m.rta }));
+        }
+        else if (m.type === "error") { problem("Captions on this laptop stopped", m.detail || ""); stopMic(); }
+        return;
+      }
+      if (!ws) return;
       if (m.type === "partial" || m.type === "final" || m.type === "level") {
         if (ws.readyState === 1) ws.send(JSON.stringify(m));
         else if (m.type === "final" && held.length < 500) held.push(m); // no server: keep what was said, send it when it's back
@@ -995,6 +1066,11 @@
     }
     async function startMic(tryLocal = true) {
       local = tryLocal && await localReady();
+      if (PRIVATE && !local) {
+        const st = await APP.captions.state().catch(() => ({}));
+        note.textContent = st.detail ? `Not ready yet: ${st.detail}` : "The speech model isn't on this laptop yet. Try again in a minute.";
+        return;
+      }
       stream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: sel.value ? { exact: sel.value } : undefined, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
       try { localStorage.setItem("atsuit_mic", sel.value); } catch (_) {}
       await listMics();
@@ -1005,18 +1081,26 @@
       await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([worklet], { type: "application/javascript" })));
       const src = ctx.createMediaStreamSource(stream), proc = new AudioWorkletNode(ctx, "p");
       src.connect(proc);
+      // Private: start listening straight away (with the room's kept settings), server or not.
+      if (PRIVATE) { APP.captions.start(capCfg ? { gain_db: capCfg.gain_db, eq_band_gains_db: capCfg.eq_band_gains_db, eq_bands_hz: capCfg.eq_bands_hz } : null); started = true; }
       connect();
       proc.port.onmessage = (e) => {
         if (local) APP.captions.feed(e.data);
         else if (ws && ws.readyState === 1) ws.send(e.data);
       };
       btn.textContent = "Stop my mic"; btn.classList.remove("primary"); btn.classList.add("danger");
-      note.textContent = local ? "Your microphone is captioning this room. Speech becomes text on this laptop." : "Your microphone is captioning this room.";
+      note.textContent = PRIVATE ? "Your microphone is captioning this room on this laptop. The text stays here." : local ? "Your microphone is captioning this room. Speech becomes text on this laptop." : "Your microphone is captioning this room.";
     }
     // The link to the server for this mic. Captions made on this laptop keep going when it drops:
     // what is said meanwhile is held here and sent when the server is back.
+    // The laptop's token never goes in the address: it's swapped for a ticket that works once, for a minute.
     function connect() {
-      const q = new URLSearchParams(nodeToken ? { node_token: nodeToken } : {});
+      const pending = ws = { readyState: 0, close() { this.readyState = 3; } }; // stands in while the ticket comes
+      api("/api/auth/ws-ticket", { method: "POST", headers: nodeHdr() }).then((r) => r.ticket, () => "")
+        .then((ticket) => { if (ws === pending) open(ticket); });
+    }
+    function open(ticket) {
+      const q = new URLSearchParams(ticket ? { ticket } : {});
       if (local) q.set("mode", "local");
       const sock = ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws/audio/${roomId}${q.size ? "?" + q : ""}`);
       ws.binaryType = "arraybuffer";
@@ -1025,16 +1109,16 @@
         if (m.type === "ready" && local) {
           if (started) APP.captions.audio(m.audio); else { APP.captions.start(m.audio); started = true; }
           if (held.length) { held.splice(0).forEach((x) => sock.send(JSON.stringify(x))); note.textContent = "Back online: the captions said meanwhile are on the server now."; }
-          else note.textContent = "Your microphone is captioning this room. Speech becomes text on this laptop.";
+          else note.textContent = PRIVATE ? "Your microphone is captioning this room on this laptop. The text stays here." : "Your microphone is captioning this room. Speech becomes text on this laptop.";
         }
-        if (m.type === "audio" && local) { APP.captions.audio(m.audio); if (m.vocabulary) APP.captions.prepare(); }
+        if (m.type === "audio" && local) { APP.captions.audio(m.audio); if (m.vocabulary) APP.captions.prepare(); configureBubble(); }
         if (m.type === "error") { problem("Captions mic stopped", m.message); stopMic(); }
         if (m.type === "replaced") { alerts.add("chat", `${m.by} took over the captions mic`); stopMic(); }
       };
       ws.onclose = () => {
         if (ws !== sock) return;
         if (!local || !started) return stopMic();
-        note.textContent = "No connection to the server: captions keep running on this laptop and catch up when it's back.";
+        note.textContent = PRIVATE ? "No connection to the server: captions keep running on this laptop." : "No connection to the server: captions keep running on this laptop and catch up when it's back.";
         retry = setTimeout(() => { retry = null; if (ws === sock && local) connect(); }, 2000);
       };
     }
