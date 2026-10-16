@@ -1,4 +1,4 @@
-// Shared helpers for every AT-SUIT page.
+// Shared helpers for every AT-SUITE page.
 
 // Passwords, tokens, keys and codes never sit in the address bar: a form is only
 // ever sent by script (never by the browser itself, which would put what's typed

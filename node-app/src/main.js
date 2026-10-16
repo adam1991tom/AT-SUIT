@@ -1,6 +1,6 @@
-// AT-SUIT Node: the tech workspace as a Windows app.
+// AT-SUITE Node: the tech workspace as a Windows app.
 //
-// The laptop enrols with the AT-SUIT server once; after that the app opens
+// The laptop enrols with the AT-SUITE server once; after that the app opens
 // straight into the workspace (chat, room timer, captions mic, links, help),
 // served by the server, in its own window with no browser around it.
 //
@@ -121,7 +121,7 @@ function openMain() {
     height: 860,
     minWidth: 720,
     minHeight: 520,
-    title: "AT-SUIT Node",
+    title: "AT-SUITE Node",
     icon: iconPath(),
     backgroundColor: "#0e1116",
     autoHideMenuBar: true,
@@ -163,14 +163,14 @@ const pops = new Map(); // frame name -> BrowserWindow
 const POP = /^atsuit-pop-[\w-]{1,40}$/;
 
 function keepToServer(win) {
-  // Links to other tools open in the normal browser; this window stays on AT-SUIT.
+  // Links to other tools open in the normal browser; this window stays on AT-SUITE.
   win.webContents.setWindowOpenHandler(({ url, frameName }) => {
     // The page fills a blank window itself and moves the live part into it.
     if (win === mainWin && POP.test(frameName) && (!url || url === "about:blank")) {
       return {
         action: "allow",
         overrideBrowserWindowOptions: {
-          title: "AT-SUIT", icon: iconPath(), backgroundColor: "#0e1116", autoHideMenuBar: true, minWidth: 320, minHeight: 200,
+          title: "AT-SUITE", icon: iconPath(), backgroundColor: "#0e1116", autoHideMenuBar: true, minWidth: 320, minHeight: 200,
           webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false },
         },
       };
@@ -206,7 +206,7 @@ function openSetup(message = "") {
     width: 560,
     height: 640,
     resizable: false,
-    title: "Set up AT-SUIT Node",
+    title: "Set up AT-SUITE Node",
     icon: iconPath(),
     backgroundColor: "#0e1116",
     webPreferences: { preload: path.join(__dirname, "setup-preload.js"), contextIsolation: true, sandbox: true },
@@ -254,7 +254,7 @@ function showPopup({ title, body, kind }) {
     restack();
   });
   p.loadFile(path.join(__dirname, "popup.html"), {
-    query: { title: String(title || "AT-SUIT").slice(0, 120), body: String(body || "").slice(0, 300), kind: String(kind || "info") },
+    query: { title: String(title || "AT-SUITE").slice(0, 120), body: String(body || "").slice(0, 300), kind: String(kind || "info") },
   });
   p.once("ready-to-show", () => p.showInactive());
   p.timer = setTimeout(() => closePopup(p), kind === "urgent" ? 20000 : 10000);
@@ -375,7 +375,7 @@ function openOverlay(c, target) {
   if (!overlayWin || overlayWin.isDestroyed()) {
     const w = new BrowserWindow({
       ...bounds,
-      title: "AT-SUIT Overlay",
+      title: "AT-SUITE Overlay",
       frame: false,
       transparent: true,
       backgroundColor: "#00000000",
@@ -403,7 +403,7 @@ function openOverlay(c, target) {
     w.setIgnoreMouseEvents(true); // clicks go to whatever is underneath
     silence(w);
     w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-    w.on("page-title-updated", (e) => e.preventDefault()); // always "AT-SUIT Overlay"
+    w.on("page-title-updated", (e) => e.preventDefault()); // always "AT-SUITE Overlay"
     w.webContents.on("render-process-gone", () => setTimeout(() => !w.isDestroyed() && w.reload(), 2000));
     w.webContents.on("did-fail-load", (_e, code, _desc, url, isMain) => {
       if (isMain && code !== -3) setTimeout(() => !w.isDestroyed() && overlayUrl && w.loadURL(overlayUrl).catch(() => {}), 5000);
@@ -531,7 +531,7 @@ function ipc() {
     config.setToken(conf, "");
     config.save(conf);
     offlineCopy.clear();
-    openSetup("This laptop was removed from AT-SUIT. Enter the enrolment code to add it again.");
+    openSetup("This laptop was removed from AT-SUITE. Enter the enrolment code to add it again.");
     if (mainWin) { mainWin.destroy(); mainWin = null; }
     return true;
   });
@@ -582,7 +582,7 @@ function makeTray() {
   img.addRepresentation({ scaleFactor: 2, buffer: require("fs").readFileSync(path.join(__dirname, "..", "build", "tray-32.png")) });
   if (!tray) {
     tray = new Tray(img);
-    tray.setToolTip(`AT-SUIT Node ${app.getVersion()}`);
+    tray.setToolTip(`AT-SUITE Node ${app.getVersion()}`);
     tray.on("click", () => openMain());
   }
   const login = app.getLoginItemSettings().openAtLogin;
@@ -593,7 +593,7 @@ function makeTray() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "Open workspace", click: () => openMain() },
     { type: "separator" },
-    { label: `AT-SUIT Node ${app.getVersion()}`, enabled: false },
+    { label: `AT-SUITE Node ${app.getVersion()}`, enabled: false },
     upItem,
     { type: "separator" },
     // Set in the workspace when the tech starts: Main PC never pops up, Backup PC pops up silently.
@@ -613,12 +613,12 @@ function makeTray() {
       click: (item) => app.setLoginItemSettings({ openAtLogin: item.checked, args: [AUTOSTART_ARG] }),
     },
     { type: "separator" },
-    { label: "Quit AT-SUIT Node", click: () => { quitting = true; app.quit(); } },
+    { label: "Quit AT-SUITE Node", click: () => { quitting = true; app.quit(); } },
   ]));
 }
 
 // ------------------------------------------------------------- updates --
-// Updates come from this venue's AT-SUIT server (which fetches each release's app from GitHub,
+// Updates come from this venue's AT-SUITE server (which fetches each release's app from GitHub,
 // or an admin uploads it in Laptops & screens), so laptops need no internet; only when the server
 // has no app at all does a laptop try GitHub itself. The app checks a few seconds after it starts and every few hours; a newer
 // version downloads quietly. It installs:

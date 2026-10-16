@@ -1,8 +1,8 @@
-/* AT-SUIT brand font (Saira, SIL Open Font Licence: brand/fonts/OFL.txt) */
+/* AT-SUITE brand font (Saira, SIL Open Font Licence: brand/fonts/OFL.txt) */
 @font-face { font-family: "Saira"; font-weight: 700; font-display: swap; src: url("/static/brand/fonts/saira-700.woff2") format("woff2"); }
 @font-face { font-family: "Saira"; font-weight: 800; font-display: swap; src: url("/static/brand/fonts/saira-800.woff2") format("woff2"); }
 :root {
-  /* 1.8: a clean GitHub-style look, with the AT-SUIT orange as the accent. */
+  /* 1.8: a clean GitHub-style look, with the AT-SUITE orange as the accent. */
   --navy: #0B1020; --ember: #C85400; --glow: #FFB27A; --brand-font: "Saira", system-ui, sans-serif;
   --bg: #0d1117; --panel: #151b23; --panel2: #212830; --line: #3d444d; --text: #f0f6fc; --muted: #9198a1;
   --accent: #FF7A1A; --accent-ink: #0B1020; --good: #3fb950; --warn: #d29922; --bad: #f85149; --radius: 6px;
@@ -176,7 +176,7 @@ tr:hover > td { background: color-mix(in srgb, var(--hover) 50%, transparent); }
 #part pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: .5rem .6rem; }
 a.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
-/* AT-SUIT logo */
+/* AT-SUITE logo */
 .brand-stacked { display: block; width: 150px; max-width: 60%; margin: 0 auto 1rem; }
 .brand-mark { height: 28px; width: auto; }
 /* the Windows app's version in the workspace top bar; it turns the accent colour when an update is ready */

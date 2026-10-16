@@ -759,7 +759,7 @@ def _new_code() -> str:
 @router.post("/api/presenter/rooms/{room_id}/sync-code")
 def new_sync_code(room_id: int, p: Principal = Depends(require_admin)):
     """A room's code for the sync tool on a presentation laptop that isn't an
-    AT-SUIT node. Making a new one stops the old one."""
+    AT-SUITE node. Making a new one stops the old one."""
     with db.tx() as c:
         room_or_404(c, room_id, p)
         for _ in range(5):

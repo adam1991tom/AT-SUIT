@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""AT-SUIT room sync: keeps a presentation laptop's folder up to date.
+"""AT-SUITE room sync: keeps a presentation laptop's folder up to date.
 
-Runs on a room's presentation laptop that isn't an AT-SUIT Node. Every few
-seconds it asks the AT-SUIT server what this room needs (each session's
+Runs on a room's presentation laptop that isn't an AT-SUITE Node. Every few
+seconds it asks the AT-SUITE server what this room needs (each session's
 approved presenter file and its show files) using the room's sync code from
 Presenters -> Settings, downloads anything new or changed, and removes what
 is no longer wanted. Nothing to install: Python 3.8+ only.
@@ -39,8 +39,8 @@ STATE = ".atsuit-sync.json"
 
 
 def settings(argv=None) -> dict:
-    ap = argparse.ArgumentParser(description="Keep this laptop's presentation folder in step with AT-SUIT.")
-    ap.add_argument("--server", help="AT-SUIT address, e.g. https://10.100.70.100:8443")
+    ap = argparse.ArgumentParser(description="Keep this laptop's presentation folder in step with AT-SUITE.")
+    ap.add_argument("--server", help="AT-SUITE address, e.g. https://10.100.70.100:8443")
     ap.add_argument("--code", help="the room's sync code (Presenters -> Settings)")
     ap.add_argument("--dir", help="folder to keep the files in (default: files/ next to this script)")
     ap.add_argument("--every", type=int, help="seconds between checks (default 20)")
@@ -63,7 +63,7 @@ def settings(argv=None) -> dict:
         if not sys.stdin.isatty():
             sys.exit("Give --server and --code (or ATSUIT_SERVER and ATSUIT_ROOM_CODE).")
         print("First-time setup for this room's laptop.")
-        cfg["server"] = cfg["server"] or input("AT-SUIT address (e.g. https://10.100.70.100:8443): ").strip().rstrip("/")
+        cfg["server"] = cfg["server"] or input("AT-SUITE address (e.g. https://10.100.70.100:8443): ").strip().rstrip("/")
         cfg["code"] = cfg["code"] or input("This room's sync code (Presenters -> Settings): ").strip().upper()
     if a.server or a.code or not CONFIG.exists():
         CONFIG.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
@@ -160,7 +160,7 @@ class Sync:
 def main(argv=None) -> None:
     cfg = settings(argv)
     s = Sync(cfg)
-    print(f"AT-SUIT room sync: {cfg['server']}, code {cfg['code'][:4]}-****, folder {s.root}, every {cfg['every']} s")
+    print(f"AT-SUITE room sync: {cfg['server']}, code {cfg['code'][:4]}-****, folder {s.root}, every {cfg['every']} s")
     while True:
         try:
             room, changed = s.once()

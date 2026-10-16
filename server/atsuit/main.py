@@ -1,4 +1,4 @@
-"""AT-SUIT server: one app, one port, every module."""
+"""AT-SUITE server: one app, one port, every module."""
 from __future__ import annotations
 
 import asyncio
@@ -24,7 +24,7 @@ OPEN_PATHS = {"/", "/setup", "/favicon.ico", "/apple-touch-icon.png", "/api/heal
 
 
 class LicenceGate:
-    """Everything but the Licence page stops while AT-SUIT is locked (no key, or a lapsed one):
+    """Everything but the Licence page stops while AT-SUITE is locked (no key, or a lapsed one):
     the API answers 402, pages show "not licensed" (and reload by themselves once a key is in),
     and live connections are refused."""
 
@@ -42,7 +42,7 @@ class LicenceGate:
         if scope["method"] == "GET" and not path.startswith("/api/"):
             body, ctype, status = (STATIC / "locked.html").read_bytes(), b"text/html; charset=utf-8", 200
         else:
-            body = json.dumps({"detail": "AT-SUIT isn't licensed. An admin can add the licence key in Licence."}).encode()
+            body = json.dumps({"detail": "AT-SUITE isn't licensed. An admin can add the licence key in Licence."}).encode()
             ctype, status = b"application/json", 402
         await send({"type": "http.response.start", "status": status,
                     "headers": [(b"content-type", ctype), (b"content-length", str(len(body)).encode()), (b"cache-control", b"no-cache")]})
@@ -144,7 +144,7 @@ def create_app() -> FastAPI:
     if config.cfg.role == "helper":
         from .helper import create_helper_app
         return create_helper_app()
-    app = FastAPI(title="AT-SUIT", version=VERSION, lifespan=lifespan, docs_url="/api/docs", redoc_url=None)
+    app = FastAPI(title="AT-SUITE", version=VERSION, lifespan=lifespan, docs_url="/api/docs", redoc_url=None)
     for module in (core, comms, timers, fleet, pairing, captions, cluster, overlays, dashboard, presenter, imports, notes, reports, preshow,
                    weather, aihelper):
         app.include_router(module.router)

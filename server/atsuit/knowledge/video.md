@@ -63,7 +63,7 @@ Keywords: led wall, panel, tile, processor, dead pixels, moire, black tile
 ## Confidence monitor and speaker's screen
 Keywords: foldback screen, confidence monitor, downstage monitor, speaker can't see slides, timer screen
 1. Feed the confidence monitor with the presenter view or the next slide from the playback machine, not a camera.
-2. Put the speaker's timer (an AT-SUIT timer view) on its own screen or as an overlay, where they can see it without turning away from the audience.
+2. Put the speaker's timer (an AT-SUITE timer view) on its own screen or as an overlay, where they can see it without turning away from the audience.
 3. Test from the speaker's position, not from tech.
 
 ## Switching between sources

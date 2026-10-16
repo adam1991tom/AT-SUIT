@@ -44,13 +44,14 @@ from ..security import (
 router = APIRouter()
 
 DEFAULT_BRANDING = {
-    "product_name": "AT-SUIT",
+    "product_name": "AT-SUITE",
     "organisation": "",
-    "accent": "#FF7A1A",  # AT-SUIT orange
+    "accent": "#FF7A1A",  # AT-SUITE orange
     "logo_url": "",
     "support_contact": "",
 }
-OLD_DEFAULT_ACCENT = "#4f7cff"  # before the AT-SUIT logo; servers set up then still store it
+OLD_DEFAULT_ACCENT = "#4f7cff"  # before the AT-SUITE logo; servers set up then still store it
+OLD_PRODUCT_NAMES = ("AT-SUIT", "AT SUIT")  # the name before AT-SUITE; servers set up then still store it
 
 # How every staff page looks (the console, the tech workspace, setup and the presenter
 # page). One look for the whole site, set by an admin; stage screens keep their own.
@@ -73,6 +74,8 @@ def get_branding(c) -> dict:
     b = {**DEFAULT_BRANDING, **db.get_setting(c, "branding", {})}
     if b.get("accent", "").lower() == OLD_DEFAULT_ACCENT:
         b["accent"] = DEFAULT_BRANDING["accent"]
+    if b.get("product_name") in OLD_PRODUCT_NAMES:
+        b["product_name"] = DEFAULT_BRANDING["product_name"]
     b["appearance"] = get_appearance(c)
     return b
 
@@ -966,13 +969,13 @@ def server_info() -> dict:
         sys_uptime = None
     local = datetime.now().astimezone()
     return {
-        "product": branding["product_name"] or "AT-SUIT",
+        "product": branding["product_name"] or "AT-SUITE",
         "organisation": branding["organisation"],
         "version": VERSION,
         "build": build_info(),
         "schema": schema,
         "server": {
-            "role": "This server (AT-SUIT runs as one server; there are no others to manage)",
+            "role": "This server (AT-SUITE runs as one server; there are no others to manage)",
             "count": 1,
             "hostname": socket.gethostname(),
             "ips": _ips(),

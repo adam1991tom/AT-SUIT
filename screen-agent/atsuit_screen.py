@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""AT-SUIT screen agent for Linux laptops and all-in-ones.
+"""AT-SUITE screen agent for Linux laptops and all-in-ones.
 
-Turns the machine into a display-only screen: it opens AT-SUIT's /screen page
+Turns the machine into a display-only screen: it opens AT-SUITE's /screen page
 full screen in Chromium and keeps it there. The page shows one room's timer,
 captions, a custom view or a web page, picked on the screen itself or routed
 from the dashboard (Timers -> Screens).
@@ -16,7 +16,7 @@ from the dashboard (Timers -> Screens).
   * Reports its name, IP, MAC, displays and agent version to the dashboard.
   * Restarts the browser if it crashes; reboot/shutdown/update from the
     dashboard (power needs --allow-power and a sudoers rule, see install.sh).
-  * Updates itself from the AT-SUIT server.
+  * Updates itself from the AT-SUITE server.
 
 Python 3 standard library only. Needs an X11 desktop session, xrandr and
 Chromium (install.sh sets all of this up).
@@ -398,8 +398,8 @@ def run(args) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="AT-SUIT screen agent (Linux)")
-    ap.add_argument("--server", help="AT-SUIT address, e.g. http://10.100.70.101:8180 (only needed the first time)")
+    ap = argparse.ArgumentParser(description="AT-SUITE screen agent (Linux)")
+    ap.add_argument("--server", help="AT-SUITE address, e.g. http://10.100.70.101:8180 (only needed the first time)")
     ap.add_argument("--code", help="enrolment code (optional: without one the screen shows a pairing code)")
     ap.add_argument("--name", help="screen name (default: the computer's hostname)")
     ap.add_argument("--re-enrol", action="store_true")

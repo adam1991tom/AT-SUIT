@@ -1,7 +1,7 @@
 """Nodes: every tech laptop, kiosk and caption source. Replaces AT Device
 Suite, the Fleet Dashboard and AT Ops' fleet half, and keeps the old kiosk
 agent API (/heartbeat, /agent/poll, /agent/ack) so deployed agents keep
-working when pointed at AT-SUIT."""
+working when pointed at AT-SUITE."""
 from __future__ import annotations
 
 import asyncio
@@ -332,7 +332,7 @@ async def upload_agent(file: UploadFile, p: Principal = Depends(require_admin)):
     """Publish a newer node agent; laptops pick it up on their next heartbeat."""
     data = await file.read(2 * 1024 * 1024)
     if not re.search(rb'^VERSION = "[^"]+"', data, re.M):
-        raise HTTPException(400, "That isn't an AT-SUIT node agent")
+        raise HTTPException(400, "That isn't an AT-SUITE node agent")
     d = config.cfg.data / "agent"
     d.mkdir(parents=True, exist_ok=True)
     (d / "atsuit_node.py").write_bytes(data)
@@ -352,7 +352,7 @@ def app_dir() -> Path:
 
 
 def app_release() -> dict:
-    """What the laptops' AT-SUIT Node app updates to: electron-builder's
+    """What the laptops' AT-SUITE Node app updates to: electron-builder's
     latest.yml plus the installer it names, uploaded by an admin."""
     f = app_dir() / "latest.yml"
     if not f.is_file():
@@ -912,7 +912,7 @@ def legacy_bootstrap():
     return FileResponse(f, media_type="text/x-shellscript")
 
 
-# ------------------------------------------------ AT-SUIT Node overlay --
+# ------------------------------------------------ AT-SUITE Node overlay --
 # The Windows app can float a click-through overlay (the room timer, by
 # default) over the slides. Any tech, a laptop in the room or Companion can
 # turn a laptop's overlay on or off and move it. What was asked for is kept in
@@ -1007,7 +1007,7 @@ async def set_overlay(node_id: int, body: OverlayIn, p: Principal = Depends(requ
         if not n or not site_ok(p, n["site_id"]):
             raise HTTPException(404, "Node not found")
         if n["kind"] != "tech":
-            raise HTTPException(400, "Only tech laptops running AT-SUIT Node have an overlay")
+            raise HTTPException(400, "Only tech laptops running AT-SUITE Node have an overlay")
         info = _info(n)
         want = {**OVERLAY_DEFAULT, **(info.get("overlay_want") or {})}
         changes = body.model_dump(exclude_none=True)

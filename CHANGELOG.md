@@ -1,7 +1,7 @@
 # Changelog
 
 Versions follow [semantic versioning](https://semver.org). To release, set
-`VERSION`, add a section here, merge to `ATSUIT`, then push a tag `vX.Y.Z` (or
+`VERSION`, add a section here, merge to `ATSUITE`, then push a tag `vX.Y.Z` (or
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
@@ -21,6 +21,19 @@ A security fix, and the tech picks their own room.
 - Picking the room is the tech's job. On the start screen every room is offered, with the laptop's room for today already picked, and the tech can pick another.
 - Once signed in, the tech can move the laptop from the room list in the top bar of the workspace. Chat, the timer, captions and the overlay follow it.
 - The laptop still keeps its room all day: with nobody signed in it can't change, and signing out leaves it where it is. Managers and admins can still move it from the console, and every move is in the audit log.
+
+## 1.8.3
+
+**AT SUIT is now AT SUITE**
+- The new name everywhere you see it: the console, the tech workspace, the laptop app's windows and tray, screens, setup, show reports, the Companion module, the docs, and the logo (wordmark and stacked logo now read AT SUITE).
+- A server whose branding still says AT-SUIT (the old default) shows AT-SUITE. A product name an admin set themselves stays as it is.
+- Kept as they were, so nothing has to be reinstalled: the laptop app's installed name and settings folder, the Docker image, volume and folder names, the `ATSUIT_*` settings, and licence keys.
+
+**Ready for the new GitHub names**
+- Updates look for releases under the new GitHub names (`AT-SUITE-releases`, then `AT-SUITE`) and fall back to the old `AT-SUIT` names until the repositories are renamed. Servers and laptops keep updating before, during and after the rename.
+- A server that saved one of the old repository names in Settings → Updates moves to the new one by itself.
+- The release workflow builds from the renamed `ATSUITE` branch and publishes to whichever releases repository exists.
+- The install one-liner uses `AT-SUITE-releases`, and a server installed from a git copy points it at `AT-SUITE` at its next update.
 
 ## 1.8.0
 

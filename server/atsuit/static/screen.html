@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AT-SUIT screen</title>
+<title>AT-SUITE screen</title>
 <link rel="icon" href="/static/brand/favicon.ico" sizes="any"><link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png"><meta name="theme-color" content="#0B1020">
 <link rel="stylesheet" href="/static/app.css">
 <style>
@@ -37,8 +37,8 @@
 
 <div id="enrol" class="center hidden" style="position:fixed;inset:0;background:var(--bg);z-index:8;cursor:default">
   <form class="panel card" id="enrolForm" method="post">
-    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUIT">
-    <h1>Add this screen to AT-SUIT</h1>
+    <img class="brand-stacked" src="/static/brand/stacked-320.png" alt="AT-SUITE">
+    <h1>Add this screen to AT-SUITE</h1>
     <p class="muted">You only do this once. An admin finds the enrolment code in Laptops & screens → Add laptops.</p>
     <label>Screen name</label><input name="name" required placeholder="e.g. HD-STAGE-1">
     <label>Enrolment code</label><input name="code" required placeholder="ABCD-1234-EF56" style="text-transform:uppercase">
@@ -48,7 +48,7 @@
 </div>
 
 <div id="pair" class="hidden">
-  <img src="/static/brand/wordmark-96.png" alt="AT-SUIT">
+  <img src="/static/brand/wordmark-96.png" alt="AT-SUITE">
   <p class="lead">Add this screen</p>
   <div class="code" id="pairCode">··· ···</div>
   <p class="how">On your tech laptop, open <b>Add a screen</b> next to the timer, type this code and pick what to show.</p>
@@ -166,7 +166,7 @@
 
   function openPicker(cancellable) {
     pickRoom = me.node.room_id; pickView = me.node.screen_view || "hcc";
-    $("pickSub").textContent = `${me.node.name}. You can also change this from the AT-SUIT dashboard (Timers → Screens).`;
+    $("pickSub").textContent = `${me.node.name}. You can also change this from the AT-SUITE dashboard (Timers → Screens).`;
     $("pickCancel").classList.toggle("hidden", !cancellable);
     const draw = () => {
       $("pickRooms").innerHTML = me.rooms.map((r) => `<button data-r="${r.id}" class="${r.id === pickRoom ? "on" : ""}">${esc(r.name)}</button>`).join("") || '<p class="muted">No rooms yet.</p>';
@@ -226,7 +226,7 @@
         $("ident").querySelector("span").textContent = me.room ? me.room.name : "";
         $("ident").classList.remove("hidden");
         setTimeout(() => $("ident").classList.add("hidden"), 10000);
-      } else if (c.kind === "message") toast(c.payload.text || "Message from AT-SUIT");
+      } else if (c.kind === "message") toast(c.payload.text || "Message from AT-SUITE");
       await api(`/api/nodes/commands/${c.id}/ack`, { method: "POST", headers: hdr(), body: { ok: true } }).catch(() => {});
     }
   }
