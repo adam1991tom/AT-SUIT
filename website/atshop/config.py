@@ -58,7 +58,7 @@ class Settings:
     hosting_ssh: str = ""  # user@host for ssh mode
     hosting_ssh_key: str = ""
     hosting_atcloud: str = "atcloud"
-    releases_repo: str = "adam1991tom/AT-SUIT-releases"
+    releases_repo: str = "adam1991tom/AT-SUITE-releases"
     catalogue_file: Path = HERE.parent / "catalogue.toml"
 
     @property
@@ -127,7 +127,7 @@ def load() -> Settings:
         hosting_ssh=e("HOSTING_SSH", ""),
         hosting_ssh_key=e("HOSTING_SSH_KEY", ""),
         hosting_atcloud=e("HOSTING_ATCLOUD", "atcloud"),
-        releases_repo=e("RELEASES_REPO", "adam1991tom/AT-SUIT-releases"),
+        releases_repo=e("RELEASES_REPO", "adam1991tom/AT-SUITE-releases"),
     )
     if e("CATALOGUE_FILE"):
         s.catalogue_file = Path(e("CATALOGUE_FILE"))

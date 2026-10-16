@@ -14,13 +14,13 @@ Run AT SUITE on a server at your venue. It works with no internet at all, licenc
 On the server, as root:
 
 ```sh
-curl -fsSL https://github.com/adam1991tom/AT-SUIT-releases/releases/latest/download/get.sh | sudo bash
+curl -fsSL https://github.com/adam1991tom/AT-SUITE-releases/releases/latest/download/get.sh | sudo bash
 ```
 
 It installs Docker if it's missing, puts AT SUITE in `/opt/at-suit` and starts it on port 8080. To pick another port or add https (browsers need https before they'll share a microphone; the Windows app doesn't):
 
 ```sh
-curl -fsSL https://github.com/adam1991tom/AT-SUIT-releases/releases/latest/download/get.sh | sudo bash -s -- --port 8180 --tls
+curl -fsSL https://github.com/adam1991tom/AT-SUITE-releases/releases/latest/download/get.sh | sudo bash -s -- --port 8180 --tls
 ```
 
 ## First visit
