@@ -1,7 +1,7 @@
 """Updates from GitHub releases.
 
 The server checks the newest release on GitHub every few hours. What happens then is set in
-Settings → Updates:
+Settings → Updates (where they come from is fixed here, not a setting):
   auto    install it by itself, but never while a show is live (a timer running or paused);
   notify  only say a new version is out; an admin presses Install now;
   off     don't check.
@@ -43,7 +43,6 @@ MODES = ("auto", "notify", "off")
 CHECK_EVERY_S = 30 * 60  # a new release shows within half an hour; GitHub allows 60 calls an hour without a token
 FLAG = "update-now"  # in the data folder: the host's atsuit-update.path starts update.sh as soon as it appears
 HOST_SEEN_S = 30 * 60  # the host updater runs every few minutes; older than this, it isn't set up
-REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 TAG_RE = re.compile(r"^[A-Za-z0-9_.-]{1,40}$")
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_]{1,255}$")
 API = "https://api.github.com"
@@ -63,10 +62,8 @@ def newer(a: str | None, b: str | None) -> bool:
 def conf(c) -> dict:
     s = db.get_setting(c, "updates", {}) or {}
     mode = s.get("mode") if s.get("mode") in MODES else "auto"
-    repo = s.get("repo") if REPO_RE.match(str(s.get("repo") or "")) else REPO_DEFAULT
-    repo = next((new for new, old in RENAMED.items() if repo.lower() == old.lower()), repo)  # saved before the rename
-    if repo.lower() == REPO_SOURCE.lower() and not s.get("token_enc"):
-        repo = REPO_DEFAULT  # saved before releases moved; the source repository may be private now
+    # Always AT SUITE's own releases: a repository saved by an older version is ignored.
+    repo = REPO_DEFAULT
     token = ""
     if s.get("token_enc"):
         try:
@@ -76,17 +73,13 @@ def conf(c) -> dict:
     return {"mode": mode, "repo": repo, "token": token}
 
 
-def save_conf(c, mode: str | None = None, repo: str | None = None, token: str | None = None) -> None:
+def save_conf(c, mode: str | None = None, token: str | None = None) -> None:
     s = db.get_setting(c, "updates", {}) or {}
     if mode is not None:
         if mode not in MODES:
             raise ValueError("Pick auto, notify or off")
         s["mode"] = mode
-    if repo is not None:
-        repo = repo.strip().removeprefix("https://github.com/").strip("/")
-        if not REPO_RE.match(repo):
-            raise ValueError("The repository is owner/name, for example adam1991tom/AT-SUITE-releases")
-        s["repo"] = repo
+    s.pop("repo", None)  # older versions let admins set it
     if token is not None:
         token = token.strip()
         if token and not TOKEN_RE.match(token):
@@ -120,7 +113,7 @@ def status(c) -> dict:
     latest = st.get("latest") or {}
     seen = st.get("host_seen_at") or 0
     return {
-        "current": VERSION, "mode": cf["mode"], "repo": cf["repo"], "has_token": bool(cf["token"]),
+        "current": VERSION, "mode": cf["mode"], "has_token": bool(cf["token"]),
         "latest": latest or None, "available": bool(latest) and newer(latest.get("version"), VERSION),
         "ahead": bool(latest) and newer(VERSION, latest.get("version")),
         "checked_at": st.get("checked_at"), "error": st.get("error") or "",
@@ -128,6 +121,7 @@ def status(c) -> dict:
         "last_result": st.get("last_result") or None,
         "host_updater": bool(seen) and time.time() - seen < HOST_SEEN_S, "host_seen_at": seen or None,
         "live": live_rooms(c), "app": app_release().get("version"), "app_error": st.get("app_error") or "",
+        "helper": config.cfg.role != "main",
     }
 
 
@@ -179,11 +173,12 @@ def poke(version: str) -> None:
         print("updates: can't start the host updater now:", exc)
 
 
-def check() -> dict:
-    """Ask GitHub for the newest release and remember it; then make sure the laptops' app matches."""
+def check(manual: bool = False) -> dict:
+    """Ask GitHub for the newest release and remember it; then make sure the laptops' app matches.
+    manual: an admin pressed Check now, which checks even when updates are off."""
     with db.ro() as c:
         cf = conf(c)
-    if config.cfg.role != "main" or cf["mode"] == "off":
+    if config.cfg.role != "main" or (cf["mode"] == "off" and not manual):
         with db.ro() as c:
             return status(c)
     try:
@@ -269,7 +264,6 @@ router = APIRouter()
 
 class UpdatesIn(BaseModel):
     mode: str | None = None
-    repo: str | None = None
     token: str | None = None  # "" removes it
 
 
@@ -283,24 +277,24 @@ def get_updates(p: Principal = Depends(require_admin)):
 def put_updates(body: UpdatesIn, p: Principal = Depends(require_admin)):
     with db.tx() as c:
         try:
-            save_conf(c, body.mode, body.repo, body.token)
+            save_conf(c, body.mode, body.token)
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from None
-        changed = [k for k in ("mode", "repo") if getattr(body, k) is not None] + (["token"] if body.token is not None else [])
+        changed = (["mode"] if body.mode is not None else []) + (["token"] if body.token is not None else [])
         db.audit(c, p.name, "updates.settings", ", ".join(changed))
         return status(c)
 
 
 @router.post("/api/admin/updates/check")
 async def check_updates(p: Principal = Depends(require_admin)):
-    return await asyncio.to_thread(check)
+    return await asyncio.to_thread(check, True)
 
 
 @router.post("/api/admin/updates/install")
 def install_now(p: Principal = Depends(require_admin)):
     """Install the newest release now, whatever the mode, but still not while a show is on.
     It asks GitHub first, so a release published a minute ago counts."""
-    check()
+    check(True)
     with db.tx() as c:
         st = status(c)
         if not st["available"]:

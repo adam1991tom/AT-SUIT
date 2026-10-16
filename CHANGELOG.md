@@ -5,6 +5,14 @@ Versions follow [semantic versioning](https://semver.org). To release, set
 publish that release on GitHub); the release workflow publishes the image and
 the GitHub release.
 
+## 1.10.3
+
+Check now in Settings → Updates says what it found.
+
+- Check now shows its answer next to the button: up to date, a new version is out, or why it couldn't check. Before, a check that changed nothing on the page looked like the button did nothing, and an error stayed hidden once the server had seen a release.
+- Check now asks GitHub even when updates are set to Off. Off still stops the checks the server does by itself.
+- The GitHub repository field is gone. Updates always come from AT SUITE's own releases, and a repository saved by an older version is ignored. The GitHub token stays.
+
 ## 1.10.2
 
 AT SUITE meets WCAG 2.2 level AA: the console, the tech workspace, the stage and caption screens, the guides and the laptop app's own windows. An automated check (axe-core) of 35 pages in all six looks went from 570 failures to none.
