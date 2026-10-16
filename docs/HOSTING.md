@@ -95,7 +95,7 @@ Start a second server, or a dedicated one for a big client, when it fills up.
 
 ```bash
 atcloud new grandhall --name "Grand Hall" --licence grandhall-key.txt
-# → prints https://grandhall.atsuit.app/setup?code=…  Send that link to the customer.
+# → prints https://grandhall.atsuit.app/setup#code=…  Send that link to the customer.
 atcloud list                       # every venue: running, version, set up, licence, laptops
 atcloud info grandhall
 atcloud licence grandhall new-key.txt   # renewals and plan changes

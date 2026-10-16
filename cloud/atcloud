@@ -180,7 +180,7 @@ def address(c: dict, slug: str) -> str:
 
 
 def setup_link(c: dict, t: dict) -> str:
-    return f"{address(c, t['slug'])}/setup?code={t['setup_code']}"
+    return f"{address(c, t['slug'])}/setup#code={t['setup_code']}"
 
 
 def image(c: dict, version: str) -> str:

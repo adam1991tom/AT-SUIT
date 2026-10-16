@@ -50,10 +50,10 @@ M="$ATCLOUD_ROOT/models/sherpa-onnx-streaming-zipformer-en-2023-06-21"
 mkdir -p "$M" && echo "<blk> 0" > "$M/tokens.txt"  # a stand-in for the shared speech model
 "$AT" new alpha --name "Alpha Arena" --no-pull > "$ATCLOUD_ROOT/alpha.txt"
 "$AT" new beta --name "Beta Hall" --no-pull > "$ATCLOUD_ROOT/beta.txt"
-LINK_A=$(grep -o 'https://[^ ]*setup?code=[A-Za-z0-9_-]*' "$ATCLOUD_ROOT/alpha.txt")
+LINK_A=$(grep -o 'https://[^ ]*setup#code=[A-Za-z0-9_-]*' "$ATCLOUD_ROOT/alpha.txt")
 CODE_A=${LINK_A##*code=}
-CODE_B=$(grep -o 'setup?code=[A-Za-z0-9_-]*' "$ATCLOUD_ROOT/beta.txt"); CODE_B=${CODE_B##*code=}
-is "$LINK_A" "https://alpha.$D:$PORT/setup?code=$CODE_A" "setup link printed"
+CODE_B=$(grep -o 'setup#code=[A-Za-z0-9_-]*' "$ATCLOUD_ROOT/beta.txt"); CODE_B=${CODE_B##*code=}
+is "$LINK_A" "https://alpha.$D:$PORT/setup#code=$CODE_A" "setup link printed"
 has "$(get alpha /api/health)" '"setup_complete":false' "alpha answers at its address"
 has "$(get beta /api/health)" '"ok":true' "beta answers at its address"
 is "$("$AT" link alpha)" "$LINK_A" "atcloud link prints the same link"
