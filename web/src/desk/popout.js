@@ -1,5 +1,5 @@
 // Pop-outs: a pane moves into a window of its own (a real window in the
-// AT-SUIT app, a browser window elsewhere) that can go on another monitor.
+// AT-SUITE app, a browser window elsewhere) that can go on another monitor.
 // The pane keeps running exactly as it was; closing the window, or "Back to
 // the workspace", puts it back where it came from.
 import { desk, els, open } from "./store.svelte.js";
@@ -33,7 +33,7 @@ export function popout(id) {
   doc.open();
   doc.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body class="dk-popbody"></body></html>');
   doc.close();
-  doc.title = `${p.title} · AT-SUIT`;
+  doc.title = `${p.title} · AT-SUITE`;
   copyLooks(doc);
   const bar = doc.createElement("div");
   bar.className = "dk-popbar";

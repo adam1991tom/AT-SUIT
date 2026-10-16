@@ -1,6 +1,6 @@
 # Network and IT
 
-## Laptop can't reach the AT-SUIT server
+## Laptop can't reach the AT-SUITE server
 Keywords: can't connect, server unreachable, offline, network down, no connection, lost connection
 1. Check the laptop is on the venue's production network (cable plugged in, or the right Wi-Fi), not guest Wi-Fi.
 2. Open the server's address in a browser. If it doesn't load, check the network switch, the cable, and that the server is on.
@@ -9,7 +9,7 @@ Keywords: can't connect, server unreachable, offline, network down, no connectio
 
 ## Wi-Fi is slow or keeps dropping
 Keywords: wifi, wireless, slow, dropping, congestion, access point, signal
-1. Use a cable for anything important: presenter laptops, streams, AT-SUIT Main PCs.
+1. Use a cable for anything important: presenter laptops, streams, AT-SUITE Main PCs.
 2. A full room overloads Wi-Fi: keep production off the guest network.
 3. Move closer to the access point, or use the 5 GHz network.
 
@@ -28,5 +28,5 @@ Keywords: windows update, restart, reboot, updating, forced restart
 Keywords: slow, lagging, frozen, freezing, high cpu, memory, hot, fan noise
 1. Close apps you don't need, especially browsers with many tabs.
 2. Plug in the charger and set the power mode to best performance.
-3. The AT-SUIT console shows each laptop's CPU and memory under Laptops & screens → Details.
+3. The AT-SUITE console shows each laptop's CPU and memory under Laptops & screens → Details.
 4. Restart the laptop in a break if it stays slow.

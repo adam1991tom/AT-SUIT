@@ -1,4 +1,4 @@
-# AT-SUIT server image.
+# AT-SUITE server image.
 #   docker build -t atsuit .                       (with speech recognition)
 #   docker build --build-arg WITH_ASR=0 -t atsuit .   (smaller, no captions)
 FROM python:3.12-slim
@@ -28,7 +28,7 @@ COPY node-agent/atsuit_node.py ./atsuit/agent/atsuit_node.py
 COPY screen-agent/atsuit_screen.py screen-agent/install.sh ./atsuit/agent/screen/
 COPY room-sync/atsuit_room_sync.py ./atsuit/agent/atsuit_room_sync.py
 RUN mkdir -p /data && chown -R atsuit:atsuit /data /app
-LABEL org.opencontainers.image.title="AT-SUIT" org.opencontainers.image.version="${VERSION}" org.opencontainers.image.revision="${COMMIT}"
+LABEL org.opencontainers.image.title="AT-SUITE" org.opencontainers.image.version="${VERSION}" org.opencontainers.image.revision="${COMMIT}"
 
 USER atsuit
 VOLUME ["/data"]

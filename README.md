@@ -1,6 +1,6 @@
-![AT-SUIT](branding/social/readme-banner.png)
+![AT-SUITE](branding/social/readme-banner.png)
 
-# AT-SUIT
+# AT-SUITE
 
 One server app for running live events: crew chat, room timers, live
 captions, node (laptop and kiosk) management, overlay control and the venue
@@ -10,7 +10,7 @@ kiosks, and AT-LiveCaption's speech engine.
 
 - **The server does the heavy lifting.** Speech recognition, storage, chat,
   timers and fleet control all run in one Docker container.
-- **Every laptop is a node.** Tech laptops run **AT-SUIT Node**, a Windows app
+- **Every laptop is a node.** Tech laptops run **AT-SUITE Node**, a Windows app
   enrolled once, with their room's chat, the room timer, live captions (their
   mic is the audio source), help requests and the room's links. Each day the
   tech types their name, picks the room and says whether it's the main PC
@@ -26,13 +26,13 @@ One command on a fresh Linux server (installs Docker if needed). It installs the
 newest release from the public releases repository and runs the published image:
 
 ```bash
-curl -fsSL https://github.com/adam1991tom/AT-SUIT-releases/releases/latest/download/get.sh | sudo bash
+curl -fsSL https://github.com/adam1991tom/AT-SUITE-releases/releases/latest/download/get.sh | sudo bash
 ```
 
 Or from a clone of the source (for development; the source repository needs access):
 
 ```bash
-git clone https://github.com/adam1991tom/AT-SUIT.git && cd AT-SUIT
+git clone https://github.com/adam1991tom/AT-SUITE.git && cd AT-SUITE
 ./install.sh                 # http on port 8080
 ./install.sh --port 8180     # another port, e.g. next to the old apps
 ./install.sh --tls           # also https on 8443, so browsers allow the microphone
@@ -68,7 +68,7 @@ backups and updates, and [docs/ADMIN.md](docs/ADMIN.md) for day-to-day setup.
 ```
 server/atsuit/        FastAPI app (modules/, static/ web UI, asr.py speech engine)
 server/tests/         pytest suite (set ATSUIT_TEST_MODELS to include the real speech model)
-node-app/             AT-SUIT Node, the Windows tech workspace app (Electron; npm test runs it against a live server)
+node-app/             AT-SUITE Node, the Windows tech workspace app (Electron; npm test runs it against a live server)
 node-agent/           optional Python agent for laptops: heartbeat, commands, mic streaming
 screen-agent/         Linux screen agent and install.sh: kiosk Chromium, HDMI rule, self-update
 branding/             logo, icons, brand guide and make_brand.py
@@ -80,19 +80,19 @@ cloud/                hosting AT-SUIT for many venues on one cloud server (guide
 
 ## Releases
 
-`ATSUIT` (the default branch) is always releasable and publishes
+`ATSUITE` (the default branch) is always releasable and publishes
 `ghcr.io/adam1991tom/at-suit:edge`. To release, bump `VERSION`, add a section
 to [CHANGELOG.md](CHANGELOG.md), merge, then push a tag `vX.Y.Z` or publish a
-release `vX.Y.Z` from the `ATSUIT` branch on GitHub. CI then publishes `:X.Y.Z` and `:latest` and
+release `vX.Y.Z` from the `ATSUITE` branch on GitHub. CI then publishes `:X.Y.Z` and `:latest` and
 creates the GitHub release with the Windows app installer, the node agent and
 the install files attached. With the `RELEASES_TOKEN` secret set it also
-publishes the same release to the public `AT-SUIT-releases` repository, which
+publishes the same release to the public `AT-SUITE-releases` repository, which
 is where servers and laptops update from. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 
-AT-SUIT is proprietary (see [LICENSE](LICENSE)): using it needs a licence key
+AT-SUITE is proprietary (see [LICENSE](LICENSE)): using it needs a licence key
 from AT NET, and nothing works until one is installed. Keys are checked offline
 and carry the subscription's end date; there are warnings before it ends and 14
 days of grace after, and it never locks during a show. Issuing keys and the

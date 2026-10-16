@@ -142,6 +142,12 @@ def test_built_in_logo_and_brand_colour(admin):
     with db.connect() as c:
         db.set_setting(c, "branding", {**db.get_setting(c, "branding", {}), "accent": "#4f7cff"})
     assert admin.get("/api/public/branding").json()["accent"] == "#FF7A1A"
+    # and one set up before the rename still stores AT-SUIT: it shows the new name, a name of its own stays
+    assert admin.get("/api/public/branding").json()["product_name"] == "AT-SUITE"
+    for stored, shown in (("AT-SUIT", "AT-SUITE"), ("AT SUIT", "AT-SUITE"), ("Venue Control", "Venue Control")):
+        with db.connect() as c:
+            db.set_setting(c, "branding", {**db.get_setting(c, "branding", {}), "product_name": stored})
+        assert admin.get("/api/public/branding").json()["product_name"] == shown
     for page in ("/", "/node", "/setup"):
         r = admin.get(page)
         if r.status_code == 200 and "text/html" in r.headers.get("content-type", ""):

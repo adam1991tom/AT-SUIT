@@ -1,4 +1,4 @@
-// The AT-SUIT status bar for imported (uploaded) views, like the one on the
+// The AT-SUITE status bar for imported (uploaded) views, like the one on the
 // built-in views: time now, timer state, cue, started, elapsed, expected end,
 // and the room name. Served with every imported view next to ontime-shim.js;
 // it only draws when switched on for the view in Timers, or with

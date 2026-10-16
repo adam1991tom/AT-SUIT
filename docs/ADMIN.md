@@ -1,4 +1,4 @@
-<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUIT" width="200">
+<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUITE" width="200">
 
 # Setting up a venue
 
@@ -35,7 +35,7 @@ the right page.
    `install.sh` and the agent), *Room sync* for presentation laptops (when
    Presenters is on) and *Older agents* (the Python node agent and the
    Device Suite kiosk agent). Install
-   **AT-SUIT Node** on each tech laptop and enter the server address
+   **AT-SUITE Node** on each tech laptop and enter the server address
    (`http://SERVER:PORT`), the code and the laptop's name. That is a one-off;
    the laptop stays enrolled. Each day the tech types their name, picks the
    room and chooses **Main PC** or **Backup PC**; no password, the laptop's
@@ -102,7 +102,7 @@ and the rest) is a window, like on Windows:
   Let go anywhere else and it floats. Drag the bars between windows to resize.
 - Each window can be minimised, maximised (or double-click its title), closed,
   or **popped out** (⧉) into a window of its own for a second monitor. In the
-  AT-SUIT app a popped-out window can stay on top of everything.
+  AT-SUITE app a popped-out window can stay on top of everything.
 - The taskbar along the bottom has a button per window. **Layouts** saves the
   arrangement under a name (for example Plenary or Captions only) to switch
   between, and puts everything back where it started.
@@ -177,7 +177,7 @@ with Identify, Restart (the browser), Update and Reboot buttons.
 
 ## Updating laptops
 
-**AT-SUIT Node (Windows app).** Each release on GitHub has
+**AT-SUITE Node (Windows app).** Each release on GitHub has
 `AT-SUIT-Node-Setup-X.Y.Z.exe`, its `.blockmap` and `latest.yml`. Upload all
 three in Laptops & screens → Add laptops → Windows app release. Each laptop
 checks your server as its app starts and every few hours. When the app starts
@@ -188,19 +188,19 @@ away when the tech presses **Update now** in This laptop or the tray menu;
 never by itself during a show. The app's version shows in the workspace top
 bar, in This laptop and in the tray menu. For a silent roll-out, put
 `{"server": "http://SERVER:PORT", "enrol_code": "CODE"}` in
-`C:\ProgramData\AT-SUIT\node.json` and run the installer with `/S`; the
+`C:\ProgramData\AT-SUITE\node.json` and run the installer with `/S`; the
 app enrols itself under the PC's name on first start. The installer isn't
 code-signed yet, so Windows SmartScreen asks once ("More info → Run anyway").
 
 **Node agent (Python).**
 
 Laptops running the node agent update themselves: when the server has a newer
-agent (a new AT-SUIT release, or one uploaded in Laptops & screens → Add laptops), each
+agent (a new AT-SUITE release, or one uploaded in Laptops & screens → Add laptops), each
 agent downloads it on its next heartbeat, checks it and restarts. Start an
 agent with `--no-self-update` to pin it.
 
 **Screen agent (Linux).** Same: screens update themselves from the server
-on their next check-in after an AT-SUIT update. The Update button in
+on their next check-in after an AT-SUITE update. The Update button in
 Timers → Screens makes one check now.
 
 ## Presenters
@@ -220,7 +220,7 @@ Presenters in the console is the AT-Presenter workflow.
 python atsuit_room_sync.py --server http://10.100.70.100:8180 --code ABCD-2345
 ```
 
-The first run saves the settings, so after that `python atsuit_room_sync.py` is enough (put it in the laptop's startup). Download the tool from the link in Presenters → Settings. For the https address with AT-SUIT's own certificate, add `--cafile` with that certificate. Files are stored on the server in `/data/presenter-files`; set `ATSUIT_PRESENTER_FILES` to keep them on a NAS mount instead.
+The first run saves the settings, so after that `python atsuit_room_sync.py` is enough (put it in the laptop's startup). Download the tool from the link in Presenters → Settings. For the https address with AT-SUITE's own certificate, add `--cafile` with that certificate. Files are stored on the server in `/data/presenter-files`; set `ATSUIT_PRESENTER_FILES` to keep them on a NAS mount instead.
 
 ## Companion
 
@@ -244,9 +244,9 @@ keys). Room 3 here; the room number is in its stage screen address
 
 ## Licences (for resellers)
 
-AT-SUIT does nothing until a valid licence key is installed (in setup, or
+AT-SUITE does nothing until a valid licence key is installed (in setup, or
 **Licence** afterwards). Keys are checked offline against the vendor public
-key in `server/atsuit/vendor_pubkey.txt`, the only key AT-SUIT trusts. The
+key in `server/atsuit/vendor_pubkey.txt`, the only key AT-SUITE trusts. The
 private half is never in the repo and never on a venue server: keep it
 offline and backed up, because losing it means no new keys for existing
 customers.

@@ -126,7 +126,7 @@
     const u = await api("/api/admin/updates").catch(() => null);
     link.querySelector(".upd-pill")?.remove();
     if (u && u.available && !u.requested && u.mode !== "auto") {
-      link.insertAdjacentHTML("beforeend", ` <span class="unread upd-pill" title="AT-SUIT ${esc(u.latest.version)} is out">update</span>`);
+      link.insertAdjacentHTML("beforeend", ` <span class="unread upd-pill" title="AT-SUITE ${esc(u.latest.version)} is out">update</span>`);
       link.href = "#/settings/updates";
     }
   }
@@ -155,7 +155,7 @@
     chat = null; view = null;
     if (boot.modules.comms && !locked) refreshUnread();
     const n = boot.licence_notice;
-    const banner = locked ? '<div class="banner bad">AT-SUIT isn\'t licensed, so everything but this page is stopped. Paste the licence key below; nothing has been deleted.</div>'
+    const banner = locked ? '<div class="banner bad">AT-SUITE isn\'t licensed, so everything but this page is stopped. Paste the licence key below; nothing has been deleted.</div>'
       : n ? `<div class="banner${n.level === "bad" ? " bad" : ""}">${esc(n.text)}${n.admin && name !== "licence" ? ' <a href="#/licence">Open Licence</a>' : ""}</div>` : "";
     main.innerHTML = banner + '<div id="view"></div>';
     const el = document.getElementById("view");
@@ -397,7 +397,7 @@
             <div class="small" style="margin-top:.3rem">${isAdmin ? `<button class="small${bdngView ? "" : " primary"}" data-impbdng>${bdngView ? "Import again" : "Import BDNG view"}</button> ` : ""}<a href="/api/timers-views/samples/bdng.html" download>Download bdng.html</a></div></td>
             <td>${logoCell("bdng", "top", bdng.logos.top, "Top logo")}${logoCell("bdng", "bottom", bdng.logos.bottom, "Bottom logo")}
             <div class="row small" style="gap:.4rem;margin-top:.3rem"><span style="min-width:6.5rem">Bottom text</span><input data-btext value="${esc(bdng.options.bottom_text || "")}" ${isAdmin ? "" : "disabled"} class="grow">${isAdmin ? '<button class="small" data-savetext>Save</button>' : ""}</div></td></tr></table>
-        <p class="small muted">BDNG is the client's view exactly as it was built in Ontime (the original HTML, run unchanged on AT-SUIT's Ontime feed). It is an uploaded view like the ones below; the logos and bottom text here are read by it.</p>
+        <p class="small muted">BDNG is the client's view exactly as it was built in Ontime (the original HTML, run unchanged on AT-SUITE's Ontime feed). It is an uploaded view like the ones below; the logos and bottom text here are read by it.</p>
         <h3 style="margin-top:1rem">Your own views</h3>
         <table>${designs.map((d) => `<tr><td><b>${esc(d.name)}</b><div class="small">${links(d.id)}</div></td>
           <td>${isAdmin ? `<button class="small" data-edit="${esc(d.slug)}">Edit</button> <button class="small danger" data-deldesign="${esc(d.slug)}">Remove</button>` : ""}</td></tr>`).join("") || '<tr><td class="muted small">None yet.</td></tr>'}</table>
@@ -413,7 +413,7 @@
           <div class="row" style="justify-content:flex-end;margin-top:.5rem"><button type="button" class="hidden" data-new>New view</button><button class="primary" data-bsave>Save view</button></div>
           <p class="small muted" style="margin:.3rem 0 0">Sizes are a share of the screen width. Saved views show in the screen picker and in Screens above.</p></form>` : ""}
         <h3 style="margin-top:1rem">Uploaded views</h3>
-        <p class="small muted">Custom views made for Ontime work as they are: upload the view's folder as a .zip (with index.html), or a single .html file. They get the room's live timer through Ontime's own websocket and data addresses. Status bar: an AT-SUIT strip over the view's bottom edge, off unless ticked.</p>
+        <p class="small muted">Custom views made for Ontime work as they are: upload the view's folder as a .zip (with index.html), or a single .html file. They get the room's live timer through Ontime's own websocket and data addresses. Status bar: an AT-SUITE strip over the view's bottom edge, off unless ticked.</p>
         <table>${custom.map((v) => `<tr><td><b>${esc(v.name)}</b></td><td class="small">${boot.rooms.slice(0, 4).map((r) => `<a target="_blank" href="/room/${r.id}/external/${esc(v.slug)}/">${esc(r.name)} ↗</a>`).join(" · ")}</td>
           <td class="small"><label class="row" style="margin:0;gap:.3rem"><input type="checkbox" data-sbar="${esc(v.id)}" style="width:auto" ${looks[v.id]?.options?.status_bar ? "checked" : ""} ${isAdmin ? "" : "disabled"}>Status bar</label></td>
           <td>${isAdmin ? `<button class="small danger" data-delview="${esc(v.slug)}">Remove</button>` : ""}</td></tr>`).join("") || '<tr><td class="muted small">No custom views yet.</td></tr>'}</table>
@@ -426,7 +426,7 @@
       box.querySelectorAll("[data-unlogo]").forEach((b) => b.onclick = () => guard(() => del(`/api/timers-views/look/${b.dataset.unlogo.split("/")[0]}/logo/${b.dataset.unlogo.split("/")[1]}`)).then(renderViews));
       box.querySelectorAll("[data-sbar]").forEach((i) => i.onchange = () => guard(() => put(`/api/timers-views/look/${encodeURIComponent(i.dataset.sbar)}`, { status_bar: i.checked })).then((r) => r && toast("Saved", "good")));
       const ib = box.querySelector("[data-impbdng]");
-      if (ib) ib.onclick = () => (!bdngView || confirm("Replace the imported BDNG view with the one shipped with AT-SUIT?")) &&
+      if (ib) ib.onclick = () => (!bdngView || confirm("Replace the imported BDNG view with the one shipped with AT-SUITE?")) &&
         guard(() => post("/api/timers-views/samples/bdng/import")).then((r) => { if (r) { toast("BDNG view imported", "good"); timers(el); } });
       const st = box.querySelector("[data-savetext]");
       if (st) st.onclick = () => guard(() => put("/api/timers-views/look/bdng", { bottom_text: box.querySelector("[data-btext]").value })).then(() => toast("Saved", "good"));
@@ -569,7 +569,7 @@
       healthBox.innerHTML = `<div class="panel" style="margin-top:1rem"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(n.name)} <span class="dot ${n.online ? "on" : "off"}"></span></h2><button class="small" data-close>Close</button></div>
         <div class="grid" style="margin-top:.6rem">
           <div><h3>CPU ${s.cpu ?? "–"}%</h3>${spark(h.history, "cpu")}<p class="small muted">${esc(s.cpu_model || "")}${s.cores ? ` · ${s.cores} cores` : ""}</p></div>
-          <div><h3>Memory ${mem ?? "–"}%</h3>${spark(h.history, "mem")}<p class="small muted">${bytes(s.mem_total - s.mem_free)} of ${bytes(s.mem_total)} · AT-SUIT uses ${bytes(s.app_mem)}</p></div>
+          <div><h3>Memory ${mem ?? "–"}%</h3>${spark(h.history, "mem")}<p class="small muted">${bytes(s.mem_total - s.mem_free)} of ${bytes(s.mem_total)} · AT-SUITE uses ${bytes(s.app_mem)}</p></div>
           <div>${kv([["Disk", s.disk ? `${meter(diskUsed, s.disk.drive)} ${bytes(s.disk.free)} free of ${bytes(s.disk.total)}` : "–"],
             ["Network", s.online === false ? '<span class="bad">offline</span>' : (s.net || []).map((x) => `${esc(x.ip)} <span class="muted small">${esc(x.name)}</span>`).join("<br>") || "–"],
             ["Screens", (s.displays || []).map((d) => `${d.w}×${d.h}${d.primary ? " (main)" : ""}`).join(", ") || "–"],
@@ -671,7 +671,7 @@
     const s = await api("/api/admin/settings"), saved = { ...s.branding.appearance };
     let cur = { ...saved };
     const THEMES = [
-      ["dark", "Dark", "The AT-SUIT look: dark and calm for the control room.", ["#0d1117", "#151b23", "#3d444d", "#f0f6fc"]],
+      ["dark", "Dark", "The AT-SUITE look: dark and calm for the control room.", ["#0d1117", "#151b23", "#3d444d", "#f0f6fc"]],
       ["light", "Light", "Bright and clear for the office or a sunny foyer.", ["#f6f8fa", "#ffffff", "#d1d9e0", "#1f2328"]],
       ["auto", "Match the laptop", "Light or dark, as each laptop's Windows or Mac is set.", ["#0d1117", "#ffffff", "#3d444d", "#59636e"]],
       ["modern", "Modern", "Soft, rounded and roomy, with gentle shadows.", ["#0f1115", "#181b22", "#20242d", "#eef0f5"]],
@@ -680,7 +680,7 @@
     const OPTS = {
       density: [["compact", "Compact"], ["normal", "Normal"], ["roomy", "Roomy"]],
       corners: [["square", "Square"], ["rounded", "Rounded"], ["round", "Round"]],
-      font: [["system", "System"], ["brand", "AT-SUIT (Saira)"], ["rounded", "Rounded"], ["mono", "Mono"]],
+      font: [["system", "System"], ["brand", "AT-SUITE (Saira)"], ["rounded", "Rounded"], ["mono", "Mono"]],
       motion: [["on", "On"], ["off", "Off (no flashing or animation)"]],
     };
     const accent = s.branding.accent || "#FF7A1A";
@@ -737,7 +737,7 @@
         u.live.length && ["Show on", `<span class="pill warn">waiting</span> A timer is running or paused in ${esc(u.live.join(", "))}. Nothing installs until it's stopped.`],
         u.requested && ["Install now", `<span class="pill warn">asked</span> ${esc(u.requested)} is installing now${u.live.length ? `, once the show in ${esc(u.live.join(", "))} is over` : ""}. The server restarts by itself in a minute or two. <button class="small" id="updCancel">Cancel</button>`]])}
         <div class="row" style="margin-top:.8rem"><button id="updCheck">Check now</button>${u.available && !u.requested ? `<button class="primary" id="updInstall">Install ${esc(L.version)} now</button>` : ""}</div>
-        ${u.host_updater ? "" : `<p class="small" style="color:var(--warn)">This server's automatic updater hasn't been in touch${u.host_seen_at ? ` since ${when(new Date(u.host_seen_at * 1000).toISOString())}` : ""}. Install now and Install by itself need it: on the server, run <code>sudo ./install.sh --updater</code> in the AT-SUIT folder once.</p>`}
+        ${u.host_updater ? "" : `<p class="small" style="color:var(--warn)">This server's automatic updater hasn't been in touch${u.host_seen_at ? ` since ${when(new Date(u.host_seen_at * 1000).toISOString())}` : ""}. Install now and Install by itself need it: on the server, run <code>sudo ./install.sh --updater</code> in the AT-SUITE folder once.</p>`}
         ${L.notes && u.available ? `<details style="margin-top:.6rem"><summary>What's new in ${esc(L.version)}</summary><pre class="small" style="white-space:pre-wrap">${esc(L.notes)}</pre></details>` : ""}</div>
       <form class="panel" id="updForm"><h2>When to update</h2>
         ${MODES.map(([v, t, d]) => `<label class="opt" style="display:block;margin:.3rem 0"><input type="radio" name="mode" value="${v}" ${u.mode === v ? "checked" : ""} style="width:auto"> <b>${t}</b><div class="small muted" style="margin-left:1.6rem">${d}</div></label>`).join("")}
@@ -768,7 +768,7 @@
       <label>Venue notes</label><textarea name="venue_notes" rows="10" placeholder="One topic per paragraph, its first line a heading. E.g.&#10;Hall A projector&#10;Use input HDMI 2. The remote is on the lectern shelf.">${esc(s.venue_notes)}</textarea>
       <label><input type="checkbox" name="learn_help" ${s.learn_help ? "checked" : ""} style="width:auto"> Learn from how help calls were fixed</label>
       <label><input type="checkbox" name="builtin_guide" ${s.builtin_guide !== false ? "checked" : ""} style="width:auto"> Use the built-in tech guide</label>
-      <p class="small muted" style="margin:.1rem 0 .4rem">Show-day fixes for sound, video, presenters' laptops, hybrid events, lighting, safety and running the show, built into AT-SUIT. It works offline. Your own notes and fixes always come first.</p>
+      <p class="small muted" style="margin:.1rem 0 .4rem">Show-day fixes for sound, video, presenters' laptops, hybrid events, lighting, safety and running the show, built into AT-SUITE. It works offline. Your own notes and fixes always come first.</p>
       <h2 style="margin-top:1rem">Private AI model (optional)</h2>
       <p class="small muted" style="margin-top:0">With a model on your own network (<a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>), it writes a short answer from those notes. Without one it lists what worked before. Leave the address empty to use the one set in Presenters${d.presenter_ai_url ? ` (${esc(d.presenter_ai_url)})` : ""}.</p>
       <label>Ollama address</label><input name="ai_url" placeholder="http://192.168.1.50:11434" value="${esc(s.ai_url)}">
@@ -798,7 +798,7 @@
     a.innerHTML = `<div class="row" style="margin-bottom:1rem"><a class="btn primary" href="/api/admin/info?download=1">Download diagnostics</a><button id="copyInfo">Copy for a support ticket</button><button id="refresh">Refresh</button>
         <span class="muted small">No passwords, keys or tokens are included.</span></div>
       <form class="panel" id="bug" style="margin-bottom:1rem"><h2>Report a bug</h2>
-        <p class="small muted" style="margin-top:0">Opens an email to the AT-SUIT team (${esc(BUG_EMAIL)}) in your email app, with this version and server filled in. Nothing is sent until you press Send there.</p>
+        <p class="small muted" style="margin-top:0">Opens an email to the AT-SUITE team (${esc(BUG_EMAIL)}) in your email app, with this version and server filled in. Nothing is sent until you press Send there.</p>
         <label>What went wrong?</label><input name="what" maxlength="120" required placeholder="e.g. The stage timer froze in Hall A">
         <label>What were you doing, and what did you expect?</label><textarea name="steps" rows="4" maxlength="1500" placeholder="Steps, the room, the time it happened"></textarea>
         <div class="row" style="margin-top:.6rem;justify-content:flex-end"><button class="primary">Write the email</button></div></form>
@@ -833,7 +833,7 @@
       const body = `${bug.steps.value.trim() || "(no steps given)"}\n\n---\n${i.product} ${i.version} (build ${i.build.number}, ${i.build.commit}), schema ${i.schema}\n` +
         `Organisation: ${i.organisation || "-"}. Licence: ${i.licence.licensee || "-"}\nServer: ${sv.hostname}, ${sv.in_docker ? "Docker" : "Python"}, ${sv.os}\n` +
         `Nodes online: ${n.online ?? "-"} of ${n.total ?? "-"}. Captions: ${i.captions.state}\nBrowser: ${navigator.userAgent}\nReported by ${boot.me.name} at ${new Date().toString()}`;
-      location.href = `mailto:${BUG_EMAIL}?subject=${encodeURIComponent("AT-SUIT bug: " + bug.what.value.trim())}&body=${encodeURIComponent(body)}`;
+      location.href = `mailto:${BUG_EMAIL}?subject=${encodeURIComponent("AT-SUITE bug: " + bug.what.value.trim())}&body=${encodeURIComponent(body)}`;
     };
     a.querySelector("#copyInfo").onclick = () => copyText(`${i.product} ${i.version} (build ${i.build.number}, ${i.build.commit}) on ${sv.hostname}\nOpened as ${location.origin}\n\n${JSON.stringify(i, null, 2)}`, "Copied, paste it into the ticket");
   }
@@ -853,14 +853,14 @@
       <div class="panel"><h2>Limits</h2>${kv([["Sites", lim("sites")], ["Nodes", lim("nodes")], ["Rooms", `${l.usage.rooms} (no limit)`]])}
       <h2 style="margin-top:1rem">Check</h2>${kv([["Signature", l.installed ? (l.signature_valid ? '<span class="pill good">valid</span>' : '<span class="pill bad">not valid</span>') : "no key installed"],
         ["Vendor key", `<code>${esc(l.vendor_key_id || "none")}</code> <span class="muted small">${esc(l.vendor_key_source)}</span>`], ["Stored in", `<span class="small">${esc(l.stored_in)}</span>`]])}</div></div>
-      <div class="panel" style="margin-top:1rem"><h2>Licence key</h2>${l.raw ? `<textarea rows="3" readonly id="raw">${esc(l.raw)}</textarea><div class="row" style="margin-top:.4rem"><button class="small" id="copyKey">Copy key</button><button class="small danger" id="rmKey">Remove licence</button></div>` : '<p class="muted small">No key installed. AT-SUIT needs a licence key to work.</p>'}
+      <div class="panel" style="margin-top:1rem"><h2>Licence key</h2>${l.raw ? `<textarea rows="3" readonly id="raw">${esc(l.raw)}</textarea><div class="row" style="margin-top:.4rem"><button class="small" id="copyKey">Copy key</button><button class="small danger" id="rmKey">Remove licence</button></div>` : '<p class="muted small">No key installed. AT-SUITE needs a licence key to work.</p>'}
       <label style="margin-top:1rem">Install a new key</label><textarea id="key" rows="3" placeholder="Paste the key from your supplier"></textarea><div class="row" style="margin-top:.6rem"><button class="primary" id="save">Install licence</button></div></div>`;
     a.querySelector("#copyKey") && (a.querySelector("#copyKey").onclick = () => copyText(l.raw, "Key copied"));
     a.querySelector("#save").onclick = () => {
       if (!a.querySelector("#key").value.trim()) return toast("Paste the licence key first", "bad");
       guard(() => put("/api/admin/licence", { key: a.querySelector("#key").value })).then(() => location.reload());
     };
-    a.querySelector("#rmKey") && (a.querySelector("#rmKey").onclick = () => confirm("Remove this licence? AT-SUIT stops working (at the next quiet moment) until a key is added again.") &&
+    a.querySelector("#rmKey") && (a.querySelector("#rmKey").onclick = () => confirm("Remove this licence? AT-SUITE stops working (at the next quiet moment) until a key is added again.") &&
       guard(() => put("/api/admin/licence", { key: "", remove: true })).then(() => location.reload()));
   }
 
@@ -954,13 +954,13 @@
     const dl = (href, label, primary) => `<a class="btn${primary ? " primary" : ""}" href="${esc(href)}" download>${label}</a>`;
     const nodeJson = JSON.stringify({ server: origin, enrol_code: code }, null, 2);
     const sections = {
-      windows: `<h2>AT-SUIT Node for Windows</h2><p class="small muted">The tech workspace app for the laptops in each room: timer, cue list, chat, help calls and pop-ups.</p>
-        <div class="row" style="margin:.6rem 0">${winApp.ready ? dl(`/api/nodes/app/${encodeURIComponent(winApp.file)}`, `Download AT-SUIT Node ${esc(winApp.version)} (.exe)`, true) : '<span class="pill warn">No Windows app published yet</span> <span class="small muted">Upload one below.</span>'}</div>
+      windows: `<h2>AT-SUITE Node for Windows</h2><p class="small muted">The tech workspace app for the laptops in each room: timer, cue list, chat, help calls and pop-ups.</p>
+        <div class="row" style="margin:.6rem 0">${winApp.ready ? dl(`/api/nodes/app/${encodeURIComponent(winApp.file)}`, `Download AT-SUITE Node ${esc(winApp.version)} (.exe)`, true) : '<span class="pill warn">No Windows app published yet</span> <span class="small muted">Upload one below.</span>'}</div>
         <h3>Install</h3><ol class="small"><li>Download and run the installer on the laptop. It isn't code-signed yet, so Windows asks once: <b>More info → Run anyway</b>.</li>
           <li>Enter this server's address <code>${esc(origin)}</code>, the enrolment code above and a laptop name. This is a one-off; the laptop stays enrolled.</li>
           <li>Each day a tech types their name, picks the room and chooses <b>Main PC</b> or <b>Backup PC</b>. It resets every morning.</li>
           <li>Pop-ups only show on the backup PC. They're silent and sit on top of everything.</li></ol>
-        <h3>Silent install (IT)</h3><p class="small muted">Put this in <code>C:\\ProgramData\\AT-SUIT\\node.json</code>, then run the installer with <code>/S</code>. The app enrols under the PC's name on first start.</p>
+        <h3>Silent install (IT)</h3><p class="small muted">Put this in <code>C:\\ProgramData\\AT-SUITE\\node.json</code>, then run the installer with <code>/S</code>. The app enrols under the PC's name on first start.</p>
         <pre class="small">${esc(nodeJson)}</pre><div class="row"><button class="small" id="dlJson">Download node.json</button><button class="small" data-copy="${esc(nodeJson)}">Copy</button></div>
         <h3>Publish a new version</h3><p class="small muted">The .exe, .blockmap and latest.yml from the GitHub release. Laptops update as their app starts, when the tech presses Update now, or when the app closes; never by themselves during a show.</p>
         <div class="row"><input type="file" id="appFiles" class="grow" multiple accept=".exe,.blockmap,.yml"><button class="small" id="upApp">Publish app</button></div>
@@ -1000,7 +1000,7 @@
       if (!files.length) return toast("Choose the release files first (Setup .exe and latest.yml)", "bad");
       const fd = new FormData();
       files.forEach((f) => fd.append("files", f));
-      guard(() => api("/api/fleet/app", { method: "POST", form: fd })).then((r) => { toast(`AT-SUIT Node ${r.version} published`, "good"); admFleet(a, part); });
+      guard(() => api("/api/fleet/app", { method: "POST", form: fd })).then((r) => { toast(`AT-SUITE Node ${r.version} published`, "good"); admFleet(a, part); });
     });
     on("#upAgent", () => { const f = a.querySelector("#agentFile").files[0]; if (!f) return toast("Choose the agent file first", "bad"); guard(() => upload("/api/fleet/agent", f)).then((r) => { toast(`Agent ${r.version} published`, "good"); admFleet(a, part); }); });
     on("#upKey", () => { const f = a.querySelector("#key").files[0]; if (!f) return toast("Choose the key file first", "bad"); guard(() => upload("/api/fleet/ssh-key", f)).then(() => toast("Key saved", "good")); });
@@ -1069,7 +1069,7 @@
           <div class="seg" id="mode">${[["share", "Share", "Each room goes to whichever server is least busy, this one included."], ["offload", "Offload", "Helpers take the work first; this server only steps in when they are full or offline."]].map(([k, t, h]) => `<button data-mode="${k}" class="${d.mode === k ? "on" : ""}" title="${h}">${t}</button>`).join("")}</div>
           <p class="small muted" id="modehelp"></p></div>
         <div class="panel" style="margin-top:1rem"><h2>Add a helper</h2>
-          <p class="small muted">On the new machine run AT-SUIT with <code>ATSUIT_ROLE=helper</code>, open its page in a browser and type this server's address and the code below. Or start it with <code>ATSUIT_MAIN_URL</code> and <code>ATSUIT_JOIN_CODE</code> set. A code works once, for 15 minutes.</p>
+          <p class="small muted">On the new machine run AT-SUITE with <code>ATSUIT_ROLE=helper</code>, open its page in a browser and type this server's address and the code below. Or start it with <code>ATSUIT_MAIN_URL</code> and <code>ATSUIT_JOIN_CODE</code> set. A code works once, for 15 minutes.</p>
           <div class="row"><button class="primary" id="mk">Make a join code</button><span id="code" style="font:600 1.4rem var(--num-font);letter-spacing:.12em">${code ? esc(code) : ""}</span></div>
           <p class="small muted">This server's address: <code>${esc(location.origin)}</code></p></div>`;
       const help = { share: "Each room goes to whichever server is least busy, this one included.", offload: "Helpers take the work first; this server only steps in when they are full or offline." };
@@ -1107,7 +1107,7 @@
     const last = log.find((l) => l.action === "backup.download");
     a.innerHTML = `<div class="panel"><h2>Backup</h2><p class="small muted">Database, uploads and the encryption key in one zip. Keep it somewhere safe; it can read every message.</p>
         <div class="row"><a class="btn primary" href="/api/admin/backup" id="bk">Download backup</a><span class="small muted">${last ? `Last backup ${when(last.at)} by ${esc(last.actor)}` : "No backup downloaded yet."}</span></div></div>
-      <h2 style="margin-top:1.2rem">Import</h2><p class="small muted">Bring in data from the tools AT-SUIT replaces.</p>
+      <h2 style="margin-top:1.2rem">Import</h2><p class="small muted">Bring in data from the tools AT-SUITE replaces.</p>
       <div class="grid">${items.map(([k, t, d]) => `<div class="panel" data-k="${k}"><h3>${t}</h3><p class="small muted">${d}</p><input type="file"><button class="small primary" style="margin-top:.5rem">Import</button><pre class="small muted" style="white-space:pre-wrap"></pre></div>`).join("")}</div>
       <p class="small muted" style="margin-top:1rem">Every backup, import and change is listed in the <a href="#/audit">Audit log</a>.</p>`;
     a.querySelector("#bk").onclick = () => setTimeout(() => admData(a), 3000);

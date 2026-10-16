@@ -39,7 +39,7 @@ MAX_LINES_SAFETY_CAP = 20
 SURFACES = ("audience", "overlay", "bar")
 FONT_STACK = "'Saira', 'Segoe UI', system-ui, -apple-system, sans-serif"
 
-# LiveCaption's appearance defaults; "bar" is the subtitle bar AT-SUIT adds
+# LiveCaption's appearance defaults; "bar" is the subtitle bar AT-SUITE adds
 # for LED strips and under-stage screens. font_size is in px on a 1920-wide
 # screen and scales with the screen's width.
 APPEARANCE_DEFAULTS: dict[str, dict] = {

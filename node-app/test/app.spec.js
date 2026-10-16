@@ -1,4 +1,4 @@
-// End-to-end: the real app against a real AT-SUIT server.
+// End-to-end: the real app against a real AT-SUITE server.
 const { _electron: electron, test, expect } = require("@playwright/test");
 const { execFileSync } = require("child_process");
 const fs = require("fs");
@@ -149,7 +149,7 @@ test("after enrolment the tech signs in with their account, picks the room and M
   const version = require("../package.json").version;
   await expect(page.locator("#topVer")).toHaveText(`v${version}`);
   await page.click("#topVer");
-  await expect(page.locator("#appVer")).toHaveText(`AT-SUIT Node ${version}`);
+  await expect(page.locator("#appVer")).toHaveText(`AT-SUITE Node ${version}`);
   await expect(page.locator("#updText")).toContainText("Updates come from the server");
   await expect(page.locator("#updBtn")).toBeDisabled();
   await expect(page.locator("#updLaunch")).toBeChecked();
@@ -467,7 +467,7 @@ async function roomId(name) {
 
 async function overlayWindows(a) {
   return a.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows().filter((w) => w.getTitle() === "AT-SUIT Overlay").map((w) => ({
+    BrowserWindow.getAllWindows().filter((w) => w.getTitle() === "AT-SUITE Overlay").map((w) => ({
       id: w.id, onTop: w.isAlwaysOnTop(), focusable: w.isFocusable(), focused: w.isFocused(), visible: w.isVisible(),
       clickThrough: (globalThis.ignoreMouse || {})[w.id] === true,
       muted: w.webContents.isAudioMuted(), url: w.webContents.getURL(), bounds: w.getBounds(),
@@ -511,7 +511,7 @@ test("the overlay floats over the slides, lets clicks through and never takes fo
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id ?? null)).toBe(before);
   // No permissions at all for whatever page the overlay shows.
   const perm = await app.evaluate(async ({ BrowserWindow }) => {
-    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() === "AT-SUIT Overlay");
+    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() === "AT-SUITE Overlay");
     return w.webContents.executeJavaScript("Notification.requestPermission()");
   });
   expect(perm).toBe("denied");
@@ -547,7 +547,7 @@ test("the overlay floats over the slides, lets clicks through and never takes fo
   // The window is see-through: where the page draws nothing, the slides show.
   await new Promise((res) => setTimeout(res, 500));
   const alpha = await app.evaluate(async ({ BrowserWindow }) => {
-    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() === "AT-SUIT Overlay");
+    const w = BrowserWindow.getAllWindows().find((x) => x.getTitle() === "AT-SUITE Overlay");
     const img = await w.webContents.capturePage();
     const { width, height } = img.getSize();
     const px = img.toBitmap();
@@ -615,7 +615,7 @@ test("with the server down the app shows its own branded page, not a browser err
     if (!page) await new Promise((r) => setTimeout(r, 200));
   }
   expect(page).toBeTruthy();
-  await expect(page.locator("h1")).toHaveText("Can't reach the AT-SUIT server");
+  await expect(page.locator("h1")).toHaveText("Can't reach the AT-SUITE server");
   await expect(page.locator("#where")).toContainText("http://127.0.0.1:9");
   expect(await page.locator("img").evaluate((i) => i.naturalWidth)).toBeGreaterThan(0); // the gear loads
 });

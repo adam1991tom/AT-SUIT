@@ -2,7 +2,7 @@
   "name": "atsuit-web",
   "private": true,
   "version": "0.0.0",
-  "description": "AT-SUIT screens built with Svelte. `npm run build` writes server/atsuit/static/ui/ (committed, so the server needs no build step).",
+  "description": "AT-SUITE screens built with Svelte. `npm run build` writes server/atsuit/static/ui/ (committed, so the server needs no build step).",
   "type": "module",
   "scripts": {
     "build": "vite build",

@@ -1,6 +1,6 @@
-<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUIT" width="200">
+<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUITE" width="200">
 
-# Installing AT-SUIT
+# Installing AT-SUITE
 
 ## Requirements
 
@@ -17,17 +17,17 @@
 The quickest way, on a fresh server (installs Docker too if it's missing):
 
 ```bash
-curl -fsSL https://github.com/adam1991tom/AT-SUIT-releases/releases/latest/download/get.sh | sudo bash
+curl -fsSL https://github.com/adam1991tom/AT-SUITE-releases/releases/latest/download/get.sh | sudo bash
 # options for install.sh go after -s --, e.g.  | sudo bash -s -- --port 8180 --tls
 ```
 
-It puts AT-SUIT in `/opt/at-suit` and runs `install.sh` with the published image
+It puts AT-SUITE in `/opt/at-suit` and runs `install.sh` with the published image
 of the newest release (the release carries only the install files, no source).
 Set `ATSUIT_REF=v1.0.4` to install a particular release. Or build from a clone
 of the source (development; the source repository needs access):
 
 ```bash
-git clone https://github.com/adam1991tom/AT-SUIT.git /opt/atsuit
+git clone https://github.com/adam1991tom/AT-SUITE.git /opt/atsuit
 cd /opt/atsuit
 sudo ./install.sh --port 8180 --tls
 ```
@@ -59,7 +59,7 @@ doesn't need https.
 
 ## Running next to the old apps (trial)
 
-AT-SUIT uses one port and one Docker volume (`atsuit_atsuit-data`) and
+AT-SUITE uses one port and one Docker volume (`atsuit_atsuit-data`) and
 touches nothing else, so it can run beside RoomComms, Device Suite, Ontime
 and Companion. On ATSERVER1, ports 4001-4020, 5050, 5070, 8000, 16622 and
 45876 are taken; 8180 and 8443 are free.
@@ -81,15 +81,15 @@ apps.
 | Homarr | link export TSV | the `homarr-links.tsv` from the server snapshot |
 
 RoomComms accounts keep their passwords. Messages are re-encrypted with
-AT-SUIT's own key. Direct messages and operator logins (name only, no
+AT-SUITE's own key. Direct messages and operator logins (name only, no
 password) aren't brought across; the import report says how many.
 
-## Pointing kiosks at AT-SUIT
+## Pointing kiosks at AT-SUITE
 
-Kiosks running the Device Suite agent can report to AT-SUIT without being
+Kiosks running the Device Suite agent can report to AT-SUITE without being
 reinstalled: change the server address in their agent config to
 `http://SERVER:8180`. They appear in Laptops & screens as "old agent". To reboot or
-update them from AT-SUIT, upload the fleet SSH key in Laptops & screens → Add laptops.
+update them from AT-SUITE, upload the fleet SSH key in Laptops & screens → Add laptops.
 
 ## Helper servers
 
@@ -100,7 +100,7 @@ adds the rooms it can caption to the total.
 
 1. On the main server, go to **Servers → Make a join code**. A code
    works once, for 15 minutes.
-2. On the helper, install AT-SUIT as above with `ATSUIT_ROLE=helper` in `.env`,
+2. On the helper, install AT-SUITE as above with `ATSUIT_ROLE=helper` in `.env`,
    then open `http://<helper>:8080` and type the main server's address and the
    code. Or set `ATSUIT_MAIN_URL` and `ATSUIT_JOIN_CODE` in `.env` before the
    first start. Use the main server's plain `http://` address on the venue
@@ -171,7 +171,7 @@ contains the encryption key, so store it somewhere safe.
 
 ## Offline sites
 
-On a machine with internet, run AT-SUIT once so it downloads the model, then
+On a machine with internet, run AT-SUITE once so it downloads the model, then
 copy it:
 
 ```bash

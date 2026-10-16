@@ -20,7 +20,7 @@ class AtSuit extends InstanceBase {
 
   getConfigFields() {
     return [
-      { type: "textinput", id: "host", label: "AT-SUIT address", width: 8, default: "10.100.70.100" },
+      { type: "textinput", id: "host", label: "AT-SUITE address", width: 8, default: "10.100.70.100" },
       { type: "number", id: "port", label: "Port", width: 4, default: 8180, min: 1, max: 65535 },
       { type: "checkbox", id: "https", label: "Use https", width: 4, default: false },
       { type: "textinput", id: "key", label: "API key (Admin, API keys)", width: 12, regex: Regex.SOMETHING },

@@ -165,7 +165,7 @@ def collect(c, room_id: int, day: str, chat: bool = False, now: float | None = N
     branding = get_branding(c)
     return {
         "room_id": room_id, "room": room["name"], "site": room["site_name"] or "", "day": day,
-        "organisation": branding.get("organisation") or "", "product": branding.get("product_name") or "AT-SUIT",
+        "organisation": branding.get("organisation") or "", "product": branding.get("product_name") or "AT-SUITE",
         "zone": zone.key, "start": start, "end": end, "generated_at": now,
         "runs": runs, "help": calls, "stage_messages": stage, "crew_chat": crew,
         "captions": live_caps, "transcript": lines, "transcript_cut": len(lines) >= MAX_TRANSCRIPT_LINES,
@@ -266,7 +266,7 @@ def render_pdf(d: dict) -> bytes:
     pdf.rect(0, 0, pdf.w, 4, style="F")
     logo = STATIC / "brand" / "icon-96.png"
     top = 12
-    if d["product"] == "AT-SUIT" and logo.is_file():
+    if d["product"] == "AT-SUITE" and logo.is_file():
         pdf.image(str(logo), x=pdf.w - pdf.r_margin - 14, y=top, h=14)
     pdf.set_xy(pdf.l_margin, top)
     pdf.set_font("Helvetica", "B", 9)
