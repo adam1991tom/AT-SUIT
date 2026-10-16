@@ -49,6 +49,7 @@ class FakePaddle:
         self.prices: dict[str, dict] = {}
         self.patches: list[dict] = []
         self.fail_next: tuple[int, str] | None = None
+        self.ips: list[str] | None = ["34.237.3.244/32", "52.11.166.252/32"]  # None: /ips is down
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content) if request.content else {}
@@ -94,6 +95,16 @@ class FakePaddle:
             pid = "pri_" + secrets.token_hex(8)
             self.prices[pid] = body
             return httpx.Response(201, json={"data": {"id": pid}})
+        if m == "GET" and path == "/prices":
+            return httpx.Response(200, json={"data": [
+                {"id": pid, "product_id": b["product_id"], "description": b["description"], "status": "active",
+                 "unit_price": b["unit_price"], "custom_data": b.get("custom_data")}
+                for pid, b in self.prices.items() if b.get("status", "active") == "active"],
+                "meta": {"pagination": {"has_more": False, "next": None}}})
+        if m == "GET" and path == "/ips":
+            if self.ips is None:
+                return httpx.Response(502, text="bad gateway")
+            return httpx.Response(200, json={"data": {"ipv4_cidrs": self.ips}})
         if m == "PATCH" and re.fullmatch(r"/prices/pri_\w+", path):
             self.prices[path.rsplit("/", 1)[1]]["status"] = body["status"]
             return httpx.Response(200, json={"data": {}})
@@ -121,7 +132,8 @@ def make_settings(tmp_path, vendor, **over) -> config.Settings:
         site_url="http://testserver", data_dir=tmp_path / "data", secret="s" * 40, dev=False,
         paddle_env="sandbox", paddle_api_key="test_api_key", paddle_client_token="test_client_token",
         paddle_webhook_secret=WEBHOOK_SECRET, signing_key_file=str(vendor["file"]),
-        admin_emails={ADMIN}, hosting_domain="venues.example")
+        admin_emails={ADMIN}, hosting_domain="venues.example",
+        paddle_webhook_ip_check=False)  # TestClient isn't one of Paddle's addresses; test_webhooks turns it on
     for k, v in over.items():
         setattr(s, k, v)
     return s

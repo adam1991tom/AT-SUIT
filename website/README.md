@@ -87,9 +87,27 @@ Everything below uses Paddle's **sandbox** (test cards, no real money) until liv
 8. **Admin**: sign in with an `ADMIN_EMAILS` address, open `/admin`, and scan the code into an
    authenticator app (Google Authenticator, Microsoft Authenticator, 1Password...).
 9. **Test a purchase** in sandbox with Paddle's test card `4242 4242 4242 4242`, any future date, any CVC.
-10. **Live**: only once approved. Make live Paddle keys, set `PADDLE_ENV=production` and
-    `SHOP_ALLOW_LIVE=yes`, and run `tools/paddle_setup.py --apply` again for the live price list.
-    The shop refuses to start in production without `SHOP_ALLOW_LIVE=yes`.
+10. **Live** (https://vendors.paddle.com). This changes settings only; the code is the same in both.
+    Nothing below deletes or replaces anything already in the live account.
+    - Developer tools → Authentication: a live **API key** (`pdl_live_apikey_...`) and a live
+      **client-side token** (`live_...`). The shop refuses to start if a key belongs to the other account.
+    - `PADDLE_ENV=production`, `SHOP_ALLOW_LIVE=yes` (the shop refuses production without it).
+    - `python3 tools/paddle_setup.py` reads the live account first and shows what it would make; then
+      `--apply`. Prices it finds already there (made by it earlier) are recorded, not made twice, and it
+      prints the sandbox → live price id list. The live list is `data/paddle-prices.production.json`;
+      the sandbox one stays beside it. There are no price ids in the code to change.
+    - Webhook: if the live account already has a notification destination for
+      `https://<your domain>/webhooks/paddle`, keep it and copy its secret key. Only make a new one if
+      there is none (same events as step 4). Its secret goes in `PADDLE_WEBHOOK_SECRET`.
+    - Webhooks are only accepted from the addresses Paddle lists at `https://api.paddle.com/ips`
+      (`https://sandbox-api.paddle.com/ips` in sandbox), read by the shop and refreshed hourly, and
+      only with a good signature. Behind Cloudflare the visitor address comes from `CF-Connecting-IP`,
+      otherwise from Caddy's `X-Forwarded-For`, so keep the shop's port bound to 127.0.0.1.
+    - Checkout → Checkout settings: the default payment link is `https://<your real domain>/account`
+      (not localhost). Payment methods: switch on the ones you want.
+    - Settings → Website approval: submit the domain. Live checkout only opens on approved domains.
+    - Payouts → Payout settings: bank details.
+    - Paddle Retain gets the signed-in customer's Paddle id (`pwCustomer`) when checkout opens.
 
 The shop should run on its own small server, not on a venue server or the hosting server: it holds the
 key that makes licences, so it is kept away from anything customers run.
@@ -117,7 +135,7 @@ automatically" setting in the app (the app doesn't call it yet).
 
 ## What's done and what isn't
 
-Done and tested (`pytest`, 45 tests, fake Paddle and a throwaway key):
+Done and tested (`pytest`, 48 tests, fake Paddle and a throwaway key):
 
 - signed webhooks (bad, missing or old signatures refused), duplicates applied once, out-of-order
   subscription events skipped, a failed event recorded and retried

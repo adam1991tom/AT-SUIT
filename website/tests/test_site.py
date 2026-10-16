@@ -184,6 +184,47 @@ def test_paddle_setup_creates_prices_once_and_keeps_old_ones(tmp_path, vendor, c
     assert cat.price_id("plan", "venue", "year") != old_id
 
 
+def test_paddle_setup_reads_live_first_and_maps_sandbox_to_live(tmp_path, vendor, capsys):
+    spec = importlib.util.spec_from_file_location("paddle_setup", ROOT / "website" / "tools" / "paddle_setup.py")
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    sandbox, live = FakePaddle(), FakePaddle()
+    s = make_settings(tmp_path, vendor)
+    assert tool.main(["--apply"], settings=s, transport=httpx.MockTransport(sandbox)) == 0
+    s_live = make_settings(tmp_path, vendor, paddle_env="production", allow_live=True, paddle_client_token="live_x")
+    assert tool.main(["--apply"], settings=s_live, transport=httpx.MockTransport(live)) == 0
+    assert len(live.prices) == 9
+    out = capsys.readouterr().out
+    venue_year_sbx = catalogue.load(s.catalogue_file, s.prices_file).price_id("plan", "venue", "year")
+    venue_year_live = catalogue.load(s.catalogue_file, s_live.prices_file).price_id("plan", "venue", "year")
+    assert f"{venue_year_sbx}" in out and f"→ {venue_year_live}" in out
+
+    # Run again from another computer (no prices file): what's in live is recorded, nothing is made twice.
+    s_live.prices_file.unlink()
+    live.prices["pri_byhand"] = {"product_id": "pro_x", "description": "Made by hand", "custom_data": {},
+                                 "unit_price": {"amount": "500", "currency_code": "GBP"}}
+    assert tool.main([], settings=s_live, transport=httpx.MockTransport(live)) == 0
+    assert not s_live.prices_file.exists()  # a dry run still saves nothing
+    assert tool.main(["--apply"], settings=s_live, transport=httpx.MockTransport(live)) == 0
+    assert len(live.prices) == 10 and len(live.products) == 5
+    assert not [c for c in live.calls if c[0] in ("POST", "PATCH", "DELETE") and c[1] != "/customers"][9 + 5:]
+    out = capsys.readouterr().out
+    assert "left alone pri_byhand" in out and "Paddle already matches catalogue.toml" in out
+    assert catalogue.load(s.catalogue_file, s_live.prices_file).price_id("plan", "venue", "year") == venue_year_live
+
+
+def test_live_keys_must_match_the_environment(tmp_path, vendor):
+    for over in ({"paddle_env": "production", "allow_live": True, "paddle_client_token": "test_abc"},
+                 {"paddle_env": "production", "allow_live": True, "paddle_client_token": "live_abc",
+                  "paddle_api_key": "pdl_sdbx_apikey_abc"},
+                 {"paddle_api_key": "pdl_live_apikey_abc"},
+                 {"paddle_client_token": "live_abc"}):
+        with pytest.raises(config.ConfigError):
+            make_settings(tmp_path, vendor, **over).check()
+    make_settings(tmp_path, vendor, paddle_env="production", allow_live=True, paddle_client_token="live_abc",
+                  paddle_api_key="pdl_live_apikey_abc").check()
+
+
 def test_paddle_setup_refuses_live_without_approval(tmp_path, vendor):
     spec = importlib.util.spec_from_file_location("paddle_setup", ROOT / "website" / "tools" / "paddle_setup.py")
     tool = importlib.util.module_from_spec(spec)

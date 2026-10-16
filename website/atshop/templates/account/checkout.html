@@ -3,7 +3,7 @@
 {% block main %}
 <div class="page"><div class="wrap" style="max-width:620px">
 <h1>Payment</h1>
-<div id="checkout" data-token="{{ client_token }}" data-txn="{{ txn }}" data-ref="{{ ref }}" data-sandbox="{{ 1 if sandbox else 0 }}">
+<div id="checkout" data-token="{{ client_token }}" data-txn="{{ txn }}" data-ref="{{ ref }}" data-customer="{{ customer }}" data-sandbox="{{ 1 if sandbox else 0 }}">
   <p class="lead">The secure payment window from Paddle, our reseller, will open now.</p>
   {% if sandbox %}<p class="notice warn small">Test mode: use Paddle's test card 4242 4242 4242 4242, any future date and CVC 100. No money is taken.</p>{% endif %}
   <button class="btn primary" id="pay" type="button">Pay</button>

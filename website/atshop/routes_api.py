@@ -5,6 +5,7 @@ import json
 import logging
 
 from fastapi import APIRouter, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from . import auth, billing, mailer
@@ -21,6 +22,14 @@ MAX_BODY = 512 * 1024
 async def paddle_webhook(request: Request):
     """Every Paddle event comes here. Only signed, recent events are read; each is applied once."""
     sh = shop(request)
+    if sh.s.paddle_webhook_ip_check:
+        allowed = await run_in_threadpool(sh.paddle.is_webhook_ip, ip(request))
+        if allowed is None:  # Paddle's address list couldn't be read: Paddle retries a 503 later
+            log.warning("Paddle webhook held: couldn't read Paddle's address list")
+            return JSONResponse({"error": "try again"}, 503)
+        if not allowed:
+            log.warning("Paddle webhook from %s, which isn't one of Paddle's addresses", ip(request))
+            return JSONResponse({"error": "forbidden"}, 403)
     raw = await request.body()
     if len(raw) > MAX_BODY:
         return JSONResponse({"error": "too large"}, 413)

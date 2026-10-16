@@ -3,7 +3,7 @@
 (() => {
   const el = document.getElementById("checkout");
   if (!el) return;
-  const { token, txn, ref, sandbox } = el.dataset;
+  const { token, txn, ref, customer, sandbox } = el.dataset;
   const status = document.getElementById("checkout-status");
   const open = () => {
     if (!window.Paddle) {
@@ -17,9 +17,12 @@
     });
   };
   const start = () => {
+    // Live is Paddle.js's default; the sandbox switch is only made when PADDLE_ENV=sandbox.
     if (sandbox === "1") window.Paddle.Environment.set("sandbox");
     window.Paddle.Initialize({
       token,
+      // Paddle Retain needs the signed-in customer's Paddle id (ctm_...), never our own id or email.
+      ...(customer ? { pwCustomer: { id: customer } } : {}),
       eventCallback: (e) => {
         if (e.name === "checkout.completed") location.href = `/account/thanks?order=${encodeURIComponent(ref)}`;
       },
