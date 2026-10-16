@@ -112,7 +112,7 @@ class FakeHosting:
         if self.fail:
             return 1, "atcloud: something broke"
         if argv[1] == "new":
-            return 0, f"Venue ready.\nOpen https://{argv[2]}.venues.example/setup?code=ABC123 to finish set-up.\n"
+            return 0, f"Venue ready.\nOpen https://{argv[2]}.venues.example/setup#code=ABC123 to finish set-up.\n"
         return 0, "ok"
 
 
@@ -161,7 +161,7 @@ class Harness:
     # -- sign-in through the emailed link, like a customer would --
     def last_link(self, email: str) -> str:
         row = self.shop.db.one("SELECT body FROM emails WHERE to_addr=? AND kind='login' ORDER BY id DESC LIMIT 1", email)
-        m = re.search(r"http://testserver(/login/confirm\?token=[\w-]+[^\s]*)", row["body"])
+        m = re.search(r"http://testserver(/login/confirm\S*#token=[\w-]+)", row["body"])
         return m.group(1)
 
     def sign_in(self, email: str, name: str = "Sam Tech", organisation: str = "Grand Hall") -> TestClient:

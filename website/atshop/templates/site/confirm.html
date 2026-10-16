@@ -4,8 +4,9 @@
 <h1>Sign in to AT SUITE</h1>
 <p class="muted">Press the button to finish signing in.</p>
 <form method="post" action="/login/confirm">
-  <input type="hidden" name="token" value="{{ token }}"><input type="hidden" name="next" value="{{ next }}">
+  <input type="hidden" name="token" id="link-token" value=""><input type="hidden" name="next" value="{{ next }}">
   <button class="btn primary" type="submit">Sign in</button>
 </form>
+<noscript><p class="muted">Signing in needs JavaScript switched on for this page.</p></noscript>
 </div></div>
 {% endblock %}

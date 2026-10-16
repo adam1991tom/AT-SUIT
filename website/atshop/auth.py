@@ -59,8 +59,9 @@ def make_link(c, settings, email: str, data: dict, ip: str, next_url: str = "") 
     token = secrets.token_urlsafe(32)
     c.execute("INSERT INTO login_tokens (token_hash, email, data, created_at, expires_at, ip) VALUES (?,?,?,?,?,?)",
               (sha(token), email, json.dumps(data), now(), now() + LINK_TTL, ip))
-    nxt = f"&next={quote(next_url)}" if next_url else ""
-    return f"{settings.site_url}/login/confirm?token={token}{nxt}"
+    # The token goes after "#", so it never reaches a server, proxy or log; the confirm page's script posts it.
+    nxt = f"?next={quote(next_url)}" if next_url else ""
+    return f"{settings.site_url}/login/confirm{nxt}#token={token}"
 
 
 def use_link(db, token: str):
