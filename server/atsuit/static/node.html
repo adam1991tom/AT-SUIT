@@ -97,6 +97,15 @@
   .hn.off { opacity: .65; } .hn.off .hn-body { text-decoration: line-through; }
   .hn-body { white-space: normal; overflow-wrap: anywhere; } .hn-foot { margin-top: .35rem; gap: .3rem; }
   .hn-done { margin-top: .8rem; } .hn-done summary { cursor: pointer; }
+  /* the AI helper's chat */
+  .ai-pane { display: flex; flex-direction: column; gap: .5rem; height: 100%; min-height: 260px; }
+  .ai-log { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: .45rem; padding-right: .2rem; }
+  .ai-msg { max-width: 92%; padding: .45rem .7rem; border-radius: 10px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .92rem; }
+  .ai-msg.tech { align-self: flex-end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 3px; }
+  .ai-msg.helper { align-self: flex-start; background: var(--panel2); border: 1px solid var(--line); border-bottom-left-radius: 3px; }
+  .ai-msg .ai-src { margin-top: .35rem; font-size: .8rem; white-space: normal; }
+  .ai-choices { display: flex; flex-wrap: wrap; gap: .35rem; } .ai-choices:empty { display: none; }
+  .ai-foot { display: flex; flex-wrap: wrap; gap: .35rem; justify-content: flex-end; }
 </style>
 </head>
 <body>
@@ -163,8 +172,8 @@
         <div style="margin-top:.6rem"><b class="small">Open requests</b><div id="helpList" class="small" style="margin-top:.3rem"></div></div>
         <div id="aiBox" class="hidden" style="margin-top:.7rem;border-top:1px solid var(--line);padding-top:.6rem">
           <b>🤖 AI helper</b> <span class="muted small" id="aiWhere"></span>
-          <div class="row" style="margin-top:.4rem"><input id="aiQ" class="grow" placeholder="Ask anything, e.g. the lectern mic is dead"><button id="aiAsk">Ask</button></div>
-          <div id="aiA" class="small" style="margin-top:.4rem;max-height:40vh;overflow:auto"></div>
+          <div class="row" style="margin-top:.4rem"><input id="aiQ" class="grow" aria-label="Ask the AI helper" placeholder="Ask anything, e.g. the lectern mic is dead"><button id="aiAsk">Ask</button></div>
+          <p class="muted small" style="margin:.3rem 0 0">It opens a chat window: keep talking until it's fixed.</p>
         </div>
       </div></div>
     <button id="laptopBtn" class="hidden">This laptop</button>
@@ -234,6 +243,15 @@
 
   <section data-win="overlays" data-title="Overlays" hidden><div id="atOv"></div><div id="ovList"></div></section>
 
+  <section data-win="ai" data-title="AI helper" hidden>
+    <div class="ai-pane">
+      <div class="row" style="justify-content:space-between;gap:.4rem"><span class="muted small" id="aiWhere2"></span><button class="small" id="aiNew">New chat</button></div>
+      <div class="ai-log" id="aiLog" role="log" aria-live="polite" aria-label="Chat with the AI helper"></div>
+      <div class="ai-choices" id="aiChoices" role="group" aria-label="Quick answers"></div>
+      <div class="row" style="gap:.4rem"><input id="aiInput" class="grow" aria-label="Message the AI helper" placeholder="Say what's wrong, or answer its question" maxlength="1000"><button id="aiSend" class="primary">Send</button></div>
+      <div class="ai-foot"><span class="muted small grow" id="aiNote"></span><button class="small" id="aiFixed">This fixed it</button><button class="small helpbtn" id="aiCall">Call for help</button></div>
+    </div>
+  </section>
   <section data-win="links" data-title="Links" hidden><input id="linkFind" placeholder="Find a link" style="margin-bottom:.5rem"><div id="links" style="max-height:60vh;overflow:auto"></div></section>
 
   <section class="chat-pane" id="chatPane" hidden><div class="chat-mount" id="chat"></div></section>
@@ -543,7 +561,7 @@
   // The workspace is a desktop of windows (static/ui/desk.js, built from web/src/desk): every part
   // docks, tabs, floats, resizes, minimises, maximises and pops out, with a taskbar and saved layouts.
   // Parts are registered below; the desk starts once they all are.
-  const WINS = ["captions", "sessions", "screens", "previews", "overlays", "links"];
+  const WINS = ["captions", "sessions", "screens", "previews", "overlays", "links", "ai"];
   const wins = Object.fromEntries(WINS.map((id) => [id, { open: () => ATDesk.open(id), available: (yes) => ATDesk.available(id, yes) }]));
   if (!boot.modules.timers) $("timerBox").innerHTML = '<p class="muted">Timers are switched off for this site.</p>';
 
@@ -593,6 +611,7 @@
     ["sessmini", "sessions", "overlays", "screens"].forEach((id) => ATDesk.available(id, false)); // until there is something to show
     ATDesk.available("captions", !!boot.modules.captions); ATDesk.available("capmini", !!boot.modules.captions);
     ATDesk.available("links", !!boot.modules.dashboard); ATDesk.available("chat", !!boot.modules.comms);
+    ATDesk.available("ai", false); // until the server says the AI helper is on
     // Where everything starts: the timer big on the left with the cue list under it, chat and the room's
     // other parts on the right. The admin can make any layout the starting one for every laptop.
     const T = ATDesk.tree, gid = (L, p) => T.groupOf(L, p).id;
@@ -855,28 +874,96 @@
     });
   }
 
-  // The AI helper, in the Help menu: answers from the venue's notes and past fixes (and a local AI model if
-  // the admins set one up). "This fixed it" teaches it for next time.
-  const ai = { on: false };
-  async function askAi(question, lead = "") {
-    if (!ai.on || !question.trim()) return;
-    $("aiA").innerHTML = '<span class="muted">Thinking…</span>';
+  // The AI helper: a chat in its own window, started from the Help menu (or a help call). The conversation
+  // lives here only; each message sends it all to the server with the state its last reply handed back
+  // (which guide entry it's on and which question it asked). "This fixed it" teaches it for next time.
+  const ai = { on: false, turns: [], state: null, sources: [], busy: false, helpSent: false, learned: false };
+  const aiTech = () => ai.turns.filter((t) => t.role === "tech");
+  function aiRender(choices = []) {
+    const log = $("aiLog");
+    log.innerHTML = ai.turns.map((t, i) => {
+      const src = t.role === "helper" && t.sources?.length ? `<div class="ai-src muted">From: ${t.sources.map((s) => s.url
+        ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : `${esc(s.kind)}: ${esc(s.title)}`).join(" · ")}</div>` : "";
+      return `<div class="ai-msg ${t.role}"${t.role === "helper" ? ' aria-label="AI helper"' : ""}>${t.lead ? `<div class="muted small">${esc(t.lead)}</div>` : ""}${esc(t.text)}${src}</div>`;
+    }).join("") + (ai.busy ? '<div class="ai-msg helper muted">Thinking…</div>' : "") ||
+      '<p class="muted small">Say what\'s wrong in plain words, like "the lectern mic is dead". The AI helper asks questions to narrow it down; keep talking until it\'s fixed.</p>';
+    log.scrollTop = log.scrollHeight;
+    $("aiChoices").innerHTML = ai.busy ? "" : choices.map((c, i) => `<button class="small" data-ai-choice="${i}">${esc(c)}</button>`).join("");
+    $("aiChoices").querySelectorAll("[data-ai-choice]").forEach((b) => b.onclick = () => aiPick(choices[+b.dataset.aiChoice]));
+    const started = aiTech().length > 0;
+    $("aiFixed").disabled = !started || ai.busy || ai.learned;
+    $("aiFixed").textContent = ai.learned ? "Thanks, noted" : "This fixed it";
+    $("aiCall").disabled = !started || ai.helpSent;
+    $("aiCall").textContent = ai.helpSent ? "Help is on the way" : "Call for help";
+    $("aiSend").disabled = ai.busy;
+  }
+  async function aiSay(text, lead = "") {
+    text = text.trim();
+    if (!ai.on || !text || ai.busy) return;
+    if (ai.learned) aiReset(); // fixed and noted: anything new is a new conversation
+    ai.turns.push({ role: "tech", text });
+    ai.busy = true; aiRender();
     try {
-      const r = await post("/api/ai/ask", { question, room_id: roomId });
-      const src = r.sources.length ? `<div class="muted" style="margin-top:.3rem">From: ${r.sources.map((s) => s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : `${esc(s.kind)}: ${esc(s.title)}`).join(" · ")}</div>` : "";
-      $("aiA").innerHTML = (lead ? `<div class="muted">${esc(lead)}</div>` : "") + `<div style="white-space:pre-wrap">${esc(r.answer)}</div>${src}` +
-        '<div class="row" style="margin-top:.4rem;justify-content:flex-end"><button class="small" id="aiFixed">This fixed it</button></div>';
-      $("aiFixed").onclick = () => guard(() => post("/api/ai/learn", { question, answer: r.answer, room_id: roomId }))
-        .then((ok) => { if (ok) { $("aiFixed").disabled = true; $("aiFixed").textContent = "Thanks, noted"; } });
-    } catch (ex) { $("aiA").innerHTML = `<span class="muted">${esc(ex.message)}</span>`; }
+      const r = await post("/api/ai/chat", { messages: ai.turns.map(({ role, text }) => ({ role, text })).slice(-60), state: ai.state || undefined, room_id: roomId });
+      ai.state = r.state; ai.help = r.help;
+      ai.turns.push({ role: "helper", text: r.answer, sources: r.sources, lead, done: r.done });
+      ai.busy = false; aiRender(r.choices);
+      if (!ATDesk.isOpen("ai")) ATDesk.flash("ai");
+    } catch (ex) {
+      ai.turns.pop(); ai.busy = false; aiRender();
+      $("aiInput").value = text; toast(ex.message, "bad");
+    }
+  }
+  function aiReset() {
+    Object.assign(ai, { turns: [], state: null, help: null, busy: false, helpSent: false, learned: false });
+    $("aiNote").textContent = ""; aiRender();
+  }
+  function aiStart(text, { lead = "", helpSent = false } = {}) {
+    if (!ai.on) return;
+    ATDesk.open("ai");
+    if (helpSent) ai.helpSent = true;
+    aiSay(text, lead);
+    setTimeout(() => $("aiInput")?.focus(), 50);
+  }
+  function aiPick(choice) {
+    if (choice === "Call for help") return aiCall();
+    if (choice === "Fixed") return aiSay("Fixed");
+    aiSay(choice);
+  }
+  // What fixed it: the helper's last real suggestion, for the first thing the tech asked.
+  function aiLearn() {
+    const question = aiTech()[0]?.text;
+    const answer = [...ai.turns].reverse().find((t) => t.role === "helper" && !t.done)?.text;
+    if (!question || !answer) return;
+    guard(() => post("/api/ai/learn", { question, answer: answer.slice(0, 4000), room_id: roomId })).then(() => {
+      ai.learned = true; $("aiNote").textContent = "Saved. Type to start a new chat."; aiRender();
+    }, () => {});
+  }
+  function aiCall() {
+    if (ai.helpSent || !aiTech().length) return;
+    const category = ai.help?.category || "Other", description = (ai.help?.description || aiTech()[0].text).slice(0, 2000);
+    ai.helpSent = true; aiRender();
+    guard(() => post("/api/comms/help", { room_id: roomId, category, description, priority: "urgent" }))
+      .then(() => { toast("Help call sent. You'll see in Help when someone is on the way.", "good"); renderHelp(); },
+        () => { ai.helpSent = false; aiRender(); });
   }
   if (boot.modules.comms) api("/api/ai").then((s) => {
     ai.on = s.enabled;
     $("aiBox").classList.toggle("hidden", !s.enabled);
-    $("aiWhere").textContent = s.model ? "· private AI on your network" : "· from this venue's notes and past fixes";
+    ATDesk.available("ai", !!s.enabled);
+    const where = s.model ? "Private AI on your network, with this venue's notes and the tech guide" : "From this venue's notes, past fixes and the built-in tech guide";
+    $("aiWhere").textContent = "· " + where.toLowerCase(); $("aiWhere2").textContent = where;
+    aiRender();
   }).catch(() => {});
-  $("aiAsk").onclick = () => askAi($("aiQ").value);
-  $("aiQ").onkeydown = (e) => { if (e.key === "Enter") askAi($("aiQ").value); };
+  const aiAsk = () => { const q = $("aiQ").value; if (!q.trim()) return; $("aiQ").value = ""; $("helpBox").classList.add("hidden"); aiStart(q); };
+  $("aiAsk").onclick = aiAsk;
+  $("aiQ").onkeydown = (e) => { if (e.key === "Enter") aiAsk(); };
+  const aiSend = () => { const t = $("aiInput").value; if (!t.trim() || ai.busy) return; $("aiInput").value = ""; aiSay(t); };
+  $("aiSend").onclick = aiSend;
+  $("aiInput").onkeydown = (e) => { if (e.key === "Enter" && !e.repeat) { e.preventDefault(); aiSend(); } };
+  $("aiNew").onclick = aiReset;
+  $("aiFixed").onclick = aiLearn;
+  $("aiCall").onclick = aiCall;
   $("helpTop").onclick = (e) => {
     e.stopPropagation();
     const box = $("helpBox"), opening = box.classList.contains("hidden");
@@ -897,7 +984,7 @@
         .then(() => {
           const what = $("helpText").value;
           $("helpText").value = ""; toast("Help call sent. You'll see here when someone is on the way.", "good"); renderHelp();
-          if (what.trim()) { $("aiQ").value = what; askAi(what, "While the crew is on the way:"); }
+          if (what.trim() && ai.on) { aiReset(); aiStart(what, { lead: "While the crew is on the way:", helpSent: true }); }
         }, () => {})
         .finally(() => setTimeout(() => { sending = false; $("helpBtn").disabled = false; $("helpBtn").textContent = "Send"; }, 1500));
     };

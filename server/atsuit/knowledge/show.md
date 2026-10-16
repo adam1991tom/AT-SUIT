@@ -17,6 +17,10 @@ Keywords: comms, radio, headset, intercom, clear-com, channel, walkie talkie, ca
 4. Keep the show channel clear; use another channel for anything else.
 5. Use AT-SUITE room chat for anything that doesn't need to be said out loud.
 
+### Ask everyone: Is everyone's comms down, or only one person's?
+- Everyone: See "Intercom (comms) down". Use radios or the AT-SUITE room chat for cues until it's back.
+- One person: Their beltpack or headset: check it's on, the headset is fully plugged in and the channel is right, then swap the headset and the beltpack.
+
 ## Calling cues
 Keywords: cue, standby, go, running order, script, cue sheet, caller
 1. Give a standby before every cue ("Standby sound cue 5, video cue 3"), wait for each department to answer, then "Go".
@@ -56,3 +60,21 @@ Keywords: backup, redundancy, spare, plan b, failover
 Keywords: show report, incident report, notes, end of day, handover
 1. Write down what went wrong, what was done, and anything the next crew needs to know.
 2. AT-SUITE's show report collects timer runs, help calls and stage messages for each room; add handover notes for the next shift.
+
+## Intercom (comms) down
+Keywords: intercom down, comms down, headset dead, beltpack, clear-com, clearcom, riedel, partyline, can't hear stage, no comms, talkback
+1. Check the beltpack is on, the headset is fully plugged in, and the channel and volume are right.
+2. Wired partyline runs through each beltpack: one bad cable can stop everything after it.
+3. Wireless: a charged battery, registered to the base station, and in range.
+4. While it's down, use radios or the AT-SUITE room chat for cues, and tell the stage manager.
+
+### Ask everyone: Is it everyone's comms, or only one person's?
+- Everyone: Check the main station is on with its channels on, then the cable or antennas from it. Use radios or room chat until it's back.
+- One person: Their beltpack or headset: swap the headset, then the beltpack, then the cable to it (on wired comms).
+
+## Run of show basics
+Keywords: run of show, running order, show flow, rundown, show running, script, who does what, show caller
+1. One running order everyone works from: times, sessions, speakers, and the cues for sound, video and lights in each.
+2. One person calls the show (usually the stage manager); departments answer standbys and go on "go".
+3. Before each session: the speaker's mic on and checked, their slides on preview, the timer loaded, walk-up music ready.
+4. Note what really happened (late starts, overruns, faults) as you go, for the show report.

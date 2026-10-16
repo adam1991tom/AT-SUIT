@@ -32,3 +32,10 @@ Keywords: help call, need help, crew, assistance, escalate, urgent
 1. Use Help in the workspace, choose what's wrong, and send. The crew sees it straight away.
 2. If nobody answers, it is passed on to more people automatically.
 3. When it's fixed, add how it was fixed, so the AI helper can suggest it next time.
+
+## Using the AI helper
+Keywords: ai helper, chat, ask ai, assistant, helper, knowledge base, tech guide
+1. Open it from Help → Ask the AI helper, or the AI helper window in the workspace. Say what's wrong in plain words.
+2. Keep talking: answer its questions ("Yes", "No", or press the buttons), or tell it what you've tried.
+3. Press "This fixed it" when it's fixed, so the fix is offered next time. Press "Call for help" to bring the crew.
+4. Admins add what's special about the venue in Settings → AI helper → Venue notes: those come first, ahead of the built-in guide.

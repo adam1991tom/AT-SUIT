@@ -765,21 +765,23 @@
   async function admAi(a) {
     const d = await api("/api/admin/ai"), s = d.settings;
     a.innerHTML = `<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr))"><form class="panel" id="aif"><h2>AI helper</h2>
-      <p class="small muted" style="margin-top:0">Techs ask it in the Help menu, and it answers each help call while the crew is on the way. It answers from your venue notes, from how past help calls were fixed (${d.help_fixes} so far), and from answers techs marked "This fixed it".</p>
+      <p class="small muted" style="margin-top:0">Techs chat with it from the Help menu, and it picks up each help call while the crew is on the way. It answers from your venue notes, from how past help calls were fixed (${d.help_fixes} so far), and from answers techs marked "This fixed it".</p>
       <label><input type="checkbox" name="enabled" ${s.enabled ? "checked" : ""} style="width:auto"> Turn on the AI helper</label>
       <label>Venue notes</label><textarea name="venue_notes" rows="10" placeholder="One topic per paragraph, its first line a heading. E.g.&#10;Hall A projector&#10;Use input HDMI 2. The remote is on the lectern shelf.">${esc(s.venue_notes)}</textarea>
       <label><input type="checkbox" name="learn_help" ${s.learn_help ? "checked" : ""} style="width:auto"> Learn from how help calls were fixed</label>
       <label><input type="checkbox" name="builtin_guide" ${s.builtin_guide !== false ? "checked" : ""} style="width:auto"> Use the built-in tech guide</label>
-      <p class="small muted" style="margin:.1rem 0 .4rem">Show-day fixes for sound, video, presenters' laptops, hybrid events, lighting, safety and running the show, built into AT-SUITE. It works offline. Your own notes and fixes always come first.</p>
+      <p class="small muted" style="margin:.1rem 0 .4rem">Fault finding for sound, video, lighting, staging and rigging, networks, presenters' laptops, hybrid events, safety and running the show, built into AT-SUITE. It works offline. Your own notes and fixes always come first. You can read and change it under Tech guide.</p>
       <h2 style="margin-top:1rem">Private AI model (optional)</h2>
-      <p class="small muted" style="margin-top:0">With a model on your own network (<a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>), it writes a short answer from those notes. Without one it lists what worked before. Leave the address empty to use the one set in Presenters${d.presenter_ai_url ? ` (${esc(d.presenter_ai_url)})` : ""}.</p>
+      <p class="small muted" style="margin-top:0">With a model on your own network (<a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>), it writes its replies from those notes and the whole conversation. Without one it still chats: it offers the best match and asks the guide's questions to narrow the fault down. Leave the address empty to use the one set in Presenters${d.presenter_ai_url ? ` (${esc(d.presenter_ai_url)})` : ""}.</p>
       <label>Ollama address</label><input name="ai_url" placeholder="http://192.168.1.50:11434" value="${esc(s.ai_url)}">
       <label>Model</label><input name="ai_model" value="${esc(s.ai_model)}">
       <h2 style="margin-top:1rem">Web quick search</h2>
       <label><input type="checkbox" name="web_search" ${s.web_search ? "checked" : ""} style="width:auto"> Look up questions on the web when the venue's notes don't cover them</label>
       <p class="small muted" style="margin:.1rem 0 .4rem">Off by default. When on, only the question is sent (to DuckDuckGo), never your notes, chat, names or rooms. Leave it off for NDA work.</p>
       <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form>
-      <div class="panel"><h2>Learned from techs</h2>${d.learned.length ? `<table><tr><th>Question</th><th>Answer</th><th>By</th><th></th></tr>${d.learned.map((k) => `<tr><td>${esc(k.question)}</td><td class="small" style="white-space:pre-wrap">${esc(k.answer)}</td><td class="small muted">${esc(k.added_by)}<br>${when(k.created_at)}</td><td><button class="small danger" data-forget="${k.id}">Forget</button></td></tr>`).join("")}</table>` : '<p class="muted">Nothing yet. When an answer fixes something, techs press "This fixed it".</p>'}</div></div>`;
+      <div class="panel"><h2>Learned from techs</h2>${d.learned.length ? `<table><tr><th>Question</th><th>Answer</th><th>By</th><th></th></tr>${d.learned.map((k) => `<tr><td>${esc(k.question)}</td><td class="small" style="white-space:pre-wrap">${esc(k.answer)}</td><td class="small muted">${esc(k.added_by)}<br>${when(k.created_at)}</td><td><button class="small danger" data-forget="${k.id}">Forget</button></td></tr>`).join("")}</table>` : '<p class="muted">Nothing yet. When an answer fixes something, techs press "This fixed it".</p>'}</div>
+      <div class="panel" id="aiGuide" style="grid-column:1/-1"></div></div>`;
+    admGuide(a.querySelector("#aiGuide"));
     const f = a.querySelector("#aif");
     f.onsubmit = (e) => {
       e.preventDefault();
@@ -787,6 +789,63 @@
         .then((ok) => ok && toast("Saved", "good"));
     };
     a.querySelectorAll("[data-forget]").forEach((b) => b.onclick = () => confirm("Forget this answer?") && guard(() => del(`/api/admin/ai/learned/${b.dataset.forget}`)).then(() => admAi(a)));
+  }
+
+  // The tech guide the AI helper answers from: AT-SUITE's topics, which admins can change (their copy
+  // replaces the built-in one until they reset it) or add to.
+  const GUIDE_SOURCE = { "built-in": ["Built in", ""], provider: ["From your provider", ""], edited: ["Changed here", "warn"], added: ["Added here", "good"] };
+  async function admGuide(box, open = "") {
+    const { topics } = await api("/api/admin/ai/guide");
+    box.innerHTML = `<h2>Tech guide</h2>
+      <p class="small muted" style="margin-top:0">What the AI helper knows about fault finding, one topic per file. Change a topic and your copy is used instead of the built-in one; Reset brings the built-in one back. Your venue notes still come first. Anyone can read the guide at <a href="/guide/help" target="_blank" rel="noopener">/guide/help</a>, so keep venue details (rooms, inputs, where kit is) in Venue notes.</p>
+      <table><tr><th>Topic</th><th>Entries</th><th>Questions</th><th>Where from</th><th></th></tr>${topics.map((t) => {
+        const [label, cls] = GUIDE_SOURCE[t.source] || [t.source, ""];
+        return `<tr><td><b>${esc(t.title)}</b> <span class="muted small">${esc(t.name)}</span></td><td>${t.entries}</td><td>${t.questions}</td><td><span class="pill ${cls}">${esc(label)}</span></td>
+          <td class="row" style="gap:.3rem"><button class="small" data-gedit="${esc(t.name)}">${t.source === "added" || t.source === "edited" ? "Edit" : "Read or change"}</button>${t.source === "edited" ? `<button class="small" data-greset="${esc(t.name)}">Reset</button>` : ""}${t.source === "added" ? `<button class="small danger" data-greset="${esc(t.name)}">Delete</button>` : ""}</td></tr>`;
+      }).join("")}</table>
+      <div class="row" style="margin-top:.6rem"><button class="small" id="gAdd">Add a topic</button></div>
+      <div id="gEdit"></div>
+      <details style="margin-top:.8rem"><summary>How to write a topic</summary><pre class="small" style="white-space:pre-wrap"># Venue kit
+
+## Lectern mic not working
+Keywords: lectern, gooseneck, mic dead
+1. The lectern mic is a condenser: it needs phantom power on its channel.
+2. Spare goosenecks are in the blue case under the tech desk.
+
+### Ask meter: Does the lectern channel's meter move when someone speaks?
+- Yes: The sound reaches the desk: check the fader and the main mix. → main
+- No: Turn on phantom power, then swap the gooseneck.
+
+### Ask main: Does the master meter move too?
+- Yes: Check the amps are on.
+- No: Check the channel is routed to the main mix.</pre>
+      <p class="small muted">Each "## " heading is one entry: steps first, then optional questions. A question is "### Ask &lt;id&gt;: question", each answer a line "- Answer: what to do", and "→ id" goes on to another question. The helper shows the answers as buttons.</p></details>`;
+    const edit = async (name, fresh = false) => {
+      const t = fresh ? { name: "", markdown: "# New topic\n\n## First entry\nKeywords: \n1. \n", problems: [] } : await api(`/api/admin/ai/guide/${encodeURIComponent(name)}`);
+      const ed = box.querySelector("#gEdit");
+      ed.innerHTML = `<form method="post" class="panel" style="margin-top:.8rem" id="gForm"><h3 style="margin-top:0">${fresh ? "New topic" : esc(name)}${t.edited === false && t.built_in ? ' <span class="pill">built in: saving makes your own copy</span>' : ""}</h3>
+        ${fresh ? '<label for="gName">Name (lower case, numbers and dashes, e.g. venue-kit)</label><input id="gName" name="name" pattern="[a-z0-9][a-z0-9-]{0,39}" required>' : ""}
+        <label for="gText">Topic</label><textarea id="gText" name="markdown" rows="22" style="font-family:ui-monospace,monospace;font-size:.85rem">${esc(t.markdown)}</textarea>
+        <div id="gProblems">${probs(t.problems)}</div>
+        <div class="row" style="margin-top:.5rem"><button class="primary">Save</button><button type="button" class="small" id="gCancel">Close</button></div></form>`;
+      const f = ed.querySelector("#gForm");
+      ed.querySelector("#gCancel").onclick = () => { ed.innerHTML = ""; };
+      f.onsubmit = (e) => {
+        e.preventDefault();
+        const n = fresh ? f.name.value.trim() : name;
+        guard(() => put(`/api/admin/ai/guide/${encodeURIComponent(n)}`, { markdown: f.markdown.value })).then((r) => {
+          toast(r.problems.length ? "Saved, but some questions need a look" : "Saved", r.problems.length ? "warn" : "good");
+          admGuide(box, r.problems.length ? n : "");
+        }, () => {});
+      };
+      ed.scrollIntoView({ block: "nearest" });
+    };
+    const probs = (p) => p?.length ? `<div class="small" role="alert" style="margin-top:.4rem"><b>Check these:</b><ul>${p.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : "";
+    box.querySelectorAll("[data-gedit]").forEach((b) => b.onclick = () => edit(b.dataset.gedit));
+    box.querySelectorAll("[data-greset]").forEach((b) => b.onclick = () => confirm(b.textContent === "Delete" ? "Delete this topic?" : "Go back to the built-in topic? Your changes are lost.") &&
+      guard(() => del(`/api/admin/ai/guide/${encodeURIComponent(b.dataset.greset)}`)).then(() => admGuide(box)));
+    box.querySelector("#gAdd").onclick = () => edit("", true);
+    if (open) edit(open);
   }
 
   // Where Report a bug sends people, for now.

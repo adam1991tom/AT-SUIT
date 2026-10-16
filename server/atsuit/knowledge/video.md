@@ -8,6 +8,18 @@ Keywords: no signal, no picture, picture gone, no image, blank screen, projector
 4. Bring the laptop's resolution down to 1920 × 1080 at 60 Hz, which everything accepts.
 5. Unplug and replug the HDMI (or power-cycle the receiver) to force a fresh handshake.
 
+### Ask input: Is the projector or screen set to the input the laptop is plugged into?
+- Yes: → laptop
+- No: Pick the right input on the projector's remote or the screen's menu, and on any switcher in between. → laptop
+
+### Ask laptop: Does the laptop show the screen in its display settings (Windows key + P, or Displays on a Mac)?
+- Yes: The laptop sees it. Choose Duplicate (or Extend), set 1920 × 1080 at 60 Hz, and unplug and replug the cable to force a fresh handshake. → between
+- No: The laptop can't see the screen. Try another cable, port or adapter, and Detect in the display settings (see "Laptop doesn't detect the screen").
+
+### Ask between: Is there a switcher, extender or splitter between the laptop and the screen?
+- Yes: Plug the laptop straight into the screen to test. If that works, the fault is the box in between: check its input and output, power it off and on, and check the cable runs and extender lights.
+- No: Swap the cable, then the adapter. If another laptop works on the same cable, the fault is the first laptop's port or display settings.
+
 ## HDMI keeps dropping or flickering
 Keywords: flicker, flashing, dropping, sparkles, hdmi handshake, hdcp, intermittent, black for a second
 1. Long HDMI runs (over about 10 to 15 m) need an active cable, HDBaseT or fibre extender: a passive cable will drop out.
@@ -34,6 +46,12 @@ Keywords: second screen not detected, laptop won't show on projector, wont show 
 2. Try another cable, port or adapter; restart the laptop with the cable already plugged in.
 3. Docks and USB-C hubs sometimes need their own power to drive a display.
 
+### Ask port: How is the laptop connected?
+- HDMI: Use a short, known-good HDMI cable straight into the laptop, and restart the laptop with it plugged in.
+- USB-C: Not every USB-C port carries video (look for the DisplayPort or Thunderbolt symbol). Try another port, and give the adapter or dock its own power.
+- VGA: VGA has no sound and needs the right input picked on the projector. Check the screws are in and no pins are bent, then run the projector's auto-adjust.
+- Mini DisplayPort: Push the adapter fully in, and use an active adapter to HDMI on older Macs.
+
 ## PowerPoint shows on the wrong screen
 Keywords: presenter view, slides on laptop, wrong monitor, notes on projector, swap displays
 1. In PowerPoint, Slide Show → Monitor: choose the projector, and tick Use Presenter View.
@@ -46,6 +64,16 @@ Keywords: video stuttering, choppy, no video, codec, mp4, embedded video, playba
 2. Embed the video in the file, or keep it in the same folder as the presentation if it's linked.
 3. Play it through once before the session so it is cached, with the laptop on mains power and in high-performance mode.
 4. If it still stutters, play it from a separate media player on its own output.
+
+### Ask what: What happens when the video should play?
+- Black box: The video is missing or linked to a file that isn't there: insert it again from a copy on the laptop's own drive. → codec
+- Error: The laptop can't play that file. → codec
+- Stutters: Close other apps, plug in the charger, set high-performance mode, and play it once before the session.
+- No sound: Check the video's own volume (Playback in PowerPoint) and the laptop's sound output (see "Laptop sound not coming through the PA").
+
+### Ask codec: Is the video an MP4 file (H.264)?
+- Yes: Copy it to the laptop's own drive (not a USB stick or network drive), insert it again, and play it in a media player such as VLC to check the file isn't damaged.
+- No: Convert it to MP4 (H.264), for example with HandBrake or PowerPoint's File → Info → Compress Media, or play it from VLC on its own output.
 
 ## Projector overheating or turning off
 Keywords: projector off, overheat, lamp, fan, temperature warning, shut down
@@ -83,3 +111,25 @@ Keywords: flicker on camera, banding, rolling bars, shutter, pwm, frame rate, 50
 1. Match the camera frame rate to the local mains frequency (25/50 fps on 50 Hz power, 30/60 on 60 Hz).
 2. Set the shutter to 1/50 or 1/100 on 50 Hz power (1/60 or 1/120 on 60 Hz).
 3. Cheap LED lights flicker on camera: raise their output or swap them for ones made for camera.
+
+## Projector lamp or filter warning
+Keywords: lamp warning, replace lamp, lamp hours, filter warning, clean filter, lamp light, warning light, flashing light, temperature light, projector warning
+1. A lamp warning means the lamp is near the end of its life: it can usually finish the show but may dim or fail. Swap it in a long break, never mid-session.
+2. A filter warning: clean or change the filter with the projector off and cool, then reset the filter timer in the menu.
+3. A flashing temperature light: clear the vents and the space around it, and check the room isn't too hot. Let the fan finish before unplugging.
+4. Laser projectors have no lamp: a warning there usually means temperature or a fault code. Note the code for the supplier.
+
+### Ask which: Which warning is showing?
+- Lamp: Keep going if the picture is fine. Note the lamp hours and have the spare lamp ready for the next break.
+- Filter: Keep going; clean or change it after the show and reset the filter hours.
+- Temperature: Clear the vents and turn eco mode on to cut the heat. If it shuts down, let it cool fully before turning it on again.
+
+## Confidence monitor blank or showing the wrong thing
+Keywords: confidence monitor blank, foldback screen blank, downstage monitor no picture, speaker monitor wrong, presenter can't see notes, dsm monitor, stage monitor screen
+1. Check the monitor's power and input, and which output feeds it (presenter view, the next slide, or the timer).
+2. Slides instead of presenter view means the laptop's displays are swapped: see "PowerPoint shows on the wrong screen".
+3. Long runs to the stage need an extender (HDBaseT or fibre): check its lights at both ends.
+
+### Ask blank: Is the monitor blank, or showing the wrong picture?
+- Blank: Check power, then the input, then the extender lights at both ends. Plug a laptop straight in at the stage to test the screen itself.
+- Wrong picture: Check which output feeds it (the switcher's aux, or the laptop's second output), and swap presenter view if it's showing the slides.

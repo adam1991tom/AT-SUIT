@@ -15,6 +15,14 @@ Keywords: clicker, remote, slide advancer, next slide, presenter remote, pointer
 3. Long venues: use a long-range clicker or a receiver on a USB extension near the stage.
 4. Keep a spare clicker, and a tech ready to advance slides on cue.
 
+### Ask keys: Do the arrow keys on the laptop move the slides on?
+- Yes: The slide show works, so it's the clicker. → receiver
+- No: It's the slide show, not the clicker: see "Slides won't advance".
+
+### Ask receiver: Is the clicker's USB receiver plugged into the show laptop?
+- Yes: Change the clicker's battery, check it's paired to that receiver (some have a pairing button), and try it closer to the laptop. If it still won't work, use the spare clicker or have a tech advance on cue.
+- No: Plug the receiver in (on a USB extension towards the stage in a big room) and try again.
+
 ## Laptop going to sleep or showing notifications
 Keywords: sleep, screensaver, notifications, pop up, do not disturb, updates, focus assist, lock screen
 1. Set the show laptop to never sleep on mains, and turn off the screensaver.
@@ -47,3 +55,14 @@ Keywords: overrun, running late, wrap up, time up, timing, over time
 2. Agree with the stage manager or producer before the show who decides to cut, and how (message, walk-on, music).
 3. Use Blink on the timer or a flashing message as the last signal.
 4. Tell the stage manager how much time the overrun cost so the running order can be adjusted.
+
+## Slides won't advance
+Keywords: slides won't advance, won't go to the next slide, stuck on a slide, next slide not working, powerpoint stuck, keynote stuck, slide show frozen
+1. Click once on the slide show itself: a pop-up or another window may have the keyboard focus.
+2. Check it's really in slide show mode (F5 in PowerPoint, Play in Keynote), not editing.
+3. An animation or video waiting for a click looks like a stuck slide: click again.
+4. Try the laptop's arrow keys: if they work, it's the clicker.
+
+### Ask arrows: Do the arrow keys on the laptop move the slides on?
+- Yes: The slide show is fine, so it's the clicker: see "Clicker (presentation remote) not working".
+- No: Click on the slide show once and try again. Still stuck: press Esc and start from the current slide (Shift+F5 in PowerPoint). If the laptop is frozen, switch to the backup laptop or the PDF.

@@ -40,7 +40,10 @@ Strict-NDA venues can still run AT-SUITE on their own server, as before (docs/IN
 - **Tech guide.** The AI helper's built-in show-day guide (`server/atsuit/knowledge`) ships
   with AT-SUITE, and techs can read it at `/guide/help`. Your own articles for every venue go in
   `/srv/atcloud/kb`, in the same format: Markdown, `# Title`, then one `## Problem` per fix with
-  a `Keywords:` line. A file with the same name as a built-in one replaces it.
+  a `Keywords:` line, and optional `### Ask <id>: question` blocks the helper walks techs
+  through. A file with the same name as a built-in one replaces it. A venue admin can also
+  change a topic in Settings → AI helper → Tech guide; that copy is kept in the venue's data
+  folder and wins over both.
 - **AI helper model (optional).** `atcloud ai on` runs one private model (Ollama, `llama3.2:3b`
   by default) on the server for every venue. Questions never leave your server. Without it the
   helper still lists what has worked before and the matching help articles. It needs about 3 GB

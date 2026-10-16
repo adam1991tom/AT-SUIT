@@ -101,3 +101,144 @@ def test_the_built_in_tech_guide(admin, monkeypatch):
     admin.put("/api/admin/ai", json={"builtin_guide": False})
     assert admin.get("/api/admin/ai").json()["settings"]["builtin_guide"] is False
     assert tech.post("/api/ai/ask", json={"question": "radio mic keeps cutting out"}).json()["sources"] == []
+
+
+def _chat(tech, turns, state=None, **extra):
+    msgs = [{"role": "tech" if i % 2 == 0 else "helper", "text": t} for i, t in enumerate(turns)]
+    r = tech.post("/api/ai/chat", json={"messages": msgs, **({"state": state} if state else {}), **extra})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+class Talk:
+    """A conversation the way the workspace's window keeps it."""
+
+    def __init__(self, tech, **extra):
+        self.tech, self.turns, self.state, self.extra = tech, [], None, extra
+
+    def say(self, text):
+        self.turns.append(text)
+        r = _chat(self.tech, self.turns, self.state, **self.extra)
+        self.turns.append(r["answer"])
+        self.state = r["state"]
+        return r
+
+
+def test_a_conversation_without_a_model(admin, monkeypatch):
+    monkeypatch.setattr(aihelper.httpx, "get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no web")))
+    tech = _tech(admin)
+    talk = Talk(tech)
+
+    # It finds the guide entry, gives its steps and asks the first question, with buttons for the answers.
+    r = talk.say("The lectern mic is dead")
+    assert "No sound from a microphone" in r["answer"] and "meter" in r["answer"]
+    assert r["choices"] == ["Yes", "No"] and r["state"]["ask"] == "meter" and r["sources"][0]["kind"] == "tech guide"
+
+    # Typed answers follow the tree, in the tech's own words.
+    r = talk.say("nope nothing")
+    assert "radio" in r["answer"].lower() and r["state"]["ask"] == "wireless"
+    r = talk.say("yes")
+    assert "RF" in r["answer"] and r["state"]["ask"] == "rf"
+    r = talk.say("No")
+    assert "batteries" in r["answer"] and r["choices"] == ["Fixed", "Still not working"]
+
+    # Still broken: something else, not the same entry again.
+    r = talk.say("Still not working")
+    assert "No sound from a microphone" not in r["answer"] and "Let's try something else" in r["answer"]
+
+    # A follow-up question in the middle of it is read as a new question.
+    r = talk.say("what if it's a condenser mic with no phantom power")
+    assert "48V" in r["answer"] or "phantom" in r["answer"].lower()
+
+    # Fixed: it says so and the window offers "This fixed it".
+    r = talk.say("that's fixed it, thanks")
+    assert r["done"] is True and "glad" in r["answer"].lower()
+
+
+def test_chat_venue_first_and_running_out(admin, monkeypatch):
+    monkeypatch.setattr(aihelper.httpx, "get", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no web")))
+    tech = _tech(admin)
+    room = admin.get("/api/bootstrap").json()["rooms"][0]["id"]
+    admin.put("/api/admin/ai", json={"venue_notes": "Hall A projector no signal\nUse input HDMI 2 on the wall plate; the remote is on the lectern shelf."})
+    talk = Talk(tech, room_id=room)
+    r = talk.say("Hall A projector no signal")
+    assert r["answer"].index("HDMI 2") < r["answer"].index("From the tech guide")
+    assert [s["kind"] for s in r["sources"]][:2] == ["venue notes", "tech guide"]
+
+    # Something nobody knows: it asks for more and offers to call for help, in the right category.
+    talk = Talk(tech, room_id=room)
+    r = talk.say("the zorblatt is grommiting")
+    assert r["choices"] == ["Call for help"] and r["help"] == {"category": "Other", "description": "the zorblatt is grommiting"}
+    r = talk.say("still nothing")
+    assert "run out of ideas" in r["answer"] and r["help"]
+
+    # The help category comes from the topic it was on.
+    talk = Talk(tech)
+    talk.say("the lights are not responding to the desk")
+    talk.say("every light")
+    for _ in range(4):
+        r = talk.say("tried that, still not working")
+    assert r["help"]["category"] == "Lighting"
+
+    # The last message has to be the tech's; nothing else is accepted.
+    bad = tech.post("/api/ai/chat", json={"messages": [{"role": "helper", "text": "hi"}]})
+    assert bad.status_code == 400
+    assert tech.post("/api/ai/chat", json={"messages": [{"role": "boss", "text": "hi"}]}).status_code == 422
+
+
+def test_chat_with_a_model(admin, monkeypatch):
+    seen = {}
+
+    def fake(url, model, messages):
+        seen.update(url=url, model=model, messages=messages)
+        return "Is the channel's meter moving?"
+    monkeypatch.setattr(aihelper, "chat_model", fake)
+    tech = _tech(admin)
+    admin.put("/api/admin/ai", json={"ai_url": "http://10.0.0.5:11434", "venue_notes": "Lectern mic\nThe lectern mic is input 12; its phantom is on the stage box."})
+    r = _chat(tech, ["the lectern mic is dead", "Check it's switched on. Is the meter moving?", "no, and the cable is fine"])
+    assert r["model"] is True and r["answer"] == "Is the channel's meter moving?" and r["choices"] == []
+    system, *rest = seen["messages"]
+    assert system["role"] == "system" and "input 12" in system["content"] and "No sound from a microphone" in system["content"]
+    assert "venue is right" in system["content"]
+    assert [m["role"] for m in rest] == ["user", "assistant", "user"] and rest[-1]["content"] == "no, and the cable is fine"
+
+    # No model reachable: it still talks, from the guide.
+    monkeypatch.setattr(aihelper, "chat_model", lambda *a: (_ for _ in ()).throw(aihelper.httpx.ConnectError("down")))
+    r = _chat(tech, ["the lectern mic is dead"])
+    assert r["model"] is False and r["choices"] == ["Yes", "No"]
+
+
+def test_admins_edit_the_guide(admin, monkeypatch, tmp_path):
+    tech = _tech(admin)
+    topics = {t["name"]: t for t in admin.get("/api/admin/ai/guide").json()["topics"]}
+    assert topics["audio"]["source"] == "built-in" and topics["audio"]["questions"] > 5 and "staging" in topics
+    assert tech.get("/api/admin/ai/guide").status_code == 403
+
+    # Their copy replaces the built-in one, for the helper and on the help page.
+    audio = admin.get("/api/admin/ai/guide/audio").json()
+    assert audio["edited"] is False and audio["problems"] == []
+    own = audio["markdown"].replace("## No sound from a microphone", "## No sound from a microphone\n1. In Hall A, the spare mics are in the blue case.", 1)
+    assert admin.put("/api/admin/ai/guide/audio", json={"markdown": own}).json() == {"ok": True, "problems": []}
+    assert admin.get("/api/admin/ai/guide").json()["topics"][1]["source"] == "edited"
+    assert "blue case" in _chat(tech, ["the lectern mic is dead"])["answer"]
+    assert "blue case" in admin.get("/api/guide/help").json()["articles"][1]["markdown"] or any(
+        "blue case" in a["markdown"] for a in admin.get("/api/guide/help").json()["articles"])
+
+    # Mistakes in the questions are pointed out.
+    bad = "# Venue\n\n## Doors\nKeywords: doors\n1. Open them.\n\n### Ask a: Are they locked?\n- Yes: Get the key. → b\n"
+    r = admin.put("/api/admin/ai/guide/venue", json={"markdown": bad}).json()
+    assert r["problems"] == ["Doors: a → b: there's no question b"]
+    assert {t["name"]: t["source"] for t in admin.get("/api/admin/ai/guide").json()["topics"]}["venue"] == "added"
+    assert admin.put("/api/admin/ai/guide/..%2Fx", json={"markdown": "x"}).status_code in (400, 404)
+    assert admin.put("/api/admin/ai/guide/Bad Name", json={"markdown": "x"}).status_code == 400
+
+    # Reset brings the built-in one back; an added topic goes.
+    admin.delete("/api/admin/ai/guide/audio")
+    admin.delete("/api/admin/ai/guide/venue")
+    assert "blue case" not in _chat(tech, ["the lectern mic is dead"])["answer"]
+    assert "venue" not in {t["name"] for t in admin.get("/api/admin/ai/guide").json()["topics"]}
+
+
+def test_the_help_page_reads_the_questions_out():
+    md = aihelper.readable("# A\n\n## B\nKeywords: x\n1. Do it.\n\n### Ask q1: Is it on?\n- Yes: Good. → q2\n- No: Turn it on.\n\n### Ask q2: Is it loud?\n- Yes: Turn it down.\n")
+    assert "Keywords" not in md and "#### Is it on?" in md and "- **Yes:** Good. (Next: Is it loud?)" in md and "- **No:** Turn it on." in md
