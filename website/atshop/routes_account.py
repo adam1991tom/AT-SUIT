@@ -172,7 +172,7 @@ async def buy_start(request: Request):
                    order.get("venue_slug"), order.get("venue_name"), order.get("event_start"), txn["id"], now()))
         audit(c, acc["email"], "checkout.start", ref, {**order, "transaction": txn["id"]}, ip(request))
     return render(request, "account/checkout.html", {"title": "Checkout", "txn": txn["id"], "ref": ref,
-                                                     "client_token": sh.s.paddle_client_token,
+                                                     "client_token": sh.s.paddle_client_token, "customer": cust,
                                                      "sandbox": sh.s.paddle_env == "sandbox", "email": acc["email"]})
 
 

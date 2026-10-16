@@ -25,7 +25,7 @@ def test_versions_compare_as_numbers():
 
 def test_settings_and_check(admin, monkeypatch):
     st = admin.get("/api/admin/updates").json()
-    assert st["current"] == VERSION and st["mode"] == "auto" and st["repo"] == updates.REPO_DEFAULT and not st["has_token"]
+    assert st["current"] == VERSION and st["mode"] == "auto" and "repo" not in st and not st["has_token"]
     assert st["latest"] is None and not st["available"] and not st["host_updater"]
     seen = {}
 
@@ -35,10 +35,11 @@ def test_settings_and_check(admin, monkeypatch):
     monkeypatch.setattr(updates, "fetch_latest", fake)
     assert admin.put("/api/admin/updates", json={"token": "not a token!"}).status_code == 400
     assert admin.put("/api/admin/updates", json={"mode": "sometimes"}).status_code == 400
-    st = admin.put("/api/admin/updates", json={"mode": "notify", "repo": "https://github.com/acme/at-suit/", "token": "ghp_abc123"}).json()
-    assert st["mode"] == "notify" and st["repo"] == "acme/at-suit" and st["has_token"]
+    # where updates come from isn't a setting: a repository sent by an older page is ignored
+    st = admin.put("/api/admin/updates", json={"mode": "notify", "repo": "acme/at-suit", "token": "ghp_abc123"}).json()
+    assert st["mode"] == "notify" and "repo" not in st and st["has_token"]
     st = admin.post("/api/admin/updates/check").json()
-    assert seen == {"repo": "acme/at-suit", "token": "ghp_abc123"}
+    assert seen == {"repo": updates.REPO_DEFAULT, "token": "ghp_abc123"}
     assert st["available"] and st["latest"]["version"] == bump(VERSION) and st["error"] == ""
     assert "ghp_abc123" not in admin.get("/api/admin/updates").text  # the token never comes back
     # a server running a build newer than the newest release says so, rather than "up to date"
@@ -55,9 +56,15 @@ def test_settings_and_check(admin, monkeypatch):
     st = admin.post("/api/admin/updates/check").json()
     assert "401" in st["error"] and st["latest"]["version"] == bump(VERSION)  # what it knew stays
     # laptops look on GitHub only while updates are on
-    assert admin.get("/api/nodes/app").json()["github"] == "acme/at-suit"
+    assert admin.get("/api/nodes/app").json()["github"] == updates.REPO_DEFAULT
     admin.put("/api/admin/updates", json={"mode": "off", "token": ""})
     assert admin.get("/api/nodes/app").json()["github"] is None
+    # off stops the checks it does by itself, but Check now still asks
+    monkeypatch.setattr(updates, "fetch_latest", lambda repo, token: release(bump(VERSION, 2), repo=repo))
+    updates.check()
+    assert admin.get("/api/admin/updates").json()["latest"]["version"] == bump(VERSION)
+    st = admin.post("/api/admin/updates/check").json()
+    assert st["latest"]["version"] == bump(VERSION, 2) and st["error"] == "" and not st["helper"]
     assert not admin.get("/api/admin/updates").json()["has_token"]
     admin.post("/api/auth/logout")
     assert admin.get("/api/admin/updates").status_code in (401, 403)
@@ -179,10 +186,14 @@ def test_releases_come_from_the_releases_repository(admin, monkeypatch):
     monkeypatch.setattr(updates, "fetch_latest", lambda repo, token: release(bump(VERSION), repo=repo))
     admin.post("/api/admin/updates/check")
     assert plan()["REPO"] == updates.REPO_DEFAULT and admin.get("/api/nodes/app").json()["github"] == updates.REPO_DEFAULT
-    # a server that saved the source repository before the move (with no token) follows the move
-    with db.tx() as c:
-        db.set_setting(c, "updates", {"mode": "auto", "repo": "adam1991tom/AT-SUIT"})
-    assert admin.get("/api/admin/updates").json()["repo"] == updates.REPO_DEFAULT
+    # a repository saved by an older version (any name, token or not) is ignored
+    seen = []
+    monkeypatch.setattr(updates, "fetch_latest", lambda repo, token: seen.append(repo) or release(bump(VERSION), repo=repo))
+    for old in ("adam1991tom/AT-SUIT", "adam1991tom/AT-SUITE", "acme/elsewhere"):
+        with db.tx() as c:
+            db.set_setting(c, "updates", {"mode": "auto", "repo": old})
+        admin.post("/api/admin/updates/check")
+    assert seen == [updates.REPO_DEFAULT] * 3
 
 
 def test_the_rename_to_at_suite(admin, monkeypatch):
@@ -224,9 +235,3 @@ def test_the_rename_to_at_suite(admin, monkeypatch):
     # an old name (what update.sh and older servers still use) follows GitHub's redirect
     assert updates.fetch_latest("adam1991tom/AT-SUIT", "")["version"] == "9.9.9"
     assert asked[-2:] == ["/repos/adam1991tom/AT-SUIT/releases/latest", "/repositories/42/releases/latest"]
-
-    # a server that saved an old name in Settings → Updates moves to the new one
-    for old, new in (("adam1991tom/AT-SUIT-releases", updates.REPO_DEFAULT), ("ADAM1991TOM/at-suit", updates.REPO_DEFAULT)):
-        with db.tx() as c:
-            db.set_setting(c, "updates", {"mode": "auto", "repo": old})
-        assert admin.get("/api/admin/updates").json()["repo"] == new
