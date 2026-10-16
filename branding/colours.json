@@ -1,8 +1,8 @@
 {
-  "brand": "AT-SUIT",
+  "brand": "AT-SUITE",
   "colours": {
     "orange": {
-      "name": "AT-SUIT Orange",
+      "name": "AT-SUITE Orange",
       "hex": "#FF7A1A",
       "use": "The gear. Primary accent: buttons, active tabs, highlights, links on dark.",
       "rgb": [
@@ -44,7 +44,7 @@
     "ui_dark": {
       "name": "App Dark",
       "hex": "#0E1116",
-      "use": "AT-SUIT app UI background (dark theme).",
+      "use": "AT-SUITE app UI background (dark theme).",
       "rgb": [
         14,
         17,
@@ -124,7 +124,7 @@
       "note": "Handyman services (sampled)"
     },
     {
-      "brand": "AT SUIT",
+      "brand": "AT SUITE",
       "hex": "#FF7A1A",
       "rgb": [
         255,

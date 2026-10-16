@@ -1,5 +1,5 @@
-// Lets custom views written for Ontime run inside AT-SUIT unchanged.
-// Ontime runs one server per room (one port each); AT-SUIT runs one server for
+// Lets custom views written for Ontime run inside AT-SUITE unchanged.
+// Ontime runs one server per room (one port each); AT-SUITE runs one server for
 // every room, so this points the view's websocket and data requests at the
 // room in the page address: /room/<id>/external/<view>/ (or the older
 // /external/<view>/?room=<id>).

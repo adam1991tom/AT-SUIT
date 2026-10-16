@@ -270,7 +270,7 @@ const PresenterPage = (() => {
           <label>Model</label><input name="ai_model" value="${esc(s.ai_model)}">
           <div class="row" style="margin-top:.8rem"><button class="primary">Save</button></div></form>
         <div class="panel"><h2>Room sync</h2>
-          <p class="small">The presentation laptop in each room keeps a folder with every session's approved presenter file and show files. AT-SUIT Node laptops sync the room they're in. For any other laptop, run <a href="/api/presenter/room-sync/atsuit_room_sync.py">the room sync tool</a> (Python, nothing to install) with the room's code:</p>
+          <p class="small">The presentation laptop in each room keeps a folder with every session's approved presenter file and show files. AT-SUITE Node laptops sync the room they're in. For any other laptop, run <a href="/api/presenter/room-sync/atsuit_room_sync.py">the room sync tool</a> (Python, nothing to install) with the room's code:</p>
           <code class="small">python atsuit_room_sync.py --server ${esc(location.origin)} --code ROOM-CODE</code>
           <table style="margin-top:.6rem">${s.rooms.map((r) => `<tr><td>${esc(r.name)} <span class="muted small">${esc(r.site)}</span></td><td><code>${esc(r.sync_code || "none")}</code></td><td><button class="small" data-code="${r.id}">${r.sync_code ? "New code" : "Make code"}</button></td></tr>`).join("")}</table></div></div>`;
       const f = body.querySelector("#prefs");

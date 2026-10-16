@@ -1,9 +1,9 @@
-<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUIT" width="200">
+<img src="../branding/logo/atsuit-wordmark.png" alt="AT-SUITE" width="200">
 
-# Companion and the AT-SUIT API
+# Companion and the AT-SUITE API
 
 Bitfocus Companion (and anything else that can send a web request) drives
-AT-SUIT with an API key. A key can do what a tech can: run any room's timer,
+AT-SUITE with an API key. A key can do what a tech can: run any room's timer,
 show stage messages, work the overlay laptops, test captions, route screens.
 It can't change settings, accounts or licences.
 
@@ -24,7 +24,7 @@ Add a **Generic HTTP** connection (Connections → Add → "Generic: HTTP Reques
 
 | Setting | Value |
 |---|---|
-| Base URL | the AT-SUIT address, e.g. `http://10.100.70.100:8180` |
+| Base URL | the AT-SUITE address, e.g. `http://10.100.70.100:8180` |
 
 Every button uses a **POST** action with:
 
@@ -149,7 +149,7 @@ timer 1). Hidden, it changes nothing on screen.
 
 ### AT Overlay on a tech laptop
 
-The AT-SUIT Node app can float the room timer over a tech laptop's screen
+The AT-SUITE Node app can float the room timer over a tech laptop's screen
 (clicks go through it). The node number is in Laptops & screens on the console.
 
 | Button | PUT | Body |

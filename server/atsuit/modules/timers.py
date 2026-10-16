@@ -666,7 +666,7 @@ def ontime_events(data: dict) -> list[dict]:
 def ontime_flashes(data: dict) -> bool | None:
     """Whether the project blinks the timer when it reaches danger: an
     onDanger trigger whose automation calls /api/message/timer?blink=true
-    (on any Ontime server, since AT-SUIT keeps it inside the room). None if
+    (on any Ontime server, since AT-SUITE keeps it inside the room). None if
     the file has no automations at all."""
     auto = data.get("automation")
     if not isinstance(auto, dict) or not isinstance(auto.get("triggers"), list):
@@ -836,7 +836,7 @@ def _install_view(name: str, filename: str, data: bytes, p: Principal) -> dict:
     return {"id": f"view:{slug}", "slug": slug, "url": f"/room/<room>/external/{slug}/"}
 
 
-# Ready-to-import views shipped with AT-SUIT (docs/views/, copied next to the app in the image).
+# Ready-to-import views shipped with AT-SUITE (docs/views/, copied next to the app in the image).
 SAMPLE_VIEWS = {"bdng": "BDNG"}
 
 
@@ -1062,7 +1062,7 @@ def delete_design(slug: str, p: Principal = Depends(require_admin)):
     return {"ok": True}
 
 
-# The shim points the view at the room's Ontime feed; viewbar.js adds the AT-SUIT
+# The shim points the view at the room's Ontime feed; viewbar.js adds the AT-SUITE
 # status bar when it is switched on for the view.
 SHIM = '<script src="/static/ontime-shim.js"></script><script src="/static/viewbar.js" defer></script>'
 
@@ -1238,7 +1238,7 @@ async def ontime_ws(ws: WebSocket, room_id: int):
                 await ws.send_text(json.dumps({"tag": "pong", "payload": msg.get("payload")}))
 
     try:
-        await ws.send_text(json.dumps({"tag": "client-init", "payload": {"clientId": f"atsuit-{id(ws)}", "clientName": "AT-SUIT view"}}))
+        await ws.send_text(json.dumps({"tag": "client-init", "payload": {"clientId": f"atsuit-{id(ws)}", "clientName": "AT-SUITE view"}}))
         await push(full=True)
         task = asyncio.create_task(reader())
         try:

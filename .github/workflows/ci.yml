@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ATSUIT]
+    branches: [ATSUITE]
   pull_request:
 
 jobs:

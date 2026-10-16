@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AT-SUIT screen installer for a Linux laptop or all-in-one.
+# AT-SUITE screen installer for a Linux laptop or all-in-one.
 #
 # Run it once, as the user who is logged in to the desktop (not root):
 #
@@ -53,7 +53,7 @@ mv "$AGENT.new" "$AGENT"
 chmod 755 "$AGENT"
 
 if [ -n "$CODE" ]; then
-  say "Adding this screen to AT-SUIT"
+  say "Adding this screen to AT-SUITE"
   ENROL=(python3 "$AGENT" --server "$SERVER" --code "$CODE" --re-enrol --save-only)
   [ -n "$NAME" ] && ENROL+=(--name "$NAME")
   "${ENROL[@]}"
@@ -82,8 +82,8 @@ mkdir -p "$HOME/.config/autostart"
 cat > "$HOME/.config/autostart/atsuit-screen.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=AT-SUIT screen
-Comment=Shows this screen's AT-SUIT timer or view full screen
+Name=AT-SUITE screen
+Comment=Shows this screen's AT-SUITE timer or view full screen
 Exec=sh -c 'exec python3 "$AGENT"$FLAGS$NAMEFLAG >> "$DIR/agent.log" 2>&1'
 X-GNOME-Autostart-enabled=true
 NoDisplay=true

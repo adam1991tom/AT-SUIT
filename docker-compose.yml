@@ -1,4 +1,4 @@
-# AT-SUIT: one service, one volume.
+# AT-SUITE: one service, one volume.
 #   docker compose up -d                  plain http on ATSUIT_PORT
 #   docker compose --profile tls up -d    adds https on ATSUIT_TLS_PORT (needed for browser microphones)
 name: atsuit

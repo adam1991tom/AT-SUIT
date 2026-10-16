@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# One-step install of AT-SUIT on a fresh Linux server (Ubuntu, Debian and similar):
-#   curl -fsSL https://github.com/adam1991tom/AT-SUIT-releases/releases/latest/download/get.sh | sudo bash
+# One-step install of AT-SUITE on a fresh Linux server (Ubuntu, Debian and similar):
+#   curl -fsSL https://github.com/adam1991tom/AT-SUITE-releases/releases/latest/download/get.sh | sudo bash
 #   curl -fsSL .../get.sh | sudo bash -s -- --port 8180 --tls      (install.sh options pass through)
-# It installs Docker if it's missing, puts AT-SUIT in /opt/at-suit (or $ATSUIT_DIR)
+# It installs Docker if it's missing, puts AT-SUITE in /opt/at-suit (or $ATSUIT_DIR)
 # and runs install.sh. Run it again any time: it updates the files and keeps the data.
 #   ATSUIT_REF=v1.0.0   install that release instead of the latest
-# A release carries at-suit-install.tar.gz: the install files only, no source code. AT-SUIT
+# A release carries at-suit-install.tar.gz: the install files only, no source code. AT-SUITE
 # itself is the published image (ghcr.io/adam1991tom/at-suit). From a repository whose
 # releases don't have it (the source, for development) it builds from the source instead.
 set -euo pipefail
-REPO="${ATSUIT_REPO:-adam1991tom/AT-SUIT-releases}"
+REPO="${ATSUIT_REPO:-adam1991tom/AT-SUITE-releases}"
 DIR="${ATSUIT_DIR:-/opt/at-suit}"
 REF="${ATSUIT_REF:-}"
 
@@ -29,7 +29,7 @@ if [ -z "$REF" ]; then
   REF="${REF:-HEAD}"
 fi
 
-say "Getting AT-SUIT ${REF}…"
+say "Getting AT-SUITE ${REF}…"
 mkdir -p "$DIR"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -46,6 +46,6 @@ cp -a "$TMP"/. "$DIR"/
 cd "$DIR"
 echo "$REPO" > .atsuit-repo
 
-say "Starting AT-SUIT…"
+say "Starting AT-SUITE…"
 ./install.sh "${PULL[@]}" "$@"
 echo "Installed in ${DIR}. To update later: sudo ${DIR}/update.sh (it backs up first and rolls back if anything goes wrong)."
