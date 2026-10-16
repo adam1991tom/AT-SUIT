@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""atcloud: run AT-SUIT for many venues on one cloud server.
+"""atcloud: run AT-SUITE for many venues on one cloud server.
 
-Every venue gets its own AT-SUIT container, data volume and private network, at
+Every venue gets its own AT-SUITE container, data volume and private network, at
 https://<venue>.<domain>. Venues share nothing but the server: one venue's laptops,
 chat, accounts and licence can't reach another's. A Caddy front door ("the edge")
 sends each address to its venue; Cloudflare sits in front of it.
@@ -59,7 +59,7 @@ AI_IMAGE = "ollama/ollama:0.5.7"
 RESTIC_IMAGE = "restic/restic:0.17.3"
 HELPER_IMAGE = "alpine:3.20"
 SPEECH_MODEL = "sherpa-onnx-streaming-zipformer-en-2023-06-21"
-RELEASES = "https://github.com/adam1991tom/AT-SUIT-releases/releases/download"
+RELEASES = "https://github.com/adam1991tom/AT-SUITE-releases/releases/download"
 SLUG_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$")
 RESERVED = {"www", "admin", "api", "app", "mail", "smtp", "status", "help", "kb", "docs", "cloud", "edge", "portal",
             "billing", "shop", "support", "dashboard", "login", "account", "accounts", "static", "cdn", "ns1", "ns2"}
@@ -263,7 +263,7 @@ def write_site(c: dict, t: dict) -> None:
                 "\t}\n")
     else:
         body = '\theader Content-Type "text/plain; charset=utf-8"\n' \
-               '\trespond "This AT-SUIT venue is paused. Please contact your AT-SUIT provider." 503\n'
+               '\trespond "This AT-SUITE venue is paused. Please contact your AT-SUITE provider." 503\n'
     (ROOT / "sites" / f"{slug}.caddy").write_text(f"@v_{slug} host {host}\nhandle @v_{slug} {{\n{body}}}\n")
 
 

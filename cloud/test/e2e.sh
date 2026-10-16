@@ -3,7 +3,7 @@
 # kept apart, set up only from the setup link, paused and resumed, backed up and restored,
 # updated (and rolled back when the new version isn't healthy), and removed.
 #
-#   cloud/test/e2e.sh IMAGE:TAG        e.g. atsuit:ci (a locally built AT-SUIT image)
+#   cloud/test/e2e.sh IMAGE:TAG        e.g. atsuit:ci (a locally built AT-SUITE image)
 #
 # Uses a throwaway ATCLOUD_ROOT and https on port 8443 with a stand-in certificate.
 set -euo pipefail

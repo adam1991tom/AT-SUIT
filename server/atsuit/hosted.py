@@ -1,4 +1,4 @@
-"""Hosted mode: AT-SUIT run for a venue by its provider on a shared cloud server (see cloud/).
+"""Hosted mode: AT-SUITE run for a venue by its provider on a shared cloud server (see cloud/).
 
 Each venue has its own container, data and licence; the provider's `atcloud` tool looks after them.
 With ATSUIT_HOSTED=1:
@@ -30,7 +30,7 @@ from . import VERSION, config, db, licence
 from .security import Principal, require_admin
 
 SNAPSHOT = ".snapshot"
-MANAGED = "Updates are looked after by your AT-SUIT provider. Every venue is kept on the newest version, never while a show is on."
+MANAGED = "Updates are looked after by your AT-SUITE provider. Every venue is kept on the newest version, never while a show is on."
 
 
 def setup_allowed(code: str | None) -> bool:
@@ -52,7 +52,7 @@ class SetupGate:
         if scope["type"] == "http" and scope["method"] == "POST" and scope["path"].rstrip("/") == "/api/setup":
             code = dict(scope.get("headers") or []).get(b"x-setup-code", b"").decode("latin-1")
             if not setup_allowed(code):
-                body = json.dumps({"detail": "This AT-SUIT needs the setup link from your provider. "
+                body = json.dumps({"detail": "This AT-SUITE needs the setup link from your provider. "
                                              "Open the link exactly as you were sent it."}).encode()
                 await send({"type": "http.response.start", "status": 403,
                             "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]})

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Turn a fresh Hetzner Cloud server (Ubuntu 24.04) into an AT-SUIT cloud server.
+# Turn a fresh Hetzner Cloud server (Ubuntu 24.04) into an AT-SUITE cloud server.
 #
-#   git clone https://github.com/adam1991tom/AT-SUIT.git
-#   sudo AT-SUIT/cloud/bootstrap.sh --domain atsuit.app
+#   git clone https://github.com/adam1991tom/AT-SUITE.git
+#   sudo AT-SUITE/cloud/bootstrap.sh --domain atsuit.app
 #
 # It installs Docker, security updates, a firewall (SSH in; the venues' https is guarded by
 # the front door, which only lets Cloudflare in), a swap file, the atcloud tool and the
@@ -87,6 +87,6 @@ Done. Next (docs/HOSTING.md has each step):
      and put it in /srv/atcloud/certs/origin.pem and origin.key, then run: atcloud edge
   2. Backups:  atcloud storagebox u123456   (your Storage Box user)
   3. Speech model for laptop captions, once:  atcloud models
-  4. If the AT-SUIT image is private:  docker login ghcr.io
+  4. If the AT-SUITE image is private:  docker login ghcr.io
   5. First venue:  atcloud new grandhall --name "Grand Hall" --licence key.txt
 EOF

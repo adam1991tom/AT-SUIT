@@ -1,12 +1,12 @@
-# Hosting AT-SUIT for customers
+# Hosting AT-SUITE for customers
 
-How to run AT-SUIT as a hosted service: one cloud server in the EU, each customer venue in its
-own sealed AT-SUIT, reached at `https://<venue>.<your domain>`. The laptops at the venue still do
+How to run AT-SUITE as a hosted service: one cloud server in the EU, each customer venue in its
+own sealed AT-SUITE, reached at `https://<venue>.<your domain>`. The laptops at the venue still do
 the sensitive work themselves (captions and the timer run on the laptop and carry on if the
 internet drops); the cloud server holds chat, the venue's laptops and screens, accounts and
 passwords, the licence, updates, the tech guide and the AI helper.
 
-Strict-NDA venues can still run AT-SUIT on their own server, as before (docs/INSTALL.md).
+Strict-NDA venues can still run AT-SUITE on their own server, as before (docs/INSTALL.md).
 
 ## How it fits together
 
@@ -14,15 +14,15 @@ Strict-NDA venues can still run AT-SUIT on their own server, as before (docs/INS
  venue laptops ──https──▶ Cloudflare ──▶ cloud server (Hetzner, EU)
  and screens              (padlock,       ┌──────────────────────────────────────┐
                            blocks          │ front door (Caddy): only Cloudflare  │
-                           attacks)        │   grandhall.atsuit.app ─▶ AT-SUIT A  │
-                                           │   arena.atsuit.app     ─▶ AT-SUIT B  │
-                                           │ each AT-SUIT: own container, data,   │
+                           attacks)        │   grandhall.atsuit.app ─▶ AT-SUITE A  │
+                                           │   arena.atsuit.app     ─▶ AT-SUITE B  │
+                                           │ each AT-SUITE: own container, data,   │
                                            │   private network, licence, logins   │
                                            │ nightly encrypted backup ─▶ Storage Box
                                            └──────────────────────────────────────┘
 ```
 
-- **One AT-SUIT per venue.** Every venue runs its own copy of the normal AT-SUIT server in its
+- **One AT-SUITE per venue.** Every venue runs its own copy of the normal AT-SUITE server in its
   own container, with its own data volume and its own private network. Venues share nothing:
   one venue's sign-in, chat, laptops and data can't reach another's, even from inside the
   server. The containers run read-only, not as root, with a memory and CPU cap each
@@ -30,7 +30,7 @@ Strict-NDA venues can still run AT-SUIT on their own server, as before (docs/INS
 - **Hosted mode** (`ATSUIT_HOSTED=1`, set by atcloud):
   - A new venue can only be set up from its **setup link**, which holds a one-time code. A stranger
     who finds the address can't claim it.
-  - The venue's admins see "Updates are looked after by your AT-SUIT provider". Nothing updates
+  - The venue's admins see "Updates are looked after by your AT-SUITE provider". Nothing updates
     by itself; you move venues to a new version with `atcloud update`, which never happens during a show.
   - The server never makes captions (`ATSUIT_ASR=0`): laptops do, with a speech model they fetch
     from their venue once (`ATSUIT_LAPTOP_MODELS=1`). There is one shared, read-only copy of that
@@ -38,7 +38,7 @@ Strict-NDA venues can still run AT-SUIT on their own server, as before (docs/INS
     laptops; a venue admin can change that.
   - Caption transcripts are never in backups.
 - **Tech guide.** The AI helper's built-in show-day guide (`server/atsuit/knowledge`) ships
-  with AT-SUIT, and techs can read it at `/guide/help`. Your own articles for every venue go in
+  with AT-SUITE, and techs can read it at `/guide/help`. Your own articles for every venue go in
   `/srv/atcloud/kb`, in the same format: Markdown, `# Title`, then one `## Problem` per fix with
   a `Keywords:` line. A file with the same name as a built-in one replaces it.
 - **AI helper model (optional).** `atcloud ai on` runs one private model (Ollama, `llama3.2:3b`
@@ -67,8 +67,8 @@ Start a second server, or a dedicated one for a big client, when it fills up.
 2. **Sign in and run the setup script**:
    ```bash
    ssh root@SERVER-IP
-   git clone https://github.com/adam1991tom/AT-SUIT.git
-   AT-SUIT/cloud/bootstrap.sh --domain atsuit.app
+   git clone https://github.com/adam1991tom/AT-SUITE.git
+   AT-SUITE/cloud/bootstrap.sh --domain atsuit.app
    ```
    It installs Docker, automatic security updates (with no automatic reboots), a firewall,
    SSH keys-only, a swap file, the `atcloud` tool and the nightly backup, then starts the front door.
@@ -85,7 +85,7 @@ Start a second server, or a dedicated one for a big client, when it fills up.
    server's key there. Backups then run every night at 03:30, encrypted, kept 7 days and 4 weeks.
    **Copy `/srv/atcloud/restic-password` into your password manager.** Without it no backup can be read.
 5. **Speech model** for laptop captions: `atcloud models` (once, about 200 MB).
-6. **The AT-SUIT image**: if the package at `ghcr.io/adam1991tom/at-suit` is private, run
+6. **The AT-SUITE image**: if the package at `ghcr.io/adam1991tom/at-suit` is private, run
    `docker login ghcr.io` with a token that can read packages. Set the version new venues get in
    `/srv/atcloud/atcloud.env` (`ATCLOUD_VERSION=1.11.0`).
 7. **Windows tech app**: `atcloud app --release v1.11.0` puts that release's app where every

@@ -106,8 +106,8 @@ def test_a_providers_own_guide_articles_reach_every_venue(admin, tmp_path, monke
     monkeypatch.setattr(config.cfg, "kb_dirs", [own])
     arts = {a["slug"]: a for a in admin.get("/api/guide/help").json()["articles"]}
     assert arts["dante"]["title"] == "Dante audio" and "Keywords" not in arts["dante"]["markdown"]
-    assert arts["safety"]["title"] == "Our safety rules"  # the provider's file replaces AT-SUIT's own
-    assert "audio" in arts and "at-suit" in arts  # AT-SUIT's own guide is there too
+    assert arts["safety"]["title"] == "Our safety rules"  # the provider's file replaces AT-SUITE's own
+    assert "audio" in arts and "at-suit" in arts  # AT-SUITE's own guide is there too
     r = admin.post("/api/ai/ask", json={"question": "no audio from the dante desk"}).json()
     assert "Dante Controller subscription" in r["answer"]
     assert {"kind": "tech guide", "title": "No audio from the Dante desk", "url": "/guide/help#dante"} in r["sources"]

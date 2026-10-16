@@ -1,4 +1,4 @@
-# The front door of an AT-SUIT cloud server: https://<venue>.<domain> → that venue's container.
+# The front door of an AT-SUITE cloud server: https://<venue>.<domain> → that venue's container.
 # atcloud writes one file per venue into sites/ and reloads; nothing here changes per venue.
 # Cloudflare sits in front: it holds the public certificate, and this server uses a Cloudflare
 # origin certificate (certs/origin.pem and origin.key) for the hop from Cloudflare to here.
@@ -29,6 +29,6 @@
 	import /etc/caddy/sites/*.caddy
 	handle {
 		header Content-Type "text/plain; charset=utf-8"
-		respond "There's no AT-SUIT venue at this address." 404
+		respond "There's no AT-SUITE venue at this address." 404
 	}
 }
