@@ -352,6 +352,7 @@ async def audio_in(ws: WebSocket, room_id: int):
         room = c.execute("SELECT * FROM rooms WHERE id=?", (room_id,)).fetchone()
         settings = room_settings(c, room_id) if room else {}
         cfg = room_config(c, room_id) if room else {}
+        private = captions_private(c)
     if not enabled or not p or not p.at_least("tech") or not room or not site_ok(p, room["site_id"]):
         await ws.close(code=4403)
         return
@@ -362,6 +363,10 @@ async def audio_in(ws: WebSocket, room_id: int):
         return
     st = apply_room_config(room_id, cfg)
     local = ws.query_params.get("mode") == "local"
+    if private and not local:  # no listening here, not even as a fallback
+        await ws.send_json({"type": "error", "message": "Captions here are made on the laptops: use the AT-SUITE app"})
+        await ws.close(code=4003)
+        return
     session = None
     if not local:
         active = sum(1 for r in rooms.values() if r.ws and not r.local)
@@ -382,10 +387,10 @@ async def audio_in(ws: WebSocket, room_id: int):
         except Exception:
             pass
     st.ws, st.source, st.started, st.session, st.local = ws, p.name, time.time(), session, local
-    if settings.get("record") and not st.transcript:
+    if settings.get("record") and not st.transcript and not private:  # private: the laptop keeps it
         _start_transcript(st, room_id)
         st.auto_transcript = True
-    await ws.send_json({"type": "ready", "sample_rate": asr.SAMPLE_RATE, "mode": "local" if local else "server",
+    await ws.send_json({"type": "ready", "sample_rate": asr.SAMPLE_RATE, "mode": "local" if local else "server", "private": private,
                         **({"audio": audio_for_laptop(cfg)} if local else {})})
     room_event(room_id, "captions_on", p.name)
     await hub.publish(f"captions:{room_id}", "status", {"live": True, "source": p.name, "local": local})
@@ -397,7 +402,7 @@ async def audio_in(ws: WebSocket, room_id: int):
             if msg.get("type") == "websocket.disconnect":
                 break
             if local:
-                await laptop_message(room_id, st, msg.get("text"), keep)
+                await laptop_message(room_id, st, msg.get("text"), keep, private)
                 continue
             data = msg.get("bytes")
             if not data:
@@ -429,9 +434,10 @@ async def audio_in(ws: WebSocket, room_id: int):
             await hub.publish(f"captions:{room_id}", "status", {"live": False, "source": ""})
 
 
-async def laptop_message(room_id: int, st: RoomState, raw: str | None, keep: dict | None) -> None:
+async def laptop_message(room_id: int, st: RoomState, raw: str | None, keep: dict | None, private: bool = False) -> None:
     """One message from a laptop that captions by itself: what it heard (the recogniser's raw
-    result, tidied here exactly as the server's own are) or its mic level."""
+    result, tidied here exactly as the server's own are) or its mic level. When caption text
+    stays on the laptops, only the level is taken: any text is dropped unread."""
     try:
         m = json.loads(raw or "")
     except ValueError:
@@ -443,7 +449,7 @@ async def laptop_message(room_id: int, st: RoomState, raw: str | None, keep: dic
         rta = [float(x) for x in (m.get("rta") or [])][:dsp.RTA_NUM_BANDS] if isinstance(m.get("rta"), list) else []
         st.level = max(-100.0, min(0.0, float(m.get("db") or -100)))
         await hub.publish(f"captions:{room_id}", "level", {"db": st.level, "rta": rta})
-    elif kind in ("partial", "final"):
+    elif kind in ("partial", "final") and not private:
         text = str(m.get("text") or "")[:2000].strip()
         tokens = [str(t) for t in (m.get("tokens") or [])][:1000]
         probs = [float(x) for x in (m.get("ys_probs") or [])][:1000]
@@ -472,7 +478,12 @@ _prep_lock = threading.Lock()
 
 
 def laptops_caption(c) -> bool:
-    return bool(db.get_setting(c, "captions_on_laptops", True))
+    return bool(db.get_setting(c, "captions_on_laptops", True)) or captions_private(c)
+
+
+def captions_private(c) -> bool:
+    """Caption text stays on the laptops: the server never hears the audio or sees the text."""
+    return bool(db.get_setting(c, "captions_private", False))
 
 
 def _laptop_files() -> dict[str, "asr.Path"] | None:
@@ -526,7 +537,7 @@ async def laptop_model(p: Principal = Depends(require_node)):
     if _prep["state"] != "downloading" and (_prep["key"] != key or not _laptop_files()):
         if asr.model_files(config.cfg.models / config.cfg.asr_model):
             await asyncio.to_thread(_prepare_laptop_model, vocab, score)
-        elif not config.cfg.asr_enabled:  # captions are switched off on this server: nothing to fetch
+        elif not config.cfg.laptop_models:  # this server hands out no speech model
             return {"state": "off", "detail": "This server has no speech model"}
         elif not _prep_lock.locked():
             _prep.update(state="downloading", detail="The server is downloading the speech model (once)", progress=0.0)
@@ -810,6 +821,8 @@ async def transcript_start(room_id: int, p: Principal = Depends(require_tech)):
     """Start saving this room's captions now, in a new file (even mid-session)."""
     with db.ro() as c:
         room_or_404(c, room_id, p)
+        if captions_private(c):
+            raise HTTPException(409, "Caption text stays on the laptops here: save the transcript from the laptop's Captions panel")
     st = rooms.setdefault(room_id, RoomState())
     name = _start_transcript(st, room_id)
     await hub.publish(f"captions:{room_id}", "recording", {"on": True, "filename": name})

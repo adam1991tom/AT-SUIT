@@ -13,6 +13,8 @@ const { app, net } = require("electron");
 
 const KEPT = [
   /^\/node$/, /^\/static\/[\w./-]+$/, /^\/favicon\.ico$/,
+  // the room's caption and timer screens, for the screen feed on this laptop (bubble.js)
+  /^\/captions\/\d+(\/overlay)?$/, /^\/timer\/\d+$/, /^\/api\/captions\/\d+\/appearance$/, /^\/api\/timers-views\/look\/[\w%.-]+$/,
   /^\/api\/nodes\/me$/, /^\/api\/auth\/me$/, /^\/api\/bootstrap$/, /^\/api\/public\/branding$/, /^\/api\/workspace\/layout$/,
   /^\/api\/timers\/\d+$/, /^\/api\/timers\/\d+\/cues$/, /^\/api\/timers-views$/, /^\/api\/timers-quick-messages$/,
   /^\/api\/captions\/\d+\/settings$/, /^\/api\/ai$/,

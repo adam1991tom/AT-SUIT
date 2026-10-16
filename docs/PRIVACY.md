@@ -42,6 +42,21 @@ all of them without breaking a show:
   set 1 to 168 hours in Settings → General). Export them for the client as text,
   SRT or VTT before then. A transcript still recording is never cut short.
 
+### Caption text that stays on the laptops
+
+An admin can turn on **Caption text stays on the laptops** (Settings → General →
+Privacy). Then:
+
+- The server never hears the audio and never sees the captions, not even as a
+  fallback. Only the AT-SUITE app can caption, on the laptop. The server only knows
+  that captions are live in a room, and the mic level.
+- The laptop can feed the room's caption and timer screens itself, over the venue
+  network ("Feed this room's screens from this laptop" in its Captions window).
+  Those screens connect to the laptop, not to the server.
+- The transcript is kept on that laptop only, as plain text in the app's own
+  folder, deleted after the same number of hours. The tech saves it from the
+  Captions window to hand to the client.
+
 ## Laptop screen snapshots
 
 Off unless an admin turns them on. A laptop only sends small pictures of its
